@@ -37,7 +37,7 @@ const FIELD_HEADER_ALIASES: Record<string, string[]> = {
   amount: ["invoice_amount_excl_vat"],
   market: ["market"],
   clientType: ["client_type"],
-  clientName: ["client", "client_name", "company", "company_name"],
+  clientName: ["customer", "client", "client_name", "company", "company_name"],
   model: ["model", "product", "booth_model", "models"],
   quantity: ["booths", "no_of_booths", "number_of_booths", "no_booths", "qty", "quantity", "units"],
 };
@@ -110,12 +110,6 @@ function resolveColumns(headers: string[]): Map<string, number> {
   return fieldToIndex;
 }
 
-function parseAppendedRowNumber(updatedRange: string | null | undefined): number | null {
-  if (!updatedRange) return null;
-  const match = updatedRange.match(/![A-Z]+(\d+)/);
-  return match ? Number(match[1]) : null;
-}
-
 async function appendDealRows(deal: DealForExport, groups: ExportGroup[]): Promise<OpsSheetRowRef[]> {
   const sheets = await getSheetsClient();
   const spreadsheetId = getOpsSpreadsheetId();
@@ -132,14 +126,13 @@ async function appendDealRows(deal: DealForExport, groups: ExportGroup[]): Promi
     throw new Error("Ops File is missing the DealID (INV number/PO number) column");
   }
 
-  const lastColumnIndex = headers.length - 1;
   const sheetDate = formatSheetDate(deal.paymentPoDate ?? deal.dealDate);
 
   const rows = groups.map((group) => {
-    const row = new Array<string>(lastColumnIndex + 1).fill("");
+    const cells = new Map<number, string>();
     const set = (field: string, value: string) => {
       const index = columns.get(field);
-      if (index !== undefined) row[index] = value;
+      if (index !== undefined) cells.set(index, value);
     };
 
     set("dealId", `${deal.dealId}${group.suffix}`);
@@ -151,22 +144,52 @@ async function appendDealRows(deal: DealForExport, groups: ExportGroup[]): Promi
     set("clientName", deal.clientName);
     set("model", group.model);
     set("quantity", String(group.quantity));
-    return row;
+    return cells;
   });
 
-  const response = await sheets.spreadsheets.values.append({
+  // The sheet has protected columns (e.g. the finance-only "Amount Collected")
+  // between the ones we write. Sheets rejects any single-range write whose
+  // span crosses a protected column, even with null placeholders, and
+  // values.append is rejected outright because it expands the grid across the
+  // unbounded protected ranges. So: find the first empty row in the DealID
+  // column, then write each contiguous run of mapped columns as its own range
+  // so protected columns are never part of any written range.
+  const dealIdColumn = columnLetter(columns.get("dealId")!);
+  const columnResponse = await sheets.spreadsheets.values.get({
     spreadsheetId,
-    range: `'${OPS_SHEET_TAB}'!A:${columnLetter(lastColumnIndex)}`,
-    valueInputOption: "USER_ENTERED",
-    insertDataOption: "INSERT_ROWS",
-    requestBody: { values: rows },
+    range: `'${OPS_SHEET_TAB}'!${dealIdColumn}:${dealIdColumn}`,
+    majorDimension: "COLUMNS",
+  });
+  const firstRow = (columnResponse.data.values?.[0]?.length ?? 1) + 1;
+
+  const data: { range: string; values: string[][] }[] = [];
+  rows.forEach((cells, rowOffset) => {
+    const indexes = [...cells.keys()].sort((a, b) => a - b);
+    let run: number[] = [];
+    const flush = () => {
+      if (run.length === 0) return;
+      const rowNumber = firstRow + rowOffset;
+      data.push({
+        range: `'${OPS_SHEET_TAB}'!${columnLetter(run[0])}${rowNumber}:${columnLetter(run[run.length - 1])}${rowNumber}`,
+        values: [run.map((index) => cells.get(index)!)],
+      });
+      run = [];
+    };
+    for (const index of indexes) {
+      if (run.length > 0 && index !== run[run.length - 1] + 1) flush();
+      run.push(index);
+    }
+    flush();
   });
 
-  const firstRow = parseAppendedRowNumber(response.data.updates?.updatedRange);
+  await sheets.spreadsheets.values.batchUpdate({
+    spreadsheetId,
+    requestBody: { valueInputOption: "USER_ENTERED", data },
+  });
 
   return groups.map((group, index) => ({
     suffix: group.suffix,
-    rowNumber: firstRow === null ? null : firstRow + index,
+    rowNumber: firstRow + index,
     model: group.model,
     quantity: group.quantity,
     amount: group.amount.toFixed(2),
@@ -206,6 +229,7 @@ export async function exportDealToOpsSheet(dealDbId: string): Promise<void> {
       },
     });
   } catch (error) {
+    console.error(`Ops File sync failed for deal ${deal.dealId}:`, error);
     const message = error instanceof Error ? error.message : "Ops File sync failed";
     await prisma.deal.update({
       where: { id: deal.id },
