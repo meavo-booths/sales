@@ -7,7 +7,7 @@ import {
   updateProductAction,
   type ProductActionState,
 } from "@/app/actions/products";
-import { Button, Card, Input, Textarea } from "@/components/ui";
+import { Button, Card, Input, Select, Textarea } from "@/components/ui";
 
 const initialState: ProductActionState = {};
 
@@ -15,6 +15,7 @@ export type ProductRow = {
   id: string;
   name: string;
   sku: string;
+  kind: "BOOTH" | "ADDON";
   description: string;
   imageUrl: string | null;
   listPrice: string;
@@ -26,6 +27,10 @@ function ProductFields({ product }: { product?: ProductRow }) {
     <div className="grid gap-3 sm:grid-cols-2">
       <Input label="Name (model)" name="name" defaultValue={product?.name} required />
       <Input label="SKU" name="sku" defaultValue={product?.sku} required />
+      <Select label="Type" name="kind" defaultValue={product?.kind ?? "BOOTH"}>
+        <option value="BOOTH">Booth</option>
+        <option value="ADDON">Add-on</option>
+      </Select>
       <Input
         label="List price (EUR)"
         name="listPrice"

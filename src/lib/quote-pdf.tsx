@@ -70,6 +70,7 @@ const styles = StyleSheet.create({
   cellPrice: { flex: 1.5, textAlign: "right", paddingRight: 8 },
   cellAmount: { flex: 1.5, textAlign: "right" },
   productImage: { width: 32, height: 32, objectFit: "cover", borderRadius: 4, marginRight: 8 },
+  addOnIndent: { paddingLeft: 16 },
   totalRow: {
     flexDirection: "row",
     justifyContent: "flex-end",
@@ -92,6 +93,62 @@ const styles = StyleSheet.create({
   },
 });
 
+type LineItemForPdf = QuoteForPdf["lineItems"][number];
+
+function LineItemRow({
+  item,
+  currency,
+  indent,
+}: {
+  item: LineItemForPdf;
+  currency: string;
+  indent?: boolean;
+}) {
+  const isAddOn = item.product.kind === "ADDON";
+  return (
+    <View style={styles.row} wrap={false}>
+      <View
+        style={[
+          styles.cellProduct,
+          { flexDirection: "row", alignItems: "center" },
+          ...(indent ? [styles.addOnIndent] : []),
+        ]}
+      >
+        {item.product.imageUrl ? (
+          // eslint-disable-next-line jsx-a11y/alt-text -- react-pdf Image has no alt prop
+          <Image src={item.product.imageUrl} style={styles.productImage} />
+        ) : null}
+        <View style={{ flex: 1 }}>
+          <Text style={styles.bold}>
+            {indent ? "+ " : ""}
+            {item.product.name}
+          </Text>
+          <Text style={{ color: MUTED }}>
+            {item.description || item.product.description || item.product.sku}
+          </Text>
+        </View>
+      </View>
+      <View style={styles.cellFinish}>
+        {isAddOn ? (
+          <Text> </Text>
+        ) : (
+          <>
+            <Text>{FINISH_LABELS[item.finish]}</Text>
+            {item.finishDetails ? (
+              <Text style={{ color: MUTED }}>{item.finishDetails}</Text>
+            ) : null}
+          </>
+        )}
+      </View>
+      <Text style={styles.cellQty}>{item.quantity}</Text>
+      <Text style={styles.cellPrice}>{formatMoney(Number(item.unitPrice), currency)}</Text>
+      <Text style={styles.cellAmount}>
+        {formatMoney(item.quantity * Number(item.unitPrice), currency)}
+      </Text>
+    </View>
+  );
+}
+
 export function QuotePdfDocument({ quote }: { quote: QuoteForPdf }) {
   const logoPath = path.join(process.cwd(), "public", "meavo-logo.png");
   const total = quote.lineItems.reduce(
@@ -99,6 +156,11 @@ export function QuotePdfDocument({ quote }: { quote: QuoteForPdf }) {
     0,
   );
   const mainContacts = quote.contacts.filter((c) => c.kind === "MAIN");
+
+  // Attached add-ons render indented under their booth; everything else is a top-level row.
+  const topLevelItems = quote.lineItems.filter((item) => !item.parentLineItemId);
+  const attachedAddOns = (parentId: string) =>
+    quote.lineItems.filter((item) => item.parentLineItemId === parentId);
 
   return (
     <Document title={`${quote.quoteNumber} — MEAVO quote`}>
@@ -158,34 +220,13 @@ export function QuotePdfDocument({ quote }: { quote: QuoteForPdf }) {
             <Text style={[styles.cellPrice, styles.bold]}>Unit price</Text>
             <Text style={[styles.cellAmount, styles.bold]}>Amount</Text>
           </View>
-          {quote.lineItems.map((item) => (
-            <View key={item.id} style={styles.row} wrap={false}>
-              <View style={[styles.cellProduct, { flexDirection: "row", alignItems: "center" }]}>
-                {item.product.imageUrl ? (
-                  // eslint-disable-next-line jsx-a11y/alt-text -- react-pdf Image has no alt prop
-                  <Image src={item.product.imageUrl} style={styles.productImage} />
-                ) : null}
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.bold}>{item.product.name}</Text>
-                  <Text style={{ color: MUTED }}>
-                    {item.description || item.product.description || item.product.sku}
-                  </Text>
-                </View>
-              </View>
-              <View style={styles.cellFinish}>
-                <Text>{FINISH_LABELS[item.finish]}</Text>
-                {item.finishDetails ? (
-                  <Text style={{ color: MUTED }}>{item.finishDetails}</Text>
-                ) : null}
-              </View>
-              <Text style={styles.cellQty}>{item.quantity}</Text>
-              <Text style={styles.cellPrice}>
-                {formatMoney(Number(item.unitPrice), quote.currency)}
-              </Text>
-              <Text style={styles.cellAmount}>
-                {formatMoney(item.quantity * Number(item.unitPrice), quote.currency)}
-              </Text>
-            </View>
+          {topLevelItems.map((item) => (
+            <React.Fragment key={item.id}>
+              <LineItemRow item={item} currency={quote.currency} />
+              {attachedAddOns(item.id).map((addOn) => (
+                <LineItemRow key={addOn.id} item={addOn} currency={quote.currency} indent />
+              ))}
+            </React.Fragment>
           ))}
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>Total (excl. VAT)</Text>

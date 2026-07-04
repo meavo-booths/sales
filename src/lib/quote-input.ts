@@ -13,6 +13,14 @@ export const contactInputSchema = z.object({
   role: z.string().trim().default(""),
 });
 
+/** Add-on line — no finish; can be attached to a booth line or standalone. */
+export const addOnInputSchema = z.object({
+  productId: z.string().min(1, "Pick an add-on"),
+  quantity: z.coerce.number().int().min(1).max(999),
+  unitPrice: z.coerce.number().min(0).max(9_999_999),
+  description: z.string().trim().default(""),
+});
+
 export const lineItemInputSchema = z.object({
   productId: z.string().min(1, "Pick a product"),
   quantity: z.coerce.number().int().min(1).max(999),
@@ -20,21 +28,29 @@ export const lineItemInputSchema = z.object({
   finish: z.enum(["CUSTOM", "WHITE_STOCK", "BLACK_STOCK", "LDF_COLOUR"]),
   finishDetails: z.string().trim().default(""),
   description: z.string().trim().default(""),
+  addOns: z.array(addOnInputSchema).default([]),
 });
 
-export const quoteInputSchema = z.object({
-  dealDate: dateString,
-  salesRep: z.string().trim().default(""),
-  market: z.string().trim().default(""),
-  clientName: z.string().trim().min(1, "Client name is required"),
-  registeredAddress: z.string().trim().default(""),
-  vatNumber: z.string().trim().default(""),
-  clientType: z.enum(["DIRECT", "AGENCY", "COWORKING"]),
-  paymentTerms: z.enum(["UPFRONT_100", "SPLIT_50_50", "NET_30"]),
-  notes: z.string().trim().default(""),
-  contacts: z.array(contactInputSchema).min(1, "Add at least one contact"),
-  lineItems: z.array(lineItemInputSchema).min(1, "Add at least one line item"),
-});
+export const quoteInputSchema = z
+  .object({
+    /** Existing client to link; null means "create a new client from the fields below". */
+    clientId: z.string().trim().min(1).nullable().default(null),
+    dealDate: dateString,
+    salesRep: z.string().trim().default(""),
+    market: z.string().trim().default(""),
+    clientName: z.string().trim().min(1, "Client name is required"),
+    registeredAddress: z.string().trim().default(""),
+    vatNumber: z.string().trim().default(""),
+    clientType: z.enum(["DIRECT", "AGENCY", "COWORKING"]),
+    paymentTerms: z.enum(["UPFRONT_100", "SPLIT_50_50", "NET_30"]),
+    notes: z.string().trim().default(""),
+    contacts: z.array(contactInputSchema).min(1, "Add at least one contact"),
+    lineItems: z.array(lineItemInputSchema).default([]),
+    standaloneAddOns: z.array(addOnInputSchema).default([]),
+  })
+  .refine((input) => input.lineItems.length + input.standaloneAddOns.length > 0, {
+    message: "Add at least one line item",
+  });
 
 export type QuoteInput = z.infer<typeof quoteInputSchema>;
 

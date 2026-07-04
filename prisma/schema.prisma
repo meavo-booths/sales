@@ -664,21 +664,63 @@ enum BoothUnitStatus {
   OTHER
 }
 
+enum ProductKind {
+  BOOTH
+  ADDON
+}
+
 model Product {
-  id          String   @id @default(cuid())
+  id          String      @id @default(cuid())
   name        String
-  sku         String   @unique
-  description String   @default("")
+  sku         String      @unique
+  kind        ProductKind @default(BOOTH)
+  description String      @default("")
   imageUrl    String?
-  listPrice   Decimal  @default(0) @db.Decimal(12, 2)
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  listPrice   Decimal     @default(0) @db.Decimal(12, 2)
+  isActive    Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
 
   lineItems  QuoteLineItem[]
   boothUnits BoothUnit[]
 
   @@index([isActive])
+  @@index([kind])
+}
+
+model Client {
+  id                String         @id @default(cuid())
+  name              String
+  registeredAddress String         @default("")
+  vatNumber         String         @default("")
+  clientType        DealClientType @default(DIRECT)
+  market            String         @default("")
+  website           String         @default("")
+  isVip             Boolean        @default(false)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  contacts ClientContact[]
+  deals    Deal[]
+
+  @@index([name])
+}
+
+model ClientContact {
+  id        String          @id @default(cuid())
+  clientId  String
+  kind      DealContactKind @default(MAIN)
+  name      String
+  email     String          @default("")
+  phone     String          @default("")
+  role      String          @default("")
+  sortOrder Int             @default(0)
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
 }
 
 model Deal {
@@ -689,6 +731,10 @@ model Deal {
   /// Business DealID (invoice/PO convention) — entered by the rep when the
   /// quote is won. Same key as Assembly.dealId and GatewaySheetRecord.rowKey.
   dealId String? @unique
+
+  /// Client directory link. The client fields below stay as a snapshot taken
+  /// at quote time, so editing a client never rewrites past quotes.
+  clientId String?
 
   dealDate          DateTime       @db.Date
   salesRep          String         @default("")
@@ -714,6 +760,7 @@ model Deal {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  client     Client?         @relation(fields: [clientId], references: [id], onDelete: SetNull)
   contacts   DealContact[]
   lineItems  QuoteLineItem[]
   boothUnits BoothUnit[]
@@ -721,6 +768,7 @@ model Deal {
   @@index([stage])
   @@index([dealDate])
   @@index([clientName])
+  @@index([clientId])
 }
 
 model DealContact {
@@ -750,14 +798,24 @@ model QuoteLineItem {
   finishDetails String        @default("")
   description   String        @default("")
   sortOrder     Int           @default(0)
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+
+  /// Set on add-on lines that are attached to a booth line (extra warranty,
+  /// chair, ...). Attached add-ons render under their booth on the PDF and
+  /// join the booth's row in the Ops File.
+  parentLineItemId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   deal    Deal    @relation(fields: [dealId], references: [id], onDelete: Cascade)
   product Product @relation(fields: [productId], references: [id], onDelete: Restrict)
 
+  parent QuoteLineItem?  @relation("LineItemAddOns", fields: [parentLineItemId], references: [id], onDelete: SetNull)
+  addOns QuoteLineItem[] @relation("LineItemAddOns")
+
   @@index([dealId])
   @@index([productId])
+  @@index([parentLineItemId])
 }
 
 model BoothUnit {

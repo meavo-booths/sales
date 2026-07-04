@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import type { Prisma } from "@prisma/client";
 import {
   CLIENT_TYPE_LABELS,
@@ -73,7 +74,57 @@ export function ContactsCard({ deal }: { deal: DealWithRelations }) {
   );
 }
 
+function LineItemRow({
+  item,
+  currency,
+  indent,
+}: {
+  item: DealWithRelations["lineItems"][number];
+  currency: string;
+  indent?: boolean;
+}) {
+  const isAddOn = item.product.kind === "ADDON";
+  return (
+    <tr className="border-b border-slate-100">
+      <td className={`py-2 pr-4 ${indent ? "pl-6" : ""}`}>
+        <span className="font-medium text-slate-900">
+          {indent ? "+ " : ""}
+          {item.product.name}
+        </span>
+        <span className="ml-2 text-xs text-slate-500">{item.product.sku}</span>
+        {(item.description || item.product.description) && (
+          <p className="text-xs text-slate-500">
+            {item.description || item.product.description}
+          </p>
+        )}
+      </td>
+      <td className="py-2 pr-4">
+        {isAddOn ? (
+          "—"
+        ) : (
+          <>
+            {FINISH_LABELS[item.finish]}
+            {item.finishDetails && (
+              <p className="text-xs text-slate-500">{item.finishDetails}</p>
+            )}
+          </>
+        )}
+      </td>
+      <td className="py-2 pr-4 text-right">{item.quantity}</td>
+      <td className="py-2 pr-4 text-right">{formatMoney(Number(item.unitPrice), currency)}</td>
+      <td className="py-2 text-right font-medium">
+        {formatMoney(item.quantity * Number(item.unitPrice), currency)}
+      </td>
+    </tr>
+  );
+}
+
 export function LineItemsCard({ deal }: { deal: DealWithRelations }) {
+  const sorted = [...deal.lineItems].sort((a, b) => a.sortOrder - b.sortOrder);
+  const topLevel = sorted.filter((item) => !item.parentLineItemId);
+  const attachedTo = (parentId: string) =>
+    sorted.filter((item) => item.parentLineItemId === parentId);
+
   return (
     <Card>
       <h2 className="mb-4 text-base font-semibold text-slate-900">Line items</h2>
@@ -89,31 +140,13 @@ export function LineItemsCard({ deal }: { deal: DealWithRelations }) {
             </tr>
           </thead>
           <tbody>
-            {deal.lineItems.map((item) => (
-              <tr key={item.id} className="border-b border-slate-100">
-                <td className="py-2 pr-4">
-                  <span className="font-medium text-slate-900">{item.product.name}</span>
-                  <span className="ml-2 text-xs text-slate-500">{item.product.sku}</span>
-                  {(item.description || item.product.description) && (
-                    <p className="text-xs text-slate-500">
-                      {item.description || item.product.description}
-                    </p>
-                  )}
-                </td>
-                <td className="py-2 pr-4">
-                  {FINISH_LABELS[item.finish]}
-                  {item.finishDetails && (
-                    <p className="text-xs text-slate-500">{item.finishDetails}</p>
-                  )}
-                </td>
-                <td className="py-2 pr-4 text-right">{item.quantity}</td>
-                <td className="py-2 pr-4 text-right">
-                  {formatMoney(Number(item.unitPrice), deal.currency)}
-                </td>
-                <td className="py-2 text-right font-medium">
-                  {formatMoney(item.quantity * Number(item.unitPrice), deal.currency)}
-                </td>
-              </tr>
+            {topLevel.map((item) => (
+              <Fragment key={item.id}>
+                <LineItemRow item={item} currency={deal.currency} />
+                {attachedTo(item.id).map((addOn) => (
+                  <LineItemRow key={addOn.id} item={addOn} currency={deal.currency} indent />
+                ))}
+              </Fragment>
             ))}
           </tbody>
           <tfoot>

@@ -39,6 +39,7 @@ export async function checkDealIdAction(rawDealId: string): Promise<DealIdCheck>
 /**
  * The FUCK YEAH button. Marks the quote as won under the rep-entered DealID
  * and spawns one BoothUnit per booth (status PLANNED) for manufacturing.
+ * Add-on line items never become booth units.
  * Afterwards the deal is appended to the Ops File (non-blocking).
  */
 export async function convertQuoteAction(
@@ -53,7 +54,7 @@ export async function convertQuoteAction(
 
   const deal = await prisma.deal.findUnique({
     where: { id },
-    include: { lineItems: true },
+    include: { lineItems: { include: { product: { select: { kind: true } } } } },
   });
   if (!deal) return { ok: false, error: "Quote not found" };
   if (deal.stage !== "QUOTE") return { ok: false, error: "This quote was already converted" };
@@ -66,14 +67,16 @@ export async function convertQuoteAction(
     return { ok: false, error: `DealID ${dealId} is already used by ${conflict.quoteNumber}` };
   }
 
-  const boothUnits = deal.lineItems.flatMap((item) =>
-    Array.from({ length: item.quantity }, () => ({
-      dealId,
-      productId: item.productId,
-      finish: item.finish,
-      finishDetails: item.finishDetails,
-    })),
-  );
+  const boothUnits = deal.lineItems
+    .filter((item) => item.product.kind === "BOOTH")
+    .flatMap((item) =>
+      Array.from({ length: item.quantity }, () => ({
+        dealId,
+        productId: item.productId,
+        finish: item.finish,
+        finishDetails: item.finishDetails,
+      })),
+    );
 
   await prisma.$transaction([
     prisma.deal.update({

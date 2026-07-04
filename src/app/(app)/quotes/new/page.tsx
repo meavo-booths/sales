@@ -8,10 +8,16 @@ export const dynamic = "force-dynamic";
 export default async function NewQuotePage() {
   const session = await requireSalesAccess();
 
-  const products = await prisma.product.findMany({
-    where: { isActive: true },
-    orderBy: { name: "asc" },
-  });
+  const [products, clients] = await Promise.all([
+    prisma.product.findMany({
+      where: { isActive: true },
+      orderBy: [{ kind: "asc" }, { name: "asc" }],
+    }),
+    prisma.client.findMany({
+      orderBy: [{ isVip: "desc" }, { name: "asc" }],
+      include: { contacts: { orderBy: { sortOrder: "asc" } } },
+    }),
+  ]);
 
   return (
     <>
@@ -24,7 +30,24 @@ export default async function NewQuotePage() {
           id: p.id,
           name: p.name,
           sku: p.sku,
+          kind: p.kind,
           listPrice: Number(p.listPrice),
+        }))}
+        clients={clients.map((c) => ({
+          id: c.id,
+          name: c.name,
+          registeredAddress: c.registeredAddress,
+          vatNumber: c.vatNumber,
+          clientType: c.clientType,
+          market: c.market,
+          isVip: c.isVip,
+          contacts: c.contacts.map((contact) => ({
+            kind: contact.kind,
+            name: contact.name,
+            email: contact.email,
+            phone: contact.phone,
+            role: contact.role,
+          })),
         }))}
         defaultSalesRep={session.user.name ?? ""}
       />

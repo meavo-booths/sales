@@ -1,7 +1,7 @@
 "use client";
 
+import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
 import { createQuoteAction, updateQuoteAction } from "@/app/actions/quotes";
 import {
   CLIENT_TYPE_LABELS,
@@ -15,6 +15,7 @@ export type ProductOption = {
   id: string;
   name: string;
   sku: string;
+  kind: "BOOTH" | "ADDON";
   listPrice: number;
 };
 
@@ -26,6 +27,24 @@ type ContactDraft = {
   role: string;
 };
 
+export type ClientOption = {
+  id: string;
+  name: string;
+  registeredAddress: string;
+  vatNumber: string;
+  clientType: "DIRECT" | "AGENCY" | "COWORKING";
+  market: string;
+  isVip: boolean;
+  contacts: ContactDraft[];
+};
+
+type AddOnDraft = {
+  productId: string;
+  quantity: number;
+  unitPrice: number;
+  description: string;
+};
+
 type LineItemDraft = {
   productId: string;
   quantity: number;
@@ -33,9 +52,11 @@ type LineItemDraft = {
   finish: "CUSTOM" | "WHITE_STOCK" | "BLACK_STOCK" | "LDF_COLOUR";
   finishDetails: string;
   description: string;
+  addOns: AddOnDraft[];
 };
 
 export type QuoteFormValues = {
+  clientId: string | null;
   dealDate: string;
   salesRep: string;
   market: string;
@@ -47,6 +68,7 @@ export type QuoteFormValues = {
   notes: string;
   contacts: ContactDraft[];
   lineItems: LineItemDraft[];
+  standaloneAddOns: AddOnDraft[];
 };
 
 const EMPTY_CONTACT: ContactDraft = { kind: "MAIN", name: "", email: "", phone: "", role: "" };
@@ -57,11 +79,13 @@ function today(): string {
 
 export function QuoteForm({
   products,
+  clients,
   quoteId,
   initialValues,
   defaultSalesRep,
 }: {
   products: ProductOption[];
+  clients: ClientOption[];
   quoteId?: string;
   initialValues?: QuoteFormValues;
   defaultSalesRep?: string;
@@ -70,8 +94,12 @@ export function QuoteForm({
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
+  const boothProducts = useMemo(() => products.filter((p) => p.kind === "BOOTH"), [products]);
+  const addOnProducts = useMemo(() => products.filter((p) => p.kind === "ADDON"), [products]);
+
   const [values, setValues] = useState<QuoteFormValues>(
     initialValues ?? {
+      clientId: null,
       dealDate: today(),
       salesRep: defaultSalesRep ?? "",
       market: "",
@@ -83,11 +111,34 @@ export function QuoteForm({
       notes: "",
       contacts: [{ ...EMPTY_CONTACT }],
       lineItems: [],
+      standaloneAddOns: [],
     },
   );
 
   const set = <K extends keyof QuoteFormValues>(key: K, value: QuoteFormValues[K]) =>
     setValues((prev) => ({ ...prev, [key]: value }));
+
+  const pickClient = (clientId: string) => {
+    if (!clientId) {
+      setValues((prev) => ({ ...prev, clientId: null }));
+      return;
+    }
+    const client = clients.find((c) => c.id === clientId);
+    if (!client) return;
+    setValues((prev) => ({
+      ...prev,
+      clientId: client.id,
+      clientName: client.name,
+      registeredAddress: client.registeredAddress,
+      vatNumber: client.vatNumber,
+      clientType: client.clientType,
+      market: client.market,
+      contacts:
+        client.contacts.length > 0
+          ? client.contacts.map((c) => ({ ...c }))
+          : [{ ...EMPTY_CONTACT }],
+    }));
+  };
 
   const setContact = (index: number, patch: Partial<ContactDraft>) =>
     setValues((prev) => ({
@@ -102,7 +153,7 @@ export function QuoteForm({
     }));
 
   const addLineItem = () => {
-    const first = products[0];
+    const first = boothProducts[0];
     if (!first) return;
     setValues((prev) => ({
       ...prev,
@@ -115,12 +166,47 @@ export function QuoteForm({
           finish: "WHITE_STOCK",
           finishDetails: "",
           description: "",
+          addOns: [],
         },
       ],
     }));
   };
 
-  const total = values.lineItems.reduce((sum, li) => sum + li.quantity * li.unitPrice, 0);
+  const newAddOnDraft = (): AddOnDraft | null => {
+    const first = addOnProducts[0];
+    if (!first) return null;
+    return { productId: first.id, quantity: 1, unitPrice: first.listPrice, description: "" };
+  };
+
+  const setAttachedAddOn = (lineIndex: number, addOnIndex: number, patch: Partial<AddOnDraft>) =>
+    setValues((prev) => ({
+      ...prev,
+      lineItems: prev.lineItems.map((li, i) =>
+        i === lineIndex
+          ? {
+              ...li,
+              addOns: li.addOns.map((a, j) => (j === addOnIndex ? { ...a, ...patch } : a)),
+            }
+          : li,
+      ),
+    }));
+
+  const setStandaloneAddOn = (index: number, patch: Partial<AddOnDraft>) =>
+    setValues((prev) => ({
+      ...prev,
+      standaloneAddOns: prev.standaloneAddOns.map((a, i) =>
+        i === index ? { ...a, ...patch } : a,
+      ),
+    }));
+
+  const total =
+    values.lineItems.reduce(
+      (sum, li) =>
+        sum +
+        li.quantity * li.unitPrice +
+        li.addOns.reduce((s, a) => s + a.quantity * a.unitPrice, 0),
+      0,
+    ) + values.standaloneAddOns.reduce((sum, a) => sum + a.quantity * a.unitPrice, 0);
 
   const submit = () => {
     setError(null);
@@ -136,6 +222,58 @@ export function QuoteForm({
       router.refresh();
     });
   };
+
+  const addOnFields = (
+    addOn: AddOnDraft,
+    update: (patch: Partial<AddOnDraft>) => void,
+    remove: () => void,
+  ) => (
+    <div className="grid gap-2 sm:grid-cols-[2fr_1fr_1fr_1.5fr_auto]">
+      <Select
+        label="Add-on"
+        value={addOn.productId}
+        onChange={(e) => {
+          const product = addOnProducts.find((p) => p.id === e.target.value);
+          update({
+            productId: e.target.value,
+            unitPrice: product ? product.listPrice : addOn.unitPrice,
+          });
+        }}
+      >
+        {addOnProducts.map((product) => (
+          <option key={product.id} value={product.id}>
+            {product.name} ({product.sku})
+          </option>
+        ))}
+      </Select>
+      <Input
+        label="Qty"
+        type="number"
+        min={1}
+        value={addOn.quantity}
+        onChange={(e) => update({ quantity: Math.max(1, Number(e.target.value) || 1) })}
+      />
+      <Input
+        label="Unit price"
+        type="number"
+        step="0.01"
+        min={0}
+        value={addOn.unitPrice}
+        onChange={(e) => update({ unitPrice: Number(e.target.value) || 0 })}
+      />
+      <Input
+        label="Description"
+        value={addOn.description}
+        onChange={(e) => update({ description: e.target.value })}
+        placeholder="Optional"
+      />
+      <div className="flex items-end">
+        <Button variant="ghost" onClick={remove}>
+          Remove
+        </Button>
+      </div>
+    </div>
+  );
 
   return (
     <div className="space-y-6">
@@ -187,6 +325,28 @@ export function QuoteForm({
 
       <Card>
         <h2 className="mb-4 text-base font-semibold text-slate-900">Client</h2>
+        <div className="mb-4 max-w-md">
+          <Select
+            label="Client"
+            value={values.clientId ?? ""}
+            onChange={(e) => pickClient(e.target.value)}
+          >
+            <option value="">New client (created when the quote is saved)</option>
+            {clients.map((client) => (
+              <option key={client.id} value={client.id}>
+                {client.isVip ? "★ " : ""}
+                {client.name}
+                {client.market ? ` — ${client.market}` : ""}
+              </option>
+            ))}
+          </Select>
+          {values.clientId && (
+            <p className="mt-1 text-xs text-slate-500">
+              Fields below are this quote&apos;s snapshot — edit the master record on the Clients
+              page.
+            </p>
+          )}
+        </div>
         <div className="grid gap-3 sm:grid-cols-2">
           <Input
             label="Client name"
@@ -273,20 +433,36 @@ export function QuoteForm({
       </Card>
 
       <Card>
-        <div className="mb-4 flex items-center justify-between">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-base font-semibold text-slate-900">Line items</h2>
-          <Button variant="secondary" onClick={addLineItem} disabled={products.length === 0}>
-            Add line item
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="secondary"
+              onClick={() => {
+                const draft = newAddOnDraft();
+                if (!draft) return;
+                setValues((prev) => ({
+                  ...prev,
+                  standaloneAddOns: [...prev.standaloneAddOns, draft],
+                }));
+              }}
+              disabled={addOnProducts.length === 0}
+            >
+              Add add-on
+            </Button>
+            <Button variant="secondary" onClick={addLineItem} disabled={boothProducts.length === 0}>
+              Add line item
+            </Button>
+          </div>
         </div>
 
-        {products.length === 0 && (
+        {boothProducts.length === 0 && (
           <p className="text-sm text-amber-700">
             No active products in the catalog. Add products first.
           </p>
         )}
 
-        {values.lineItems.length === 0 ? (
+        {values.lineItems.length === 0 && values.standaloneAddOns.length === 0 ? (
           <p className="text-sm text-slate-500">No line items yet.</p>
         ) : (
           <div className="space-y-3">
@@ -297,14 +473,14 @@ export function QuoteForm({
                     label="Product"
                     value={item.productId}
                     onChange={(e) => {
-                      const product = products.find((p) => p.id === e.target.value);
+                      const product = boothProducts.find((p) => p.id === e.target.value);
                       setLineItem(index, {
                         productId: e.target.value,
                         unitPrice: product ? product.listPrice : item.unitPrice,
                       });
                     }}
                   >
-                    {products.map((product) => (
+                    {boothProducts.map((product) => (
                       <option key={product.id} value={product.id}>
                         {product.name} ({product.sku})
                       </option>
@@ -368,15 +544,82 @@ export function QuoteForm({
                     placeholder="Optional — shown on the quote PDF"
                   />
                 </div>
+
+                {item.addOns.length > 0 && (
+                  <div className="mt-3 space-y-2 border-l-2 border-brand-100 pl-3">
+                    {item.addOns.map((addOn, addOnIndex) => (
+                      <div key={addOnIndex} className="rounded-lg bg-slate-50 p-3">
+                        {addOnFields(
+                          addOn,
+                          (patch) => setAttachedAddOn(index, addOnIndex, patch),
+                          () =>
+                            setValues((prev) => ({
+                              ...prev,
+                              lineItems: prev.lineItems.map((li, i) =>
+                                i === index
+                                  ? { ...li, addOns: li.addOns.filter((_, j) => j !== addOnIndex) }
+                                  : li,
+                              ),
+                            })),
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="mt-2 flex items-center justify-between">
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      const draft = newAddOnDraft();
+                      if (!draft) return;
+                      setLineItem(index, { addOns: [...item.addOns, draft] });
+                    }}
+                    disabled={addOnProducts.length === 0}
+                  >
+                    + Attach add-on
+                  </Button>
+                  <p className="text-right text-sm font-medium text-slate-700">
+                    {formatMoney(
+                      item.quantity * item.unitPrice +
+                        item.addOns.reduce((s, a) => s + a.quantity * a.unitPrice, 0),
+                    )}
+                  </p>
+                </div>
+              </div>
+            ))}
+
+            {values.standaloneAddOns.map((addOn, index) => (
+              <div key={`standalone-${index}`} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500">
+                  Standalone add-on
+                </p>
+                {addOnFields(
+                  addOn,
+                  (patch) => setStandaloneAddOn(index, patch),
+                  () =>
+                    setValues((prev) => ({
+                      ...prev,
+                      standaloneAddOns: prev.standaloneAddOns.filter((_, i) => i !== index),
+                    })),
+                )}
                 <p className="mt-2 text-right text-sm font-medium text-slate-700">
-                  {formatMoney(item.quantity * item.unitPrice)}
+                  {formatMoney(addOn.quantity * addOn.unitPrice)}
                 </p>
               </div>
             ))}
+
             <p className="text-right text-base font-semibold text-slate-900">
               Total: {formatMoney(total)}
             </p>
           </div>
+        )}
+
+        {addOnProducts.length === 0 && (
+          <p className="mt-3 text-xs text-slate-500">
+            No add-on products yet — create products with the “Add-on” kind to attach extras like
+            warranties or chairs.
+          </p>
         )}
       </Card>
 

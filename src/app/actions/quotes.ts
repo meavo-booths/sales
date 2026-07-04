@@ -5,11 +5,13 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireSalesAccess } from "@/lib/meavo-auth";
 import { nextQuoteNumber } from "@/lib/quote-number";
-import { quoteInputSchema } from "@/lib/quote-input";
+import { quoteInputSchema, type QuoteInput } from "@/lib/quote-input";
 
 export type QuoteActionResult =
   | { ok: true; id: string }
   | { ok: false; error: string };
+
+type Tx = Prisma.TransactionClient;
 
 function firstZodError(error: unknown): string {
   if (error && typeof error === "object" && "issues" in error) {
@@ -19,7 +21,7 @@ function firstZodError(error: unknown): string {
   return "Invalid input";
 }
 
-function contactsCreate(input: ReturnType<typeof quoteInputSchema.parse>) {
+function contactsCreate(input: QuoteInput) {
   return input.contacts.map((contact, index) => ({
     kind: contact.kind,
     name: contact.name,
@@ -30,16 +32,101 @@ function contactsCreate(input: ReturnType<typeof quoteInputSchema.parse>) {
   }));
 }
 
-function lineItemsCreate(input: ReturnType<typeof quoteInputSchema.parse>) {
-  return input.lineItems.map((item, index) => ({
-    productId: item.productId,
-    quantity: item.quantity,
-    unitPrice: new Prisma.Decimal(item.unitPrice.toFixed(2)),
-    finish: item.finish,
-    finishDetails: item.finishDetails,
-    description: item.description,
-    sortOrder: index,
-  }));
+/** Booth lines must use booth products; add-on lines must use add-on products. */
+async function validateProductKinds(input: QuoteInput): Promise<string | null> {
+  const boothIds = input.lineItems.map((item) => item.productId);
+  const addOnIds = [
+    ...input.lineItems.flatMap((item) => item.addOns.map((a) => a.productId)),
+    ...input.standaloneAddOns.map((a) => a.productId),
+  ];
+
+  const products = await prisma.product.findMany({
+    where: { id: { in: [...new Set([...boothIds, ...addOnIds])] } },
+    select: { id: true, kind: true, name: true },
+  });
+  const byId = new Map(products.map((p) => [p.id, p]));
+
+  for (const id of boothIds) {
+    const product = byId.get(id);
+    if (!product) return "A selected product no longer exists";
+    if (product.kind !== "BOOTH") return `${product.name} is an add-on — attach it as one`;
+  }
+  for (const id of addOnIds) {
+    const product = byId.get(id);
+    if (!product) return "A selected add-on no longer exists";
+    if (product.kind !== "ADDON") return `${product.name} is not an add-on`;
+  }
+  return null;
+}
+
+/** Link the picked client, or create a new one from the quote's client fields. */
+async function resolveClientId(tx: Tx, input: QuoteInput): Promise<string> {
+  if (input.clientId) {
+    const client = await tx.client.findUnique({
+      where: { id: input.clientId },
+      select: { id: true },
+    });
+    if (!client) throw new Error("The selected client no longer exists");
+    return client.id;
+  }
+
+  const client = await tx.client.create({
+    data: {
+      name: input.clientName,
+      registeredAddress: input.registeredAddress,
+      vatNumber: input.vatNumber,
+      clientType: input.clientType,
+      market: input.market,
+      contacts: { create: contactsCreate(input) },
+    },
+  });
+  return client.id;
+}
+
+/** Creates booth lines, their attached add-ons, then standalone add-ons. */
+async function createLineItems(tx: Tx, dealId: string, input: QuoteInput): Promise<void> {
+  let sortOrder = 0;
+
+  for (const item of input.lineItems) {
+    const parent = await tx.quoteLineItem.create({
+      data: {
+        dealId,
+        productId: item.productId,
+        quantity: item.quantity,
+        unitPrice: new Prisma.Decimal(item.unitPrice.toFixed(2)),
+        finish: item.finish,
+        finishDetails: item.finishDetails,
+        description: item.description,
+        sortOrder: sortOrder++,
+      },
+    });
+    for (const addOn of item.addOns) {
+      await tx.quoteLineItem.create({
+        data: {
+          dealId,
+          productId: addOn.productId,
+          quantity: addOn.quantity,
+          unitPrice: new Prisma.Decimal(addOn.unitPrice.toFixed(2)),
+          description: addOn.description,
+          sortOrder: sortOrder++,
+          parentLineItemId: parent.id,
+        },
+      });
+    }
+  }
+
+  for (const addOn of input.standaloneAddOns) {
+    await tx.quoteLineItem.create({
+      data: {
+        dealId,
+        productId: addOn.productId,
+        quantity: addOn.quantity,
+        unitPrice: new Prisma.Decimal(addOn.unitPrice.toFixed(2)),
+        description: addOn.description,
+        sortOrder: sortOrder++,
+      },
+    });
+  }
 }
 
 export async function createQuoteAction(rawInput: unknown): Promise<QuoteActionResult> {
@@ -49,28 +136,41 @@ export async function createQuoteAction(rawInput: unknown): Promise<QuoteActionR
   if (!parsed.success) return { ok: false, error: firstZodError(parsed.error) };
   const input = parsed.data;
 
-  const quoteNumber = await nextQuoteNumber();
+  const kindError = await validateProductKinds(input);
+  if (kindError) return { ok: false, error: kindError };
 
-  const deal = await prisma.deal.create({
-    data: {
-      quoteNumber,
-      dealDate: input.dealDate,
-      salesRep: input.salesRep || (session.user.name ?? ""),
-      market: input.market,
-      clientName: input.clientName,
-      registeredAddress: input.registeredAddress,
-      vatNumber: input.vatNumber,
-      clientType: input.clientType,
-      paymentTerms: input.paymentTerms,
-      notes: input.notes,
-      createdByUserId: session.user.id,
-      contacts: { create: contactsCreate(input) },
-      lineItems: { create: lineItemsCreate(input) },
-    },
-  });
+  try {
+    const quoteNumber = await nextQuoteNumber();
 
-  revalidatePath("/");
-  return { ok: true, id: deal.id };
+    const dealId = await prisma.$transaction(async (tx) => {
+      const clientId = await resolveClientId(tx, input);
+      const deal = await tx.deal.create({
+        data: {
+          quoteNumber,
+          clientId,
+          dealDate: input.dealDate,
+          salesRep: input.salesRep || (session.user.name ?? ""),
+          market: input.market,
+          clientName: input.clientName,
+          registeredAddress: input.registeredAddress,
+          vatNumber: input.vatNumber,
+          clientType: input.clientType,
+          paymentTerms: input.paymentTerms,
+          notes: input.notes,
+          createdByUserId: session.user.id,
+          contacts: { create: contactsCreate(input) },
+        },
+      });
+      await createLineItems(tx, deal.id, input);
+      return deal.id;
+    });
+
+    revalidatePath("/");
+    revalidatePath("/clients");
+    return { ok: true, id: dealId };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Could not save quote" };
+  }
 }
 
 export async function updateQuoteAction(
@@ -89,28 +189,38 @@ export async function updateQuoteAction(
     return { ok: false, error: "Only open quotes can be edited" };
   }
 
-  await prisma.$transaction([
-    prisma.dealContact.deleteMany({ where: { dealId: id } }),
-    prisma.quoteLineItem.deleteMany({ where: { dealId: id } }),
-    prisma.deal.update({
-      where: { id },
-      data: {
-        dealDate: input.dealDate,
-        salesRep: input.salesRep,
-        market: input.market,
-        clientName: input.clientName,
-        registeredAddress: input.registeredAddress,
-        vatNumber: input.vatNumber,
-        clientType: input.clientType,
-        paymentTerms: input.paymentTerms,
-        notes: input.notes,
-        contacts: { create: contactsCreate(input) },
-        lineItems: { create: lineItemsCreate(input) },
-      },
-    }),
-  ]);
+  const kindError = await validateProductKinds(input);
+  if (kindError) return { ok: false, error: kindError };
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const clientId = await resolveClientId(tx, input);
+      await tx.dealContact.deleteMany({ where: { dealId: id } });
+      await tx.quoteLineItem.deleteMany({ where: { dealId: id } });
+      await tx.deal.update({
+        where: { id },
+        data: {
+          clientId,
+          dealDate: input.dealDate,
+          salesRep: input.salesRep,
+          market: input.market,
+          clientName: input.clientName,
+          registeredAddress: input.registeredAddress,
+          vatNumber: input.vatNumber,
+          clientType: input.clientType,
+          paymentTerms: input.paymentTerms,
+          notes: input.notes,
+          contacts: { create: contactsCreate(input) },
+        },
+      });
+      await createLineItems(tx, id, input);
+    });
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Could not save quote" };
+  }
 
   revalidatePath("/");
+  revalidatePath("/clients");
   revalidatePath(`/quotes/${id}`);
   return { ok: true, id };
 }

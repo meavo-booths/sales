@@ -14,18 +14,28 @@ export default async function EditQuotePage({ params }: { params: Promise<{ id: 
     where: { id },
     include: {
       contacts: { orderBy: { sortOrder: "asc" } },
-      lineItems: { orderBy: { sortOrder: "asc" } },
+      lineItems: { orderBy: { sortOrder: "asc" }, include: { product: true } },
     },
   });
   if (!quote) notFound();
   if (quote.stage !== "QUOTE") redirect(`/quotes/${quote.id}`);
 
-  const products = await prisma.product.findMany({
-    where: { isActive: true },
-    orderBy: { name: "asc" },
-  });
+  const [products, clients] = await Promise.all([
+    prisma.product.findMany({
+      where: { isActive: true },
+      orderBy: [{ kind: "asc" }, { name: "asc" }],
+    }),
+    prisma.client.findMany({
+      orderBy: [{ isVip: "desc" }, { name: "asc" }],
+      include: { contacts: { orderBy: { sortOrder: "asc" } } },
+    }),
+  ]);
+
+  const boothLines = quote.lineItems.filter((li) => li.product.kind === "BOOTH");
+  const addOnLines = quote.lineItems.filter((li) => li.product.kind === "ADDON");
 
   const initialValues: QuoteFormValues = {
+    clientId: quote.clientId,
     dealDate: quote.dealDate.toISOString().slice(0, 10),
     salesRep: quote.salesRep,
     market: quote.market,
@@ -42,14 +52,30 @@ export default async function EditQuotePage({ params }: { params: Promise<{ id: 
       phone: c.phone,
       role: c.role,
     })),
-    lineItems: quote.lineItems.map((li) => ({
+    lineItems: boothLines.map((li) => ({
       productId: li.productId,
       quantity: li.quantity,
       unitPrice: Number(li.unitPrice),
       finish: li.finish,
       finishDetails: li.finishDetails,
       description: li.description,
+      addOns: addOnLines
+        .filter((addOn) => addOn.parentLineItemId === li.id)
+        .map((addOn) => ({
+          productId: addOn.productId,
+          quantity: addOn.quantity,
+          unitPrice: Number(addOn.unitPrice),
+          description: addOn.description,
+        })),
     })),
+    standaloneAddOns: addOnLines
+      .filter((addOn) => !addOn.parentLineItemId)
+      .map((addOn) => ({
+        productId: addOn.productId,
+        quantity: addOn.quantity,
+        unitPrice: Number(addOn.unitPrice),
+        description: addOn.description,
+      })),
   };
 
   return (
@@ -61,7 +87,24 @@ export default async function EditQuotePage({ params }: { params: Promise<{ id: 
           id: p.id,
           name: p.name,
           sku: p.sku,
+          kind: p.kind,
           listPrice: Number(p.listPrice),
+        }))}
+        clients={clients.map((c) => ({
+          id: c.id,
+          name: c.name,
+          registeredAddress: c.registeredAddress,
+          vatNumber: c.vatNumber,
+          clientType: c.clientType,
+          market: c.market,
+          isVip: c.isVip,
+          contacts: c.contacts.map((contact) => ({
+            kind: contact.kind,
+            name: contact.name,
+            email: contact.email,
+            phone: contact.phone,
+            role: contact.role,
+          })),
         }))}
         initialValues={initialValues}
       />

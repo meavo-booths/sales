@@ -28,6 +28,10 @@ function parsePrice(value: FormDataEntryValue | null): Prisma.Decimal {
   return new Prisma.Decimal(amount.toFixed(2));
 }
 
+function parseKind(value: FormDataEntryValue | null): "BOOTH" | "ADDON" {
+  return value === "ADDON" ? "ADDON" : "BOOTH";
+}
+
 export async function createProductAction(
   _prev: ProductActionState,
   formData: FormData,
@@ -49,6 +53,7 @@ export async function createProductAction(
       data: {
         name,
         sku,
+        kind: parseKind(formData.get("kind")),
         description,
         listPrice: parsePrice(formData.get("listPrice")),
         imageUrl,
@@ -89,6 +94,7 @@ export async function updateProductAction(
       data: {
         name,
         sku,
+        kind: parseKind(formData.get("kind")),
         description,
         listPrice: parsePrice(formData.get("listPrice")),
         isActive: formData.get("isActive") === "on",

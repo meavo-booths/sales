@@ -40,6 +40,7 @@ const FIELD_HEADER_ALIASES: Record<string, string[]> = {
   clientName: ["customer", "client", "client_name", "company", "company_name"],
   model: ["model", "product", "booth_model", "models"],
   quantity: ["booths", "no_of_booths", "number_of_booths", "no_booths", "qty", "quantity", "units"],
+  addOns: ["add_ons", "addons", "add_on", "extras"],
 };
 
 export type OpsSheetRowRef = {
@@ -47,13 +48,17 @@ export type OpsSheetRowRef = {
   rowNumber: number | null;
   model: string;
   quantity: number;
+  addOns: string;
   amount: string;
 };
 
 type ExportGroup = {
   suffix: string;
+  /** Empty for the standalone add-ons row. */
   model: string;
-  quantity: number;
+  /** Null for the standalone add-ons row — the booths column stays empty. */
+  quantity: number | null;
+  addOns: string[];
   amount: number;
 };
 
@@ -61,30 +66,72 @@ export type DealForExport = Prisma.DealGetPayload<{
   include: { lineItems: { include: { product: true } } };
 }>;
 
-/** Group line items by model + finish; one Ops File row per group. */
+function addOnLabel(item: DealForExport["lineItems"][number]): string {
+  return item.quantity > 1 ? `${item.quantity}x ${item.product.name}` : item.product.name;
+}
+
+/**
+ * Group booth line items by model + finish; one Ops File row per group.
+ * Add-ons attached to a booth line join that booth's row: names in the
+ * Add-ons column, value added to the row's amount. Standalone add-ons get
+ * one extra suffix row with Model/Booths left empty.
+ */
 export function buildExportGroups(deal: DealForExport): ExportGroup[] {
   const groups = new Map<string, ExportGroup>();
-
   const sorted = [...deal.lineItems].sort((a, b) => a.sortOrder - b.sortOrder);
-  for (const item of sorted) {
+
+  const booths = sorted.filter((item) => item.product.kind === "BOOTH");
+  const addOns = sorted.filter((item) => item.product.kind === "ADDON");
+  // Booth-group key per booth line id, so attached add-ons can find their row.
+  const groupKeyByLineId = new Map<string, string>();
+
+  for (const item of booths) {
     const key = `${item.productId}::${item.finish}`;
+    groupKeyByLineId.set(item.id, key);
     const amount = item.quantity * Number(item.unitPrice);
     const existing = groups.get(key);
     if (existing) {
-      existing.quantity += item.quantity;
+      existing.quantity = (existing.quantity ?? 0) + item.quantity;
       existing.amount += amount;
     } else {
       groups.set(key, {
         suffix: "",
         model: item.product.name,
         quantity: item.quantity,
+        addOns: [],
         amount,
       });
     }
   }
 
+  const standalone: ExportGroup = {
+    suffix: "",
+    model: "",
+    quantity: null,
+    addOns: [],
+    amount: 0,
+  };
+
+  for (const item of addOns) {
+    const amount = item.quantity * Number(item.unitPrice);
+    const parentKey = item.parentLineItemId
+      ? groupKeyByLineId.get(item.parentLineItemId)
+      : undefined;
+    const boothGroup = parentKey ? groups.get(parentKey) : undefined;
+    if (boothGroup) {
+      boothGroup.addOns.push(addOnLabel(item));
+      boothGroup.amount += amount;
+    } else {
+      standalone.addOns.push(addOnLabel(item));
+      standalone.amount += amount;
+    }
+  }
+
+  const result = [...groups.values()];
+  if (standalone.addOns.length > 0) result.push(standalone);
+
   // First row keeps the plain DealID; later rows get a, b, c, ...
-  return [...groups.values()].map((group, index) => ({
+  return result.map((group, index) => ({
     ...group,
     suffix: index === 0 ? "" : String.fromCharCode(96 + index), // 1 -> "a"
   }));
@@ -142,8 +189,10 @@ async function appendDealRows(deal: DealForExport, groups: ExportGroup[]): Promi
     set("market", deal.market);
     set("clientType", CLIENT_TYPE_LABELS[deal.clientType]);
     set("clientName", deal.clientName);
-    set("model", group.model);
-    set("quantity", String(group.quantity));
+    // Standalone add-on rows leave Model and the booths count empty.
+    if (group.model) set("model", group.model);
+    if (group.quantity !== null) set("quantity", String(group.quantity));
+    if (group.addOns.length > 0) set("addOns", group.addOns.join(", "));
     return cells;
   });
 
@@ -191,7 +240,8 @@ async function appendDealRows(deal: DealForExport, groups: ExportGroup[]): Promi
     suffix: group.suffix,
     rowNumber: firstRow + index,
     model: group.model,
-    quantity: group.quantity,
+    quantity: group.quantity ?? 0,
+    addOns: group.addOns.join(", "),
     amount: group.amount.toFixed(2),
   }));
 }
