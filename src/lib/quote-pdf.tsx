@@ -1,4 +1,6 @@
 import path from "path";
+// Explicit import so the module also works under classic JSX runtimes (tsx scripts).
+import React from "react";
 import {
   Document,
   Image,
