@@ -30,10 +30,12 @@ function stageWhere(filter: FilterKey): Prisma.DealWhereInput {
   return {};
 }
 
+const PAGE_SIZE = 25;
+
 export default async function QuotesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ filter?: string }>;
+  searchParams: Promise<{ filter?: string; page?: string }>;
 }) {
   await requireSalesAccess();
 
@@ -42,11 +44,30 @@ export default async function QuotesPage({
     ? (params.filter as FilterKey)
     : "open";
 
+  const where = stageWhere(filter);
+  const totalQuotes = await prisma.deal.count({ where });
+  const totalPages = Math.max(1, Math.ceil(totalQuotes / PAGE_SIZE));
+  const requestedPage = Number(params.page);
+  const page = Math.min(
+    totalPages,
+    Number.isInteger(requestedPage) && requestedPage >= 1 ? requestedPage : 1,
+  );
+
   const quotes = await prisma.deal.findMany({
-    where: stageWhere(filter),
+    where,
     orderBy: { createdAt: "desc" },
-    include: { lineItems: true },
+    skip: (page - 1) * PAGE_SIZE,
+    take: PAGE_SIZE,
+    include: { lineItems: { include: { product: { select: { kind: true } } } } },
   });
+
+  const pageHref = (target: number) => {
+    const query = new URLSearchParams();
+    if (filter !== "open") query.set("filter", filter);
+    if (target > 1) query.set("page", String(target));
+    const qs = query.toString();
+    return qs ? `/?${qs}` : "/";
+  };
 
   return (
     <>
@@ -84,7 +105,9 @@ export default async function QuotesPage({
               (sum, li) => sum + li.quantity * Number(li.unitPrice),
               0,
             );
-            const booths = quote.lineItems.reduce((sum, li) => sum + li.quantity, 0);
+            const booths = quote.lineItems
+              .filter((li) => li.product.kind === "BOOTH")
+              .reduce((sum, li) => sum + li.quantity, 0);
             const href = quote.stage === "WON" ? `/deals/${quote.id}` : `/quotes/${quote.id}`;
             return (
               <Link key={quote.id} href={href} className="block">
@@ -120,6 +143,34 @@ export default async function QuotesPage({
               </Link>
             );
           })}
+
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between text-sm text-slate-600">
+              {page > 1 ? (
+                <Link
+                  href={pageHref(page - 1)}
+                  className="font-medium text-brand-700 hover:underline"
+                >
+                  ← Previous
+                </Link>
+              ) : (
+                <span />
+              )}
+              <span>
+                Page {page} of {totalPages} · {totalQuotes} quote{totalQuotes !== 1 ? "s" : ""}
+              </span>
+              {page < totalPages ? (
+                <Link
+                  href={pageHref(page + 1)}
+                  className="font-medium text-brand-700 hover:underline"
+                >
+                  Next →
+                </Link>
+              ) : (
+                <span />
+              )}
+            </div>
+          )}
         </div>
       )}
     </>

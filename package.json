@@ -9,10 +9,14 @@
     "start": "next start -p 3002",
     "lint": "next lint",
     "db:generate": "prisma generate",
-    "db:push": "prisma db push",
+    "db:push": "echo 'db:push is disabled. The shared schema lives in the meavo-db repo (github.com/meavo-booths/meavo-db) — make changes there.' && exit 1",
     "db:seed": "tsx prisma/seed.ts"
   },
+  "prisma": {
+    "schema": "node_modules/@meavo/db/prisma/schema.prisma"
+  },
   "dependencies": {
+    "@meavo/db": "git+https://github.com/meavo-booths/meavo-db.git#v0.1.0",
     "@meavo/navigation": "git+https://github.com/meavo-booths/meavo-navigation.git#v0.1.2",
     "@neondatabase/serverless": "^1.1.0",
     "@prisma/client": "^6.1.0",

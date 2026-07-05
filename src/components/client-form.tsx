@@ -91,6 +91,12 @@ export function ClientForm({
 
   return (
     <Card>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!pending) submit();
+        }}
+      >
       <h2 className="mb-4 text-base font-semibold text-slate-900">
         {title ?? (clientId ? "Client details" : "Add client")}
       </h2>
@@ -218,10 +224,11 @@ export function ClientForm({
       {saved && <p className="mt-3 text-sm text-green-700">Saved.</p>}
 
       <div className="mt-4">
-        <Button onClick={submit} disabled={pending}>
+        <Button type="submit" disabled={pending}>
           {pending ? "Saving…" : clientId ? "Save changes" : "Add client"}
         </Button>
       </div>
+      </form>
     </Card>
   );
 }

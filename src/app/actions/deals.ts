@@ -1,11 +1,26 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import type { BoothUnitStatus, PaymentStatus } from "@prisma/client";
+import { BoothUnitStatus, PaymentStatus } from "@prisma/client";
+import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireSalesAccess } from "@/lib/meavo-auth";
 import { convertInputSchema } from "@/lib/quote-input";
 import { exportDealToOpsSheet } from "@/lib/ops-sheet-export";
+
+const paymentInputSchema = z.object({
+  paymentStatus: z.nativeEnum(PaymentStatus),
+  paymentPoDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .nullish(),
+  notes: z.string().max(5000).optional(),
+});
+
+const boothUnitInputSchema = z.object({
+  status: z.nativeEnum(BoothUnitStatus),
+  location: z.string().max(500),
+});
 
 export type DealActionResult =
   | { ok: true; id: string }
@@ -116,9 +131,13 @@ export async function markQuoteLostAction(id: string): Promise<DealActionResult>
 
 export async function updatePaymentAction(
   id: string,
-  input: { paymentStatus: PaymentStatus; paymentPoDate?: string | null; notes?: string },
+  rawInput: { paymentStatus: PaymentStatus; paymentPoDate?: string | null; notes?: string },
 ): Promise<DealActionResult> {
   await requireSalesAccess();
+
+  const parsed = paymentInputSchema.safeParse(rawInput);
+  if (!parsed.success) return { ok: false, error: "Invalid payment details" };
+  const input = parsed.data;
 
   const deal = await prisma.deal.findUnique({ where: { id }, select: { id: true } });
   if (!deal) return { ok: false, error: "Deal not found" };
@@ -146,9 +165,13 @@ export async function updatePaymentAction(
 
 export async function updateBoothUnitAction(
   unitId: string,
-  input: { status: BoothUnitStatus; location: string },
+  rawInput: { status: BoothUnitStatus; location: string },
 ): Promise<DealActionResult> {
   await requireSalesAccess();
+
+  const parsed = boothUnitInputSchema.safeParse(rawInput);
+  if (!parsed.success) return { ok: false, error: "Invalid booth unit details" };
+  const input = parsed.data;
 
   const unit = await prisma.boothUnit.update({
     where: { id: unitId },

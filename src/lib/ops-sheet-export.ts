@@ -130,11 +130,23 @@ export function buildExportGroups(deal: DealForExport): ExportGroup[] {
   const result = [...groups.values()];
   if (standalone.addOns.length > 0) result.push(standalone);
 
-  // First row keeps the plain DealID; later rows get a, b, c, ...
+  // First row keeps the plain DealID; later rows get a, b, ..., z, aa, ab, ...
   return result.map((group, index) => ({
     ...group,
-    suffix: index === 0 ? "" : String.fromCharCode(96 + index), // 1 -> "a"
+    suffix: index === 0 ? "" : letterSuffix(index),
   }));
+}
+
+/** 1 -> "a", 26 -> "z", 27 -> "aa" (bijective base-26). */
+export function letterSuffix(index: number): string {
+  let n = index;
+  let suffix = "";
+  while (n > 0) {
+    const remainder = (n - 1) % 26;
+    suffix = String.fromCharCode(97 + remainder) + suffix;
+    n = Math.floor((n - 1) / 26);
+  }
+  return suffix;
 }
 
 function resolveColumns(headers: string[]): Map<string, number> {
@@ -209,7 +221,36 @@ async function appendDealRows(deal: DealForExport, groups: ExportGroup[]): Promi
     range: `'${OPS_SHEET_TAB}'!${dealIdColumn}:${dealIdColumn}`,
     majorDimension: "COLUMNS",
   });
-  const firstRow = (columnResponse.data.values?.[0]?.length ?? 1) + 1;
+  const columnValues = (columnResponse.data.values?.[0] ?? []).map((v) =>
+    String(v ?? "").trim()
+  );
+  const firstRow = columnValues.length + 1;
+
+  // Idempotency guard: if a previous export attempt already wrote rows for
+  // this deal (e.g. the sheet write succeeded but the DB bookkeeping failed
+  // before a retry), reuse the existing rows instead of appending duplicates.
+  const existingRowByKey = new Map<string, number>();
+  columnValues.forEach((value, index) => {
+    if (value) existingRowByKey.set(value, index + 1);
+  });
+  const alreadyWritten = groups.filter((group) =>
+    existingRowByKey.has(`${deal.dealId}${group.suffix}`)
+  );
+  if (alreadyWritten.length === groups.length) {
+    return groups.map((group) => ({
+      suffix: group.suffix,
+      rowNumber: existingRowByKey.get(`${deal.dealId}${group.suffix}`) ?? null,
+      model: group.model,
+      quantity: group.quantity ?? 0,
+      addOns: group.addOns.join(", "),
+      amount: group.amount.toFixed(2),
+    }));
+  }
+  if (alreadyWritten.length > 0) {
+    throw new Error(
+      `Ops File already contains ${alreadyWritten.length} of ${groups.length} rows for deal ${deal.dealId} — resolve manually before retrying`
+    );
+  }
 
   const data: { range: string; values: string[][] }[] = [];
   rows.forEach((cells, rowOffset) => {

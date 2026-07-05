@@ -8,7 +8,13 @@ const dateString = z
 export const contactInputSchema = z.object({
   kind: z.enum(["MAIN", "FINANCE"]),
   name: z.string().trim().min(1, "Contact name is required"),
-  email: z.string().trim().default(""),
+  email: z
+    .string()
+    .trim()
+    .default("")
+    .refine((value) => value === "" || z.string().email().safeParse(value).success, {
+      message: "Contact email is not a valid email address",
+    }),
   phone: z.string().trim().default(""),
   role: z.string().trim().default(""),
 });

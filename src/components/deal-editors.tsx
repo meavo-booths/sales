@@ -99,10 +99,21 @@ export function BoothUnitEditor({
   const [pending, startTransition] = useTransition();
   const [statusValue, setStatusValue] = useState<BoothUnitStatus>(status);
   const [locationValue, setLocationValue] = useState(location);
+  const [error, setError] = useState<string | null>(null);
 
   const save = (nextStatus: BoothUnitStatus, nextLocation: string) => {
+    setError(null);
     startTransition(async () => {
-      await updateBoothUnitAction(unitId, { status: nextStatus, location: nextLocation });
+      const result = await updateBoothUnitAction(unitId, {
+        status: nextStatus,
+        location: nextLocation,
+      });
+      if (!result.ok) {
+        setError(result.error);
+        setStatusValue(status);
+        setLocationValue(location);
+        return;
+      }
       router.refresh();
     });
   };
@@ -137,6 +148,11 @@ export function BoothUnitEditor({
         }}
         className="w-40"
       />
+      {error && (
+        <p className="text-sm text-red-600" role="alert">
+          {error}
+        </p>
+      )}
     </div>
   );
 }

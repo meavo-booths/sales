@@ -276,7 +276,13 @@ export function QuoteForm({
   );
 
   return (
-    <div className="space-y-6">
+    <form
+      className="space-y-6"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!pending) submit();
+      }}
+    >
       <Card>
         <h2 className="mb-4 text-base font-semibold text-slate-900">Deal details</h2>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -636,13 +642,13 @@ export function QuoteForm({
       {error && <p className="text-sm text-red-600">{error}</p>}
 
       <div className="flex items-center gap-3">
-        <Button onClick={submit} disabled={pending}>
+        <Button type="submit" disabled={pending}>
           {pending ? "Saving…" : quoteId ? "Save changes" : "Create quote"}
         </Button>
         <Button variant="ghost" onClick={() => router.back()}>
           Cancel
         </Button>
       </div>
-    </div>
+    </form>
   );
 }
