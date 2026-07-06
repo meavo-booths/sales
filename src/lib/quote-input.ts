@@ -52,6 +52,7 @@ export const quoteInputSchema = z
     dealDate: dateString,
     salesRep: z.string().trim().default(""),
     market: z.string().trim().default(""),
+    usState: z.string().trim().max(100).default(""),
     clientName: z.string().trim().min(1, "Client name is required"),
     registeredAddress: z.string().trim().default(""),
     assemblyAddress: z.string().trim().default(""),

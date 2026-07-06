@@ -6,6 +6,7 @@ import { createQuoteAction, updateQuoteAction } from "@/app/actions/quotes";
 import {
   CLIENT_TYPE_LABELS,
   FINISH_LABELS,
+  MARKET_OPTIONS,
   PAYMENT_TERMS_LABELS,
   formatMoney,
 } from "@/lib/deal-values";
@@ -69,6 +70,7 @@ export type QuoteFormValues = {
   dealDate: string;
   salesRep: string;
   market: string;
+  usState: string;
   clientName: string;
   registeredAddress: string;
   assemblyAddress: string;
@@ -114,6 +116,7 @@ export function QuoteForm({
       dealDate: today(),
       salesRep: defaultSalesRep ?? "",
       market: "",
+      usState: "",
       clientName: "",
       registeredAddress: "",
       assemblyAddress: "",
@@ -333,12 +336,22 @@ export function QuoteForm({
             value={values.salesRep}
             onChange={(e) => set("salesRep", e.target.value)}
           />
-          <Input
+          <Select
             label="Market"
             value={values.market}
             onChange={(e) => set("market", e.target.value)}
-            placeholder="e.g. Germany"
-          />
+          >
+            <option value="">Select market…</option>
+            {/* Legacy markets outside the fixed list stay selectable. */}
+            {values.market && !MARKET_OPTIONS.includes(values.market as never) && (
+              <option value={values.market}>{values.market}</option>
+            )}
+            {MARKET_OPTIONS.map((market) => (
+              <option key={market} value={market}>
+                {market}
+              </option>
+            ))}
+          </Select>
           <div className="sm:col-span-2 lg:col-span-1 lg:row-span-2">
             <Textarea
               label="Assembly address"
@@ -370,6 +383,12 @@ export function QuoteForm({
               </option>
             ))}
           </Select>
+          <Input
+            label="US State"
+            value={values.usState}
+            onChange={(e) => set("usState", e.target.value)}
+            placeholder="US deals only, e.g. California"
+          />
           <div className="sm:col-span-2 lg:col-span-4">
             <Textarea
               label="Deal Notes"

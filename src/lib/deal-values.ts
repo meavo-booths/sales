@@ -32,6 +32,20 @@ export const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
   PAID: "Paid",
 };
 
+export const MARKET_OPTIONS = [
+  "UK",
+  "US",
+  "Germany",
+  "France",
+  "Spain",
+  "Italy",
+  "Amazon",
+  "Balkans",
+  "CZ-SK",
+  "RoW",
+  "Portugal",
+] as const;
+
 export const CONTACT_KIND_LABELS: Record<DealContactKind, string> = {
   MAIN: "Main contact",
   FINANCE: "Finance contact",

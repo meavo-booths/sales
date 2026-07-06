@@ -111,6 +111,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
             dealDate: deal.dealDate.toISOString().slice(0, 10),
             salesRep: deal.salesRep,
             market: deal.market,
+            usState: deal.usState,
             clientName: deal.clientName,
             clientType: deal.clientType,
             paymentTerms: deal.paymentTerms,

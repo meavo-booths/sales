@@ -15,6 +15,7 @@ import {
   BOOTH_UNIT_STATUS_LABELS,
   CLIENT_TYPE_LABELS,
   CONTACT_KIND_LABELS,
+  MARKET_OPTIONS,
   PAYMENT_STATUS_LABELS,
   PAYMENT_TERMS_LABELS,
   formatDate,
@@ -25,6 +26,7 @@ export type DealDetailsValues = {
   dealDate: string;
   salesRep: string;
   market: string;
+  usState: string;
   clientName: string;
   clientType: "DIRECT" | "AGENCY" | "COWORKING";
   paymentTerms: "UPFRONT_100" | "SPLIT_50_50" | "NET_30";
@@ -108,6 +110,7 @@ export function DealDetailsEditorCard({
           <DetailField label="Deal date" value={formatDate(new Date(details.dealDate))} />
           <DetailField label="Sales rep" value={details.salesRep} />
           <DetailField label="Market" value={details.market} />
+          {details.usState && <DetailField label="US State" value={details.usState} />}
           <DetailField label="Client type" value={CLIENT_TYPE_LABELS[details.clientType]} />
           <DetailField label="Payment terms" value={PAYMENT_TERMS_LABELS[details.paymentTerms]} />
           <DetailField label="VAT number" value={details.vatNumber} />
@@ -133,10 +136,26 @@ export function DealDetailsEditorCard({
               value={values.salesRep}
               onChange={(e) => set("salesRep", e.target.value)}
             />
-            <Input
+            <Select
               label="Market"
               value={values.market}
               onChange={(e) => set("market", e.target.value)}
+            >
+              <option value="">Select market…</option>
+              {values.market && !MARKET_OPTIONS.includes(values.market as never) && (
+                <option value={values.market}>{values.market}</option>
+              )}
+              {MARKET_OPTIONS.map((market) => (
+                <option key={market} value={market}>
+                  {market}
+                </option>
+              ))}
+            </Select>
+            <Input
+              label="US State"
+              value={values.usState}
+              onChange={(e) => set("usState", e.target.value)}
+              placeholder="US deals only, e.g. California"
             />
             <Select
               label="Client type"

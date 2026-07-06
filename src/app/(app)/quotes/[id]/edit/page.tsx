@@ -41,6 +41,7 @@ export default async function EditQuotePage({ params }: { params: Promise<{ id: 
     dealDate: quote.dealDate.toISOString().slice(0, 10),
     salesRep: quote.salesRep,
     market: quote.market,
+    usState: quote.usState,
     clientName: quote.clientName,
     registeredAddress: quote.registeredAddress,
     assemblyAddress: quote.assemblyAddress,

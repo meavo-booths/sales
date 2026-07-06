@@ -35,6 +35,7 @@ export function DealDetailsCard({ deal }: { deal: DealWithRelations }) {
         <Field label="Deal date" value={formatDate(deal.dealDate)} />
         <Field label="Sales rep" value={deal.salesRep} />
         <Field label="Market" value={deal.market} />
+        {deal.usState && <Field label="US State" value={deal.usState} />}
         <Field label="Client type" value={CLIENT_TYPE_LABELS[deal.clientType]} />
         <Field label="Payment terms" value={PAYMENT_TERMS_LABELS[deal.paymentTerms]} />
         <Field label="VAT number" value={deal.vatNumber} />
