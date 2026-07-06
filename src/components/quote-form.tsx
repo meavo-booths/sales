@@ -341,10 +341,11 @@ export function QuoteForm({
           />
           <div className="sm:col-span-2 lg:col-span-1 lg:row-span-2">
             <Textarea
-              label="Assembly address (where the booths get installed)"
+              label="Assembly address"
               rows={5}
               value={values.assemblyAddress}
               onChange={(e) => set("assemblyAddress", e.target.value)}
+              placeholder="Where the booths get installed"
             />
           </div>
           <Select
