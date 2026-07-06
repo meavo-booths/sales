@@ -8,7 +8,7 @@ import {
   formatDate,
   formatMoney,
 } from "@/lib/deal-values";
-import { Badge, Card, EmptyState, PageHeader } from "@/components/ui";
+import { Badge, Card, EmptyState, PageHeader, VipBadge } from "@/components/ui";
 import { ClientForm } from "@/components/client-form";
 
 export const dynamic = "force-dynamic";
@@ -47,7 +47,7 @@ export default async function ClientPage({
     <>
       <PageHeader title={client.name} description="Client details, stats, and deal history.">
         <div className="flex items-center gap-2">
-          {client.isVip && <Badge tone="violet">VIP</Badge>}
+          {client.isVip && <VipBadge />}
           <Link
             href="/clients"
             className="text-sm font-medium text-brand-600 hover:text-brand-700"

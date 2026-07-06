@@ -8,7 +8,7 @@ import {
   formatDate,
   formatMoney,
 } from "@/lib/deal-values";
-import { Badge, Card, EmptyState, PageHeader } from "@/components/ui";
+import { Badge, Card, EmptyState, PageHeader, VipBadge } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -43,7 +43,7 @@ export default async function DealsPage({
   const deals = await prisma.deal.findMany({
     where,
     orderBy: { wonAt: "desc" },
-    include: { lineItems: true, boothUnits: true },
+    include: { lineItems: true, boothUnits: true, client: { select: { isVip: true } } },
   });
 
   return (
@@ -93,6 +93,7 @@ export default async function DealsPage({
                         <Badge tone={PAYMENT_TONES[deal.paymentStatus]}>
                           {PAYMENT_STATUS_LABELS[deal.paymentStatus]}
                         </Badge>
+                        {deal.client?.isVip && <VipBadge />}
                         {deal.readyToAssemble && <Badge tone="green">Ready to assemble</Badge>}
                         {deal.sheetSyncError && <Badge tone="amber">Sheet sync failed</Badge>}
                       </div>

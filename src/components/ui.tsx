@@ -135,6 +135,15 @@ export function Badge({
   );
 }
 
+/** Gold-green VIP pill — shared look for clients, quotes, deals, and assemblies. */
+export function VipBadge() {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-amber-200 via-yellow-100 to-emerald-200 px-2.5 py-0.5 text-xs font-semibold text-emerald-900 ring-1 ring-amber-400/60">
+      ★ VIP
+    </span>
+  );
+}
+
 export function PageHeader({
   title,
   description,

@@ -7,7 +7,7 @@ import {
   PAYMENT_STATUS_LABELS,
   formatDate,
 } from "@/lib/deal-values";
-import { Badge, Card, PageHeader } from "@/components/ui";
+import { Badge, Card, PageHeader, VipBadge } from "@/components/ui";
 import { LineItemsCard } from "@/components/deal-sections";
 import {
   BoothUnitEditor,
@@ -40,6 +40,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
       contacts: { orderBy: { sortOrder: "asc" } },
       lineItems: { include: { product: true }, orderBy: { sortOrder: "asc" } },
       boothUnits: { include: { product: true }, orderBy: { createdAt: "asc" } },
+      client: { select: { isVip: true } },
     },
   });
   if (!deal) notFound();
@@ -57,6 +58,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
     <>
       <PageHeader title={`Deal ${deal.dealId}`} description={deal.clientName}>
         <div className="flex flex-wrap items-center gap-2">
+          {deal.client?.isVip && <VipBadge />}
           <Badge tone={PAYMENT_TONES[deal.paymentStatus]}>
             {PAYMENT_STATUS_LABELS[deal.paymentStatus]}
           </Badge>

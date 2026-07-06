@@ -3,7 +3,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireSalesAccess } from "@/lib/meavo-auth";
 import { CLIENT_TYPE_LABELS, formatMoney } from "@/lib/deal-values";
-import { Badge, Card, EmptyState, PageHeader } from "@/components/ui";
+import { Badge, Card, EmptyState, PageHeader, VipBadge } from "@/components/ui";
 import { ClientForm } from "@/components/client-form";
 
 export const dynamic = "force-dynamic";
@@ -116,7 +116,7 @@ export default async function ClientsPage({
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="font-semibold text-slate-900">{client.name}</span>
-                          {client.isVip && <Badge tone="violet">VIP</Badge>}
+                          {client.isVip && <VipBadge />}
                           <Badge tone="slate">{CLIENT_TYPE_LABELS[client.clientType]}</Badge>
                         </div>
                         <p className="mt-1 text-sm text-slate-600">

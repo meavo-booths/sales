@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireSalesAccess } from "@/lib/meavo-auth";
 import { DEAL_STAGE_LABELS } from "@/lib/deal-values";
-import { Badge, PageHeader } from "@/components/ui";
+import { Badge, PageHeader, VipBadge } from "@/components/ui";
 import {
   ContactsCard,
   DealDetailsCard,
@@ -21,7 +21,11 @@ export default async function QuotePage({ params }: { params: Promise<{ id: stri
   const { id } = await params;
   const quote = await prisma.deal.findUnique({
     where: { id },
-    include: { contacts: true, lineItems: { include: { product: true } } },
+    include: {
+      contacts: true,
+      lineItems: { include: { product: true } },
+      client: { select: { isVip: true } },
+    },
   });
   if (!quote) notFound();
   if (quote.stage === "WON") redirect(`/deals/${quote.id}`);
@@ -35,6 +39,7 @@ export default async function QuotePage({ params }: { params: Promise<{ id: stri
         description={quote.clientName}
       >
         <div className="flex flex-wrap items-center gap-2">
+          {quote.client?.isVip && <VipBadge />}
           <Badge tone={isOpen ? "blue" : "red"}>{DEAL_STAGE_LABELS[quote.stage]}</Badge>
           <a
             href={`/api/quotes/${quote.id}/pdf`}

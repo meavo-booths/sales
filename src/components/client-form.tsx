@@ -135,15 +135,21 @@ export function ClientForm({
           onChange={(e) => set("website", e.target.value)}
           placeholder="https://…"
         />
-        <label className="flex items-end gap-2 pb-2 text-sm font-medium text-slate-700">
-          <input
-            type="checkbox"
-            checked={values.isVip}
-            onChange={(e) => set("isVip", e.target.checked)}
-            className="h-4 w-4 rounded border-slate-300"
-          />
-          VIP client
-        </label>
+        <div className="flex items-end pb-1">
+          <button
+            type="button"
+            onClick={() => set("isVip", !values.isVip)}
+            aria-pressed={values.isVip}
+            title={values.isVip ? "Click to remove the VIP label" : "Click to mark as VIP"}
+            className={`inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-semibold transition ${
+              values.isVip
+                ? "bg-gradient-to-r from-amber-200 via-yellow-100 to-emerald-200 text-emerald-900 ring-1 ring-amber-400/60 shadow-sm"
+                : "border border-slate-300 bg-white text-slate-500 hover:border-amber-300 hover:text-amber-700"
+            }`}
+          >
+            ★ VIP client
+          </button>
+        </div>
         <div className="sm:col-span-2">
           <Textarea
             label="Registered address"

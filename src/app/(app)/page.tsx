@@ -8,7 +8,7 @@ import {
   formatDate,
   formatMoney,
 } from "@/lib/deal-values";
-import { Badge, Card, EmptyState, PageHeader } from "@/components/ui";
+import { Badge, Card, EmptyState, PageHeader, VipBadge } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -58,7 +58,10 @@ export default async function QuotesPage({
     orderBy: { createdAt: "desc" },
     skip: (page - 1) * PAGE_SIZE,
     take: PAGE_SIZE,
-    include: { lineItems: { include: { product: { select: { kind: true } } } } },
+    include: {
+      lineItems: { include: { product: { select: { kind: true } } } },
+      client: { select: { isVip: true } },
+    },
   });
 
   const pageHref = (target: number) => {
@@ -122,6 +125,7 @@ export default async function QuotesPage({
                         <Badge tone={STAGE_TONES[quote.stage]}>
                           {DEAL_STAGE_LABELS[quote.stage]}
                         </Badge>
+                        {quote.client?.isVip && <VipBadge />}
                       </div>
                       <p className="mt-1 text-sm text-slate-600">
                         {quote.clientName}
