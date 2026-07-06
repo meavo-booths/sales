@@ -403,29 +403,28 @@ export function QuoteForm({
 
       <Card>
         <h2 className="mb-4 text-base font-semibold text-slate-900">Client</h2>
-        <div className="mb-4 max-w-md">
-          <Select
-            label="Client"
-            value={values.clientId ?? ""}
-            onChange={(e) => pickClient(e.target.value)}
-          >
-            <option value="">New client (created when the quote is saved)</option>
-            {clients.map((client) => (
-              <option key={client.id} value={client.id}>
-                {client.isVip ? "★ " : ""}
-                {client.name}
-                {client.market ? ` — ${client.market}` : ""}
-              </option>
-            ))}
-          </Select>
-          {values.clientId && (
-            <p className="mt-1 text-xs text-slate-500">
-              Fields below are this quote&apos;s snapshot — edit the master record on the Clients
-              page.
-            </p>
-          )}
-        </div>
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div>
+            <Select
+              label="Client"
+              value={values.clientId ?? ""}
+              onChange={(e) => pickClient(e.target.value)}
+            >
+              <option value="">New client (created when the quote is saved)</option>
+              {clients.map((client) => (
+                <option key={client.id} value={client.id}>
+                  {client.isVip ? "★ " : ""}
+                  {client.name}
+                  {client.market ? ` — ${client.market}` : ""}
+                </option>
+              ))}
+            </Select>
+            {values.clientId && (
+              <p className="mt-1 text-xs text-slate-500">
+                Fields are this quote&apos;s snapshot — edit the master record on the Clients page.
+              </p>
+            )}
+          </div>
           <Input
             label="Client name"
             value={values.clientName}
@@ -437,7 +436,7 @@ export function QuoteForm({
             value={values.vatNumber}
             onChange={(e) => set("vatNumber", e.target.value)}
           />
-          <div className="sm:col-span-2">
+          <div className="sm:col-span-2 lg:col-span-3">
             <Textarea
               label="Registered address (invoicing)"
               rows={2}
