@@ -42,6 +42,7 @@ export default async function EditQuotePage({ params }: { params: Promise<{ id: 
     market: quote.market,
     clientName: quote.clientName,
     registeredAddress: quote.registeredAddress,
+    assemblyAddress: quote.assemblyAddress,
     vatNumber: quote.vatNumber,
     clientType: quote.clientType,
     paymentTerms: quote.paymentTerms,

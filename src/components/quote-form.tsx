@@ -64,6 +64,7 @@ export type QuoteFormValues = {
   market: string;
   clientName: string;
   registeredAddress: string;
+  assemblyAddress: string;
   vatNumber: string;
   clientType: "DIRECT" | "AGENCY" | "COWORKING";
   paymentTerms: "UPFRONT_100" | "SPLIT_50_50" | "NET_30";
@@ -107,6 +108,7 @@ export function QuoteForm({
       market: "",
       clientName: "",
       registeredAddress: "",
+      assemblyAddress: "",
       vatNumber: "",
       clientType: "DIRECT",
       paymentTerms: "UPFRONT_100",
@@ -383,10 +385,18 @@ export function QuoteForm({
           />
           <div className="sm:col-span-2">
             <Textarea
-              label="Registered address"
+              label="Registered address (invoicing)"
               rows={2}
               value={values.registeredAddress}
               onChange={(e) => set("registeredAddress", e.target.value)}
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <Textarea
+              label="Assembly address (where the booths get installed)"
+              rows={2}
+              value={values.assemblyAddress}
+              onChange={(e) => set("assemblyAddress", e.target.value)}
             />
           </div>
         </div>

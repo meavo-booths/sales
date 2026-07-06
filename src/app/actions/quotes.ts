@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { requireSalesAccess } from "@/lib/meavo-auth";
 import { nextQuoteNumber } from "@/lib/quote-number";
 import { quoteInputSchema, type QuoteInput } from "@/lib/quote-input";
+import { syncClientContacts } from "@/lib/client-contacts";
 
 export type QuoteActionResult =
   | { ok: true; id: string }
@@ -59,28 +60,36 @@ async function validateProductKinds(input: QuoteInput): Promise<string | null> {
   return null;
 }
 
-/** Link the picked client, or create a new one from the quote's client fields. */
+/**
+ * Link the picked client, or create a new one from the quote's client fields.
+ * Either way the quote's contacts are merged into the client's directory so
+ * contacts live on the client, not only on the deal.
+ */
 async function resolveClientId(tx: Tx, input: QuoteInput): Promise<string> {
+  let clientId: string;
+
   if (input.clientId) {
     const client = await tx.client.findUnique({
       where: { id: input.clientId },
       select: { id: true },
     });
     if (!client) throw new Error("The selected client no longer exists");
-    return client.id;
+    clientId = client.id;
+  } else {
+    const client = await tx.client.create({
+      data: {
+        name: input.clientName,
+        registeredAddress: input.registeredAddress,
+        vatNumber: input.vatNumber,
+        clientType: input.clientType,
+        market: input.market,
+      },
+    });
+    clientId = client.id;
   }
 
-  const client = await tx.client.create({
-    data: {
-      name: input.clientName,
-      registeredAddress: input.registeredAddress,
-      vatNumber: input.vatNumber,
-      clientType: input.clientType,
-      market: input.market,
-      contacts: { create: contactsCreate(input) },
-    },
-  });
-  return client.id;
+  await syncClientContacts(tx, clientId, input.contacts);
+  return clientId;
 }
 
 /** Creates booth lines, their attached add-ons, then standalone add-ons. */
@@ -153,6 +162,7 @@ export async function createQuoteAction(rawInput: unknown): Promise<QuoteActionR
           market: input.market,
           clientName: input.clientName,
           registeredAddress: input.registeredAddress,
+          assemblyAddress: input.assemblyAddress,
           vatNumber: input.vatNumber,
           clientType: input.clientType,
           paymentTerms: input.paymentTerms,
@@ -206,6 +216,7 @@ export async function updateQuoteAction(
           market: input.market,
           clientName: input.clientName,
           registeredAddress: input.registeredAddress,
+          assemblyAddress: input.assemblyAddress,
           vatNumber: input.vatNumber,
           clientType: input.clientType,
           paymentTerms: input.paymentTerms,

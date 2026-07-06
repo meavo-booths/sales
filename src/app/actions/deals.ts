@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { requireSalesAccess } from "@/lib/meavo-auth";
 import { contactInputSchema, convertInputSchema } from "@/lib/quote-input";
 import { exportDealToOpsSheet } from "@/lib/ops-sheet-export";
+import { syncClientContacts } from "@/lib/client-contacts";
 
 const paymentInputSchema = z.object({
   paymentStatus: z.nativeEnum(PaymentStatus),
@@ -259,13 +260,16 @@ export async function updateDealContactsAction(
   }
   const { contacts } = parsed.data;
 
-  const deal = await prisma.deal.findUnique({ where: { id }, select: { stage: true } });
+  const deal = await prisma.deal.findUnique({
+    where: { id },
+    select: { stage: true, clientId: true },
+  });
   if (!deal) return { ok: false, error: "Deal not found" };
   if (deal.stage !== "WON") return { ok: false, error: "Only won deals can be edited here" };
 
-  await prisma.$transaction([
-    prisma.dealContact.deleteMany({ where: { dealId: id } }),
-    prisma.dealContact.createMany({
+  await prisma.$transaction(async (tx) => {
+    await tx.dealContact.deleteMany({ where: { dealId: id } });
+    await tx.dealContact.createMany({
       data: contacts.map((contact, index) => ({
         dealId: id,
         kind: contact.kind,
@@ -275,8 +279,9 @@ export async function updateDealContactsAction(
         role: contact.role,
         sortOrder: index,
       })),
-    }),
-  ]);
+    });
+    if (deal.clientId) await syncClientContacts(tx, deal.clientId, contacts);
+  });
 
   revalidatePath("/deals");
   revalidatePath(`/deals/${id}`);

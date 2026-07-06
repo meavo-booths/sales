@@ -46,6 +46,7 @@ export const quoteInputSchema = z
     market: z.string().trim().default(""),
     clientName: z.string().trim().min(1, "Client name is required"),
     registeredAddress: z.string().trim().default(""),
+    assemblyAddress: z.string().trim().default(""),
     vatNumber: z.string().trim().default(""),
     clientType: z.enum(["DIRECT", "AGENCY", "COWORKING"]),
     paymentTerms: z.enum(["UPFRONT_100", "SPLIT_50_50", "NET_30"]),
