@@ -320,7 +320,7 @@ export function QuoteForm({
     >
       <Card>
         <h2 className="mb-4 text-base font-semibold text-slate-900">Deal details</h2>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Input
             label="Deal date"
             type="date"
@@ -339,6 +339,15 @@ export function QuoteForm({
             onChange={(e) => set("market", e.target.value)}
             placeholder="e.g. Germany"
           />
+          <div className="sm:col-span-2 lg:col-span-1 lg:row-span-2">
+            <Textarea
+              label="Deal Notes"
+              rows={5}
+              value={values.notes}
+              onChange={(e) => set("notes", e.target.value)}
+              placeholder="Internal notes, delivery expectations, special requests…"
+            />
+          </div>
           <Select
             label="Client type"
             value={values.clientType}
@@ -361,7 +370,7 @@ export function QuoteForm({
               </option>
             ))}
           </Select>
-          <div className="sm:col-span-2 lg:col-span-3">
+          <div className="sm:col-span-2 lg:col-span-4">
             <Textarea
               label="Assembly address (where the booths get installed)"
               rows={2}
@@ -746,16 +755,6 @@ export function QuoteForm({
             warranties or chairs.
           </p>
         )}
-      </Card>
-
-      <Card>
-        <Textarea
-          label="Deal Notes"
-          rows={3}
-          value={values.notes}
-          onChange={(e) => set("notes", e.target.value)}
-          placeholder="Internal notes, delivery expectations, special requests…"
-        />
       </Card>
 
       {error && <p className="text-sm text-red-600">{error}</p>}
