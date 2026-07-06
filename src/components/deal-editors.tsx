@@ -21,6 +21,7 @@ import {
   formatDate,
 } from "@/lib/deal-values";
 import { Button, Card, Input, Select, Textarea } from "@/components/ui";
+import { VatNumberField } from "@/components/vat-check";
 
 export type DealDetailsValues = {
   dealDate: string;
@@ -181,10 +182,9 @@ export function DealDetailsEditorCard({
                 </option>
               ))}
             </Select>
-            <Input
-              label="VAT number"
+            <VatNumberField
               value={values.vatNumber}
-              onChange={(e) => set("vatNumber", e.target.value)}
+              onChange={(value) => set("vatNumber", value)}
             />
             <Input
               label="Client name"

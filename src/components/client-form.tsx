@@ -5,6 +5,7 @@ import { useState, useTransition } from "react";
 import { createClientAction, updateClientAction } from "@/app/actions/clients";
 import { CLIENT_TYPE_LABELS } from "@/lib/deal-values";
 import { Button, Card, Input, Select, Textarea } from "@/components/ui";
+import { VatNumberField } from "@/components/vat-check";
 
 type ContactDraft = {
   kind: "MAIN" | "FINANCE";
@@ -124,10 +125,9 @@ export function ClientForm({
             </option>
           ))}
         </Select>
-        <Input
-          label="VAT number"
+        <VatNumberField
           value={values.vatNumber}
-          onChange={(e) => set("vatNumber", e.target.value)}
+          onChange={(value) => set("vatNumber", value)}
         />
         <Input
           label="Website"

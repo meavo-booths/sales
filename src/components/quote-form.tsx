@@ -11,6 +11,7 @@ import {
   formatMoney,
 } from "@/lib/deal-values";
 import { Button, Card, Input, Select, Textarea } from "@/components/ui";
+import { VatNumberField } from "@/components/vat-check";
 
 export type ProductOption = {
   id: string;
@@ -431,10 +432,9 @@ export function QuoteForm({
             onChange={(e) => set("clientName", e.target.value)}
             required
           />
-          <Input
-            label="VAT number"
+          <VatNumberField
             value={values.vatNumber}
-            onChange={(e) => set("vatNumber", e.target.value)}
+            onChange={(value) => set("vatNumber", value)}
           />
           <div className="sm:col-span-2 lg:col-span-3">
             <Textarea
