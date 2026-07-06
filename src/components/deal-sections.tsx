@@ -39,8 +39,13 @@ export function DealDetailsCard({ deal }: { deal: DealWithRelations }) {
         <Field label="Payment terms" value={PAYMENT_TERMS_LABELS[deal.paymentTerms]} />
         <Field label="VAT number" value={deal.vatNumber} />
         <div className="sm:col-span-2 lg:col-span-3">
-          <Field label="Registered address" value={deal.registeredAddress} />
+          <Field label="Registered address (invoicing)" value={deal.registeredAddress} />
         </div>
+        {deal.assemblyAddress && (
+          <div className="sm:col-span-2 lg:col-span-3">
+            <Field label="Assembly address" value={deal.assemblyAddress} />
+          </div>
+        )}
       </dl>
     </Card>
   );
@@ -169,7 +174,7 @@ export function NotesCard({ deal }: { deal: DealWithRelations }) {
   if (!deal.notes) return null;
   return (
     <Card>
-      <h2 className="mb-2 text-base font-semibold text-slate-900">Notes</h2>
+      <h2 className="mb-2 text-base font-semibold text-slate-900">Deal Notes</h2>
       <p className="whitespace-pre-wrap text-sm text-slate-700">{deal.notes}</p>
     </Card>
   );

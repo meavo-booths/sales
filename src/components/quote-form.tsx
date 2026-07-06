@@ -648,7 +648,7 @@ export function QuoteForm({
 
       <Card>
         <Textarea
-          label="Notes"
+          label="Deal Notes"
           rows={3}
           value={values.notes}
           onChange={(e) => set("notes", e.target.value)}

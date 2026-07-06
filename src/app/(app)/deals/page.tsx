@@ -93,6 +93,7 @@ export default async function DealsPage({
                         <Badge tone={PAYMENT_TONES[deal.paymentStatus]}>
                           {PAYMENT_STATUS_LABELS[deal.paymentStatus]}
                         </Badge>
+                        {deal.readyToAssemble && <Badge tone="green">Ready to assemble</Badge>}
                         {deal.sheetSyncError && <Badge tone="amber">Sheet sync failed</Badge>}
                       </div>
                       <p className="mt-1 text-sm text-slate-600">

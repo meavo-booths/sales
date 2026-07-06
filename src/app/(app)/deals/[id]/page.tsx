@@ -14,12 +14,21 @@ import {
   DealContactsEditorCard,
   DealDetailsEditorCard,
   PaymentEditor,
+  ReadyToAssembleToggle,
   RetrySheetSyncButton,
 } from "@/components/deal-editors";
 
 export const dynamic = "force-dynamic";
 
 const PAYMENT_TONES = { UNPAID: "red", PARTIALLY_PAID: "amber", PAID: "green" } as const;
+
+const ASSEMBLY_EVENT_LABELS: Record<string, string> = {
+  ASSEMBLY: "Assembly",
+  REPAIR: "Repair",
+  MOVING_SERVICE: "Moving service",
+  AFTERCARE: "Aftercare",
+  INFO: "Info",
+};
 
 export default async function DealPage({ params }: { params: Promise<{ id: string }> }) {
   await requireSalesAccess();
@@ -36,9 +45,12 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
   if (!deal) notFound();
   if (deal.stage !== "WON" || !deal.dealId) redirect(`/quotes/${deal.id}`);
 
-  const assembly = await prisma.assembly.findUnique({
-    where: { dealId: deal.dealId },
-    select: { dealId: true, assemblyDate: true },
+  // Linked assemblies: linkedDealId is the app-created link; the exact dealId
+  // match keeps legacy sheet-imported assemblies (named after the DealID) visible.
+  const assemblies = await prisma.assembly.findMany({
+    where: { OR: [{ linkedDealId: deal.dealId }, { dealId: deal.dealId }] },
+    select: { dealId: true, eventType: true, assemblyDate: true },
+    orderBy: { createdAt: "asc" },
   });
 
   return (
@@ -57,16 +69,19 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
           >
             Quote PDF
           </a>
-          {assembly && (
+          {assemblies.map((assembly) => (
             <a
+              key={assembly.dealId}
               href={`${ASSEMBLY_URL}/assemblies/${encodeURIComponent(assembly.dealId)}`}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+              className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
             >
-              Open in Assembly ↗
+              {ASSEMBLY_EVENT_LABELS[assembly.eventType] ?? assembly.eventType}:{" "}
+              {assembly.dealId} ↗
             </a>
-          )}
+          ))}
+          <ReadyToAssembleToggle dealId={deal.id} ready={deal.readyToAssemble} />
         </div>
       </PageHeader>
 
@@ -99,6 +114,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
             paymentTerms: deal.paymentTerms,
             vatNumber: deal.vatNumber,
             registeredAddress: deal.registeredAddress,
+            assemblyAddress: deal.assemblyAddress,
           }}
         />
 

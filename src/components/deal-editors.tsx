@@ -8,6 +8,7 @@ import {
   updateBoothUnitAction,
   updateDealContactsAction,
   updateDealDetailsAction,
+  updateDealReadyAction,
   updatePaymentAction,
 } from "@/app/actions/deals";
 import {
@@ -29,6 +30,7 @@ export type DealDetailsValues = {
   paymentTerms: "UPFRONT_100" | "SPLIT_50_50" | "NET_30";
   vatNumber: string;
   registeredAddress: string;
+  assemblyAddress: string;
 };
 
 export type DealContactValues = {
@@ -110,7 +112,10 @@ export function DealDetailsEditorCard({
           <DetailField label="Payment terms" value={PAYMENT_TERMS_LABELS[details.paymentTerms]} />
           <DetailField label="VAT number" value={details.vatNumber} />
           <div className="sm:col-span-2 lg:col-span-3">
-            <DetailField label="Registered address" value={details.registeredAddress} />
+            <DetailField label="Registered address (invoicing)" value={details.registeredAddress} />
+          </div>
+          <div className="sm:col-span-2 lg:col-span-3">
+            <DetailField label="Assembly address" value={details.assemblyAddress} />
           </div>
         </dl>
       ) : (
@@ -170,10 +175,16 @@ export function DealDetailsEditorCard({
             />
           </div>
           <Textarea
-            label="Registered address"
+            label="Registered address (invoicing)"
             rows={2}
             value={values.registeredAddress}
             onChange={(e) => set("registeredAddress", e.target.value)}
+          />
+          <Textarea
+            label="Assembly address (where the booths get installed)"
+            rows={2}
+            value={values.assemblyAddress}
+            onChange={(e) => set("assemblyAddress", e.target.value)}
           />
           {error && <p className="text-sm text-red-600">{error}</p>}
           <Button onClick={save} disabled={pending}>
@@ -182,6 +193,55 @@ export function DealDetailsEditorCard({
         </div>
       )}
     </Card>
+  );
+}
+
+export function ReadyToAssembleToggle({
+  dealId,
+  ready,
+}: {
+  dealId: string;
+  ready: boolean;
+}) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [checked, setChecked] = useState(ready);
+  const [error, setError] = useState<string | null>(null);
+
+  const toggle = (next: boolean) => {
+    setChecked(next);
+    setError(null);
+    startTransition(async () => {
+      const result = await updateDealReadyAction(dealId, next);
+      if (!result.ok) {
+        setChecked(ready);
+        setError(result.error);
+        return;
+      }
+      router.refresh();
+    });
+  };
+
+  return (
+    <div className="flex items-center gap-2">
+      <label
+        className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition ${
+          checked
+            ? "border-green-300 bg-green-50 text-green-800"
+            : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+        } ${pending ? "opacity-60" : ""}`}
+      >
+        <input
+          type="checkbox"
+          checked={checked}
+          disabled={pending}
+          onChange={(e) => toggle(e.target.checked)}
+          className="h-4 w-4 rounded border-slate-300"
+        />
+        Ready to assemble
+      </label>
+      {error && <p className="text-sm text-red-600">{error}</p>}
+    </div>
   );
 }
 
@@ -370,7 +430,7 @@ export function PaymentEditor({
         />
       </div>
       <Textarea
-        label="Notes"
+        label="Deal Notes"
         rows={3}
         value={notesValue}
         onChange={(e) => setNotesValue(e.target.value)}

@@ -34,6 +34,7 @@ const dealDetailsInputSchema = z.object({
   paymentTerms: z.enum(["UPFRONT_100", "SPLIT_50_50", "NET_30"]),
   vatNumber: z.string().trim().max(100).default(""),
   registeredAddress: z.string().trim().max(2000).default(""),
+  assemblyAddress: z.string().trim().max(2000).default(""),
 });
 
 const dealContactsInputSchema = z.object({
@@ -213,8 +214,32 @@ export async function updateDealDetailsAction(
       paymentTerms: input.paymentTerms,
       vatNumber: input.vatNumber,
       registeredAddress: input.registeredAddress,
+      assemblyAddress: input.assemblyAddress,
     },
   });
+
+  revalidatePath("/deals");
+  revalidatePath(`/deals/${id}`);
+  return { ok: true, id };
+}
+
+/**
+ * Toggle the "ready to assemble" flag. Ready deals show up on the assembly
+ * app's Ready deals page where the team schedules assemblies for them.
+ */
+export async function updateDealReadyAction(
+  id: string,
+  ready: boolean,
+): Promise<DealActionResult> {
+  await requireSalesAccess();
+
+  const deal = await prisma.deal.findUnique({ where: { id }, select: { stage: true } });
+  if (!deal) return { ok: false, error: "Deal not found" };
+  if (deal.stage !== "WON") {
+    return { ok: false, error: "Only won deals can be marked ready to assemble" };
+  }
+
+  await prisma.deal.update({ where: { id }, data: { readyToAssemble: ready === true } });
 
   revalidatePath("/deals");
   revalidatePath(`/deals/${id}`);
