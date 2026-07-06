@@ -32,6 +32,11 @@ function parseKind(value: FormDataEntryValue | null): "BOOTH" | "ADDON" {
   return value === "ADDON" ? "ADDON" : "BOOTH";
 }
 
+/** Booth ids an add-on is limited to. Empty array = available for any booth. */
+function parseBoothIds(formData: FormData): string[] {
+  return [...new Set(formData.getAll("boothIds").map((v) => String(v).trim()).filter(Boolean))];
+}
+
 export async function createProductAction(
   _prev: ProductActionState,
   formData: FormData,
@@ -49,14 +54,24 @@ export async function createProductAction(
     const imageUrl =
       image instanceof File && image.size > 0 ? await uploadImage(image) : null;
 
+    const kind = parseKind(formData.get("kind"));
+    const boothIds = kind === "ADDON" ? parseBoothIds(formData) : [];
+
     await prisma.product.create({
       data: {
         name,
         sku,
-        kind: parseKind(formData.get("kind")),
+        kind,
         description,
         listPrice: parsePrice(formData.get("listPrice")),
         imageUrl,
+        ...(boothIds.length > 0
+          ? {
+              addOnRestrictions: {
+                create: boothIds.map((boothId) => ({ boothId })),
+              },
+            }
+          : {}),
       },
     });
   } catch (error) {
@@ -89,18 +104,31 @@ export async function updateProductAction(
     const imageUrl =
       image instanceof File && image.size > 0 ? await uploadImage(image) : undefined;
 
-    await prisma.product.update({
-      where: { id },
-      data: {
-        name,
-        sku,
-        kind: parseKind(formData.get("kind")),
-        description,
-        listPrice: parsePrice(formData.get("listPrice")),
-        isActive: formData.get("isActive") === "on",
-        ...(imageUrl ? { imageUrl } : {}),
-      },
-    });
+    const kind = parseKind(formData.get("kind"));
+    const boothIds = kind === "ADDON" ? parseBoothIds(formData) : [];
+
+    await prisma.$transaction([
+      prisma.product.update({
+        where: { id },
+        data: {
+          name,
+          sku,
+          kind,
+          description,
+          listPrice: parsePrice(formData.get("listPrice")),
+          isActive: formData.get("isActive") === "on",
+          ...(imageUrl ? { imageUrl } : {}),
+        },
+      }),
+      prisma.productAddOnRestriction.deleteMany({ where: { addOnId: id } }),
+      ...(boothIds.length > 0
+        ? [
+            prisma.productAddOnRestriction.createMany({
+              data: boothIds.map((boothId) => ({ addOnId: id, boothId })),
+            }),
+          ]
+        : []),
+    ]);
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
       return { error: `A product with SKU ${sku} already exists` };

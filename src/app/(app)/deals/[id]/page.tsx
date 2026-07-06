@@ -8,13 +8,11 @@ import {
   formatDate,
 } from "@/lib/deal-values";
 import { Badge, Card, PageHeader } from "@/components/ui";
-import {
-  ContactsCard,
-  DealDetailsCard,
-  LineItemsCard,
-} from "@/components/deal-sections";
+import { LineItemsCard } from "@/components/deal-sections";
 import {
   BoothUnitEditor,
+  DealContactsEditorCard,
+  DealDetailsEditorCard,
   PaymentEditor,
   RetrySheetSyncButton,
 } from "@/components/deal-editors";
@@ -90,10 +88,31 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
           </p>
         )}
 
-        <DealDetailsCard deal={deal} />
+        <DealDetailsEditorCard
+          dealId={deal.id}
+          details={{
+            dealDate: deal.dealDate.toISOString().slice(0, 10),
+            salesRep: deal.salesRep,
+            market: deal.market,
+            clientName: deal.clientName,
+            clientType: deal.clientType,
+            paymentTerms: deal.paymentTerms,
+            vatNumber: deal.vatNumber,
+            registeredAddress: deal.registeredAddress,
+          }}
+        />
 
         <div className="grid gap-6 lg:grid-cols-2">
-          <ContactsCard deal={deal} />
+          <DealContactsEditorCard
+            dealId={deal.id}
+            contacts={deal.contacts.map((contact) => ({
+              kind: contact.kind,
+              name: contact.name,
+              email: contact.email,
+              phone: contact.phone,
+              role: contact.role,
+            }))}
+          />
           <Card>
             <h2 className="mb-4 text-base font-semibold text-slate-900">Payment</h2>
             <PaymentEditor

@@ -17,6 +17,8 @@ export type ProductOption = {
   sku: string;
   kind: "BOOTH" | "ADDON";
   listPrice: number;
+  /** For add-ons: booth product ids this add-on is limited to. Empty = any booth. */
+  restrictedToBoothIds: string[];
 };
 
 type ContactDraft = {
@@ -172,8 +174,21 @@ export function QuoteForm({
     }));
   };
 
-  const newAddOnDraft = (): AddOnDraft | null => {
-    const first = addOnProducts[0];
+  /**
+   * Add-ons offered for a given booth product: unrestricted ones plus those
+   * explicitly compatible with the booth. The currently selected add-on is
+   * always kept so existing quotes still render and save.
+   */
+  const addOnsForBooth = (boothProductId: string, currentAddOnId?: string) =>
+    addOnProducts.filter(
+      (p) =>
+        p.restrictedToBoothIds.length === 0 ||
+        p.restrictedToBoothIds.includes(boothProductId) ||
+        p.id === currentAddOnId,
+    );
+
+  const newAddOnDraft = (options: ProductOption[] = addOnProducts): AddOnDraft | null => {
+    const first = options[0];
     if (!first) return null;
     return { productId: first.id, quantity: 1, unitPrice: first.listPrice, description: "" };
   };
@@ -227,20 +242,21 @@ export function QuoteForm({
     addOn: AddOnDraft,
     update: (patch: Partial<AddOnDraft>) => void,
     remove: () => void,
+    options: ProductOption[] = addOnProducts,
   ) => (
     <div className="grid gap-2 sm:grid-cols-[2fr_1fr_1fr_1.5fr_auto]">
       <Select
         label="Add-on"
         value={addOn.productId}
         onChange={(e) => {
-          const product = addOnProducts.find((p) => p.id === e.target.value);
+          const product = options.find((p) => p.id === e.target.value);
           update({
             productId: e.target.value,
             unitPrice: product ? product.listPrice : addOn.unitPrice,
           });
         }}
       >
-        {addOnProducts.map((product) => (
+        {options.map((product) => (
           <option key={product.id} value={product.id}>
             {product.name} ({product.sku})
           </option>
@@ -567,6 +583,7 @@ export function QuoteForm({
                                   : li,
                               ),
                             })),
+                          addOnsForBooth(item.productId, addOn.productId),
                         )}
                       </div>
                     ))}
@@ -577,11 +594,11 @@ export function QuoteForm({
                   <Button
                     variant="ghost"
                     onClick={() => {
-                      const draft = newAddOnDraft();
+                      const draft = newAddOnDraft(addOnsForBooth(item.productId));
                       if (!draft) return;
                       setLineItem(index, { addOns: [...item.addOns, draft] });
                     }}
-                    disabled={addOnProducts.length === 0}
+                    disabled={addOnsForBooth(item.productId).length === 0}
                   >
                     + Attach add-on
                   </Button>

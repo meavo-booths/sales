@@ -5,7 +5,7 @@ import { BoothUnitStatus, PaymentStatus } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireSalesAccess } from "@/lib/meavo-auth";
-import { convertInputSchema } from "@/lib/quote-input";
+import { contactInputSchema, convertInputSchema } from "@/lib/quote-input";
 import { exportDealToOpsSheet } from "@/lib/ops-sheet-export";
 
 const paymentInputSchema = z.object({
@@ -20,6 +20,24 @@ const paymentInputSchema = z.object({
 const boothUnitInputSchema = z.object({
   status: z.nativeEnum(BoothUnitStatus),
   location: z.string().max(500),
+});
+
+const dealDetailsInputSchema = z.object({
+  dealDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .transform((value) => new Date(`${value}T00:00:00.000Z`)),
+  salesRep: z.string().trim().max(200).default(""),
+  market: z.string().trim().max(200).default(""),
+  clientName: z.string().trim().min(1, "Client name is required").max(500),
+  clientType: z.enum(["DIRECT", "AGENCY", "COWORKING"]),
+  paymentTerms: z.enum(["UPFRONT_100", "SPLIT_50_50", "NET_30"]),
+  vatNumber: z.string().trim().max(100).default(""),
+  registeredAddress: z.string().trim().max(2000).default(""),
+});
+
+const dealContactsInputSchema = z.object({
+  contacts: z.array(contactInputSchema).min(1, "Add at least one contact").max(20),
 });
 
 export type DealActionResult =
@@ -157,6 +175,83 @@ export async function updatePaymentAction(
       ...(input.notes === undefined ? {} : { notes: input.notes }),
     },
   });
+
+  revalidatePath("/deals");
+  revalidatePath(`/deals/${id}`);
+  return { ok: true, id };
+}
+
+/**
+ * Edit the snapshot details of a won deal. Line items, booth units, and the
+ * quote number stay locked; edits never re-sync the Ops File (its rows were
+ * written at conversion time).
+ */
+export async function updateDealDetailsAction(
+  id: string,
+  rawInput: unknown,
+): Promise<DealActionResult> {
+  await requireSalesAccess();
+
+  const parsed = dealDetailsInputSchema.safeParse(rawInput);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid deal details" };
+  }
+  const input = parsed.data;
+
+  const deal = await prisma.deal.findUnique({ where: { id }, select: { stage: true } });
+  if (!deal) return { ok: false, error: "Deal not found" };
+  if (deal.stage !== "WON") return { ok: false, error: "Only won deals can be edited here" };
+
+  await prisma.deal.update({
+    where: { id },
+    data: {
+      dealDate: input.dealDate,
+      salesRep: input.salesRep,
+      market: input.market,
+      clientName: input.clientName,
+      clientType: input.clientType,
+      paymentTerms: input.paymentTerms,
+      vatNumber: input.vatNumber,
+      registeredAddress: input.registeredAddress,
+    },
+  });
+
+  revalidatePath("/deals");
+  revalidatePath(`/deals/${id}`);
+  return { ok: true, id };
+}
+
+/** Replace all contacts on a won deal. */
+export async function updateDealContactsAction(
+  id: string,
+  rawInput: unknown,
+): Promise<DealActionResult> {
+  await requireSalesAccess();
+
+  const parsed = dealContactsInputSchema.safeParse(rawInput);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid contacts" };
+  }
+  const { contacts } = parsed.data;
+
+  const deal = await prisma.deal.findUnique({ where: { id }, select: { stage: true } });
+  if (!deal) return { ok: false, error: "Deal not found" };
+  if (deal.stage !== "WON") return { ok: false, error: "Only won deals can be edited here" };
+
+  await prisma.$transaction([
+    prisma.dealContact.deleteMany({ where: { dealId: id } }),
+    prisma.dealContact.createMany({
+      data: contacts.map((contact, index) => ({
+        dealId: id,
+        kind: contact.kind,
+        name: contact.name,
+        email: contact.email,
+        phone: contact.phone,
+        role: contact.role,
+        sortOrder: index,
+      })),
+    }),
+  ]);
 
   revalidatePath("/deals");
   revalidatePath(`/deals/${id}`);

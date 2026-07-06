@@ -12,6 +12,7 @@ export default async function NewQuotePage() {
     prisma.product.findMany({
       where: { isActive: true },
       orderBy: [{ kind: "asc" }, { name: "asc" }],
+      include: { addOnRestrictions: { select: { boothId: true } } },
     }),
     prisma.client.findMany({
       orderBy: [{ isVip: "desc" }, { name: "asc" }],
@@ -32,6 +33,7 @@ export default async function NewQuotePage() {
           sku: p.sku,
           kind: p.kind,
           listPrice: Number(p.listPrice),
+          restrictedToBoothIds: p.addOnRestrictions.map((r) => r.boothId),
         }))}
         clients={clients.map((c) => ({
           id: c.id,
