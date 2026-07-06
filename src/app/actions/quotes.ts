@@ -136,6 +136,19 @@ async function createLineItems(tx: Tx, dealId: string, input: QuoteInput): Promi
       },
     });
   }
+
+  for (const custom of input.customLines) {
+    await tx.quoteLineItem.create({
+      data: {
+        dealId,
+        customName: custom.name,
+        quantity: custom.quantity,
+        unitPrice: new Prisma.Decimal(custom.unitPrice.toFixed(2)),
+        description: custom.description,
+        sortOrder: sortOrder++,
+      },
+    });
+  }
 }
 
 export async function createQuoteAction(rawInput: unknown): Promise<QuoteActionResult> {

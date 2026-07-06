@@ -120,11 +120,11 @@ async function main() {
   });
   const dealId = `SMOKE-${Date.now()}`;
   const boothUnits = withItems.lineItems
-    .filter((item) => item.product.kind === "BOOTH")
+    .filter((item) => item.product?.kind === "BOOTH")
     .flatMap((item) =>
       Array.from({ length: item.quantity }, () => ({
         dealId,
-        productId: item.productId,
+        productId: item.productId!,
         finish: item.finish,
         finishDetails: item.finishDetails,
       })),

@@ -67,7 +67,8 @@ export type DealForExport = Prisma.DealGetPayload<{
 }>;
 
 function addOnLabel(item: DealForExport["lineItems"][number]): string {
-  return item.quantity > 1 ? `${item.quantity}x ${item.product.name}` : item.product.name;
+  const name = item.product?.name ?? item.customName;
+  return item.quantity > 1 ? `${item.quantity}x ${name}` : name;
 }
 
 /**
@@ -80,8 +81,10 @@ export function buildExportGroups(deal: DealForExport): ExportGroup[] {
   const groups = new Map<string, ExportGroup>();
   const sorted = [...deal.lineItems].sort((a, b) => a.sortOrder - b.sortOrder);
 
-  const booths = sorted.filter((item) => item.product.kind === "BOOTH");
-  const addOns = sorted.filter((item) => item.product.kind === "ADDON");
+  const booths = sorted.filter((item) => item.product?.kind === "BOOTH");
+  // Custom one-off lines (no product) travel with the standalone add-ons row
+  // so the Ops File amounts still add up to the quote total.
+  const addOns = sorted.filter((item) => item.product?.kind === "ADDON" || !item.product);
   // Booth-group key per booth line id, so attached add-ons can find their row.
   const groupKeyByLineId = new Map<string, string>();
 
@@ -96,7 +99,7 @@ export function buildExportGroups(deal: DealForExport): ExportGroup[] {
     } else {
       groups.set(key, {
         suffix: "",
-        model: item.product.name,
+        model: item.product!.name,
         quantity: item.quantity,
         addOns: [],
         amount,

@@ -106,7 +106,7 @@ export default async function QuotesPage({
               0,
             );
             const booths = quote.lineItems
-              .filter((li) => li.product.kind === "BOOTH")
+              .filter((li) => li.product?.kind === "BOOTH")
               .reduce((sum, li) => sum + li.quantity, 0);
             const href = quote.stage === "WON" ? `/deals/${quote.id}` : `/quotes/${quote.id}`;
             return (

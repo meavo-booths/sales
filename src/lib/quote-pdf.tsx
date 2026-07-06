@@ -104,7 +104,9 @@ function LineItemRow({
   currency: string;
   indent?: boolean;
 }) {
-  const isAddOn = item.product.kind === "ADDON";
+  // Custom one-off lines have no product; their name lives in customName.
+  const isCustom = !item.product;
+  const isAddOn = item.product?.kind === "ADDON";
   return (
     <View style={styles.row} wrap={false}>
       <View
@@ -114,22 +116,22 @@ function LineItemRow({
           ...(indent ? [styles.addOnIndent] : []),
         ]}
       >
-        {item.product.imageUrl ? (
+        {item.product?.imageUrl ? (
           // eslint-disable-next-line jsx-a11y/alt-text -- react-pdf Image has no alt prop
           <Image src={item.product.imageUrl} style={styles.productImage} />
         ) : null}
         <View style={{ flex: 1 }}>
           <Text style={styles.bold}>
             {indent ? "+ " : ""}
-            {item.product.name}
+            {item.product?.name ?? item.customName}
           </Text>
           <Text style={{ color: MUTED }}>
-            {item.description || item.product.description || item.product.sku}
+            {item.description || item.product?.description || item.product?.sku || ""}
           </Text>
         </View>
       </View>
       <View style={styles.cellFinish}>
-        {isAddOn ? (
+        {isAddOn || isCustom ? (
           <Text> </Text>
         ) : (
           <>

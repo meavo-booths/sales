@@ -88,23 +88,27 @@ function LineItemRow({
   currency: string;
   indent?: boolean;
 }) {
-  const isAddOn = item.product.kind === "ADDON";
+  // Custom one-off lines have no product; their name lives in customName.
+  const isCustom = !item.product;
+  const isAddOn = item.product?.kind === "ADDON";
   return (
     <tr className="border-b border-slate-100">
       <td className={`py-2 pr-4 ${indent ? "pl-6" : ""}`}>
         <span className="font-medium text-slate-900">
           {indent ? "+ " : ""}
-          {item.product.name}
+          {item.product?.name ?? item.customName}
         </span>
-        <span className="ml-2 text-xs text-slate-500">{item.product.sku}</span>
-        {(item.description || item.product.description) && (
+        <span className="ml-2 text-xs text-slate-500">
+          {item.product ? item.product.sku : "Custom"}
+        </span>
+        {(item.description || item.product?.description) && (
           <p className="text-xs text-slate-500">
-            {item.description || item.product.description}
+            {item.description || item.product?.description}
           </p>
         )}
       </td>
       <td className="py-2 pr-4">
-        {isAddOn ? (
+        {isAddOn || isCustom ? (
           "—"
         ) : (
           <>

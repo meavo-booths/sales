@@ -40,6 +40,13 @@ export type ClientOption = {
   contacts: ContactDraft[];
 };
 
+type CustomLineDraft = {
+  name: string;
+  quantity: number;
+  unitPrice: number;
+  description: string;
+};
+
 type AddOnDraft = {
   productId: string;
   quantity: number;
@@ -72,6 +79,7 @@ export type QuoteFormValues = {
   contacts: ContactDraft[];
   lineItems: LineItemDraft[];
   standaloneAddOns: AddOnDraft[];
+  customLines: CustomLineDraft[];
 };
 
 const EMPTY_CONTACT: ContactDraft = { kind: "MAIN", name: "", email: "", phone: "", role: "" };
@@ -116,6 +124,7 @@ export function QuoteForm({
       contacts: [{ ...EMPTY_CONTACT }],
       lineItems: [],
       standaloneAddOns: [],
+      customLines: [],
     },
   );
 
@@ -216,6 +225,12 @@ export function QuoteForm({
       ),
     }));
 
+  const setCustomLine = (index: number, patch: Partial<CustomLineDraft>) =>
+    setValues((prev) => ({
+      ...prev,
+      customLines: prev.customLines.map((c, i) => (i === index ? { ...c, ...patch } : c)),
+    }));
+
   const total =
     values.lineItems.reduce(
       (sum, li) =>
@@ -223,7 +238,9 @@ export function QuoteForm({
         li.quantity * li.unitPrice +
         li.addOns.reduce((s, a) => s + a.quantity * a.unitPrice, 0),
       0,
-    ) + values.standaloneAddOns.reduce((sum, a) => sum + a.quantity * a.unitPrice, 0);
+    ) +
+    values.standaloneAddOns.reduce((sum, a) => sum + a.quantity * a.unitPrice, 0) +
+    values.customLines.reduce((sum, c) => sum + c.quantity * c.unitPrice, 0);
 
   const submit = () => {
     setError(null);
@@ -344,6 +361,14 @@ export function QuoteForm({
               </option>
             ))}
           </Select>
+          <div className="sm:col-span-2 lg:col-span-3">
+            <Textarea
+              label="Assembly address (where the booths get installed)"
+              rows={2}
+              value={values.assemblyAddress}
+              onChange={(e) => set("assemblyAddress", e.target.value)}
+            />
+          </div>
         </div>
       </Card>
 
@@ -389,14 +414,6 @@ export function QuoteForm({
               rows={2}
               value={values.registeredAddress}
               onChange={(e) => set("registeredAddress", e.target.value)}
-            />
-          </div>
-          <div className="sm:col-span-2">
-            <Textarea
-              label="Assembly address (where the booths get installed)"
-              rows={2}
-              value={values.assemblyAddress}
-              onChange={(e) => set("assemblyAddress", e.target.value)}
             />
           </div>
         </div>
@@ -482,6 +499,20 @@ export function QuoteForm({
             >
               Add add-on
             </Button>
+            <Button
+              variant="secondary"
+              onClick={() =>
+                setValues((prev) => ({
+                  ...prev,
+                  customLines: [
+                    ...prev.customLines,
+                    { name: "", quantity: 1, unitPrice: 0, description: "" },
+                  ],
+                }))
+              }
+            >
+              Add custom line
+            </Button>
             <Button variant="secondary" onClick={addLineItem} disabled={boothProducts.length === 0}>
               Add line item
             </Button>
@@ -494,7 +525,9 @@ export function QuoteForm({
           </p>
         )}
 
-        {values.lineItems.length === 0 && values.standaloneAddOns.length === 0 ? (
+        {values.lineItems.length === 0 &&
+        values.standaloneAddOns.length === 0 &&
+        values.customLines.length === 0 ? (
           <p className="text-sm text-slate-500">No line items yet.</p>
         ) : (
           <div className="space-y-3">
@@ -638,6 +671,65 @@ export function QuoteForm({
                 )}
                 <p className="mt-2 text-right text-sm font-medium text-slate-700">
                   {formatMoney(addOn.quantity * addOn.unitPrice)}
+                </p>
+              </div>
+            ))}
+
+            {values.customLines.map((custom, index) => (
+              <div
+                key={`custom-${index}`}
+                className="rounded-lg border border-dashed border-slate-300 p-3"
+              >
+                <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500">
+                  Custom line
+                </p>
+                <div className="grid gap-2 sm:grid-cols-[2fr_1fr_1fr_1.5fr_auto]">
+                  <Input
+                    label="Item"
+                    value={custom.name}
+                    onChange={(e) => setCustomLine(index, { name: e.target.value })}
+                    placeholder="e.g. Crane hire, extra shipping…"
+                    required
+                  />
+                  <Input
+                    label="Qty"
+                    type="number"
+                    min={1}
+                    value={custom.quantity}
+                    onChange={(e) =>
+                      setCustomLine(index, { quantity: Math.max(1, Number(e.target.value) || 1) })
+                    }
+                  />
+                  <Input
+                    label="Unit price"
+                    type="number"
+                    step="0.01"
+                    min={0}
+                    value={custom.unitPrice}
+                    onChange={(e) => setCustomLine(index, { unitPrice: Number(e.target.value) || 0 })}
+                  />
+                  <Input
+                    label="Description"
+                    value={custom.description}
+                    onChange={(e) => setCustomLine(index, { description: e.target.value })}
+                    placeholder="Optional — shown on the quote PDF"
+                  />
+                  <div className="flex items-end">
+                    <Button
+                      variant="ghost"
+                      onClick={() =>
+                        setValues((prev) => ({
+                          ...prev,
+                          customLines: prev.customLines.filter((_, i) => i !== index),
+                        }))
+                      }
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                </div>
+                <p className="mt-2 text-right text-sm font-medium text-slate-700">
+                  {formatMoney(custom.quantity * custom.unitPrice)}
                 </p>
               </div>
             ))}

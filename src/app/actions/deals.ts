@@ -103,11 +103,11 @@ export async function convertQuoteAction(
   }
 
   const boothUnits = deal.lineItems
-    .filter((item) => item.product.kind === "BOOTH")
+    .filter((item) => item.product?.kind === "BOOTH")
     .flatMap((item) =>
       Array.from({ length: item.quantity }, () => ({
         dealId,
-        productId: item.productId,
+        productId: item.productId!,
         finish: item.finish,
         finishDetails: item.finishDetails,
       })),

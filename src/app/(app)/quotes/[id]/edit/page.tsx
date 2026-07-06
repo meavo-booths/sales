@@ -32,8 +32,9 @@ export default async function EditQuotePage({ params }: { params: Promise<{ id: 
     }),
   ]);
 
-  const boothLines = quote.lineItems.filter((li) => li.product.kind === "BOOTH");
-  const addOnLines = quote.lineItems.filter((li) => li.product.kind === "ADDON");
+  const boothLines = quote.lineItems.filter((li) => li.product?.kind === "BOOTH");
+  const addOnLines = quote.lineItems.filter((li) => li.product?.kind === "ADDON");
+  const customLines = quote.lineItems.filter((li) => !li.productId);
 
   const initialValues: QuoteFormValues = {
     clientId: quote.clientId,
@@ -55,7 +56,7 @@ export default async function EditQuotePage({ params }: { params: Promise<{ id: 
       role: c.role,
     })),
     lineItems: boothLines.map((li) => ({
-      productId: li.productId,
+      productId: li.productId!,
       quantity: li.quantity,
       unitPrice: Number(li.unitPrice),
       finish: li.finish,
@@ -64,7 +65,7 @@ export default async function EditQuotePage({ params }: { params: Promise<{ id: 
       addOns: addOnLines
         .filter((addOn) => addOn.parentLineItemId === li.id)
         .map((addOn) => ({
-          productId: addOn.productId,
+          productId: addOn.productId!,
           quantity: addOn.quantity,
           unitPrice: Number(addOn.unitPrice),
           description: addOn.description,
@@ -73,11 +74,17 @@ export default async function EditQuotePage({ params }: { params: Promise<{ id: 
     standaloneAddOns: addOnLines
       .filter((addOn) => !addOn.parentLineItemId)
       .map((addOn) => ({
-        productId: addOn.productId,
+        productId: addOn.productId!,
         quantity: addOn.quantity,
         unitPrice: Number(addOn.unitPrice),
         description: addOn.description,
       })),
+    customLines: customLines.map((li) => ({
+      name: li.customName,
+      quantity: li.quantity,
+      unitPrice: Number(li.unitPrice),
+      description: li.description,
+    })),
   };
 
   return (

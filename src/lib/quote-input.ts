@@ -37,6 +37,14 @@ export const lineItemInputSchema = z.object({
   addOns: z.array(addOnInputSchema).default([]),
 });
 
+/** One-off custom line — free-text item name instead of a catalog product. */
+export const customLineInputSchema = z.object({
+  name: z.string().trim().min(1, "Custom line item name is required").max(500),
+  quantity: z.coerce.number().int().min(1).max(999),
+  unitPrice: z.coerce.number().min(0).max(9_999_999),
+  description: z.string().trim().default(""),
+});
+
 export const quoteInputSchema = z
   .object({
     /** Existing client to link; null means "create a new client from the fields below". */
@@ -54,10 +62,13 @@ export const quoteInputSchema = z
     contacts: z.array(contactInputSchema).min(1, "Add at least one contact"),
     lineItems: z.array(lineItemInputSchema).default([]),
     standaloneAddOns: z.array(addOnInputSchema).default([]),
+    customLines: z.array(customLineInputSchema).default([]),
   })
-  .refine((input) => input.lineItems.length + input.standaloneAddOns.length > 0, {
-    message: "Add at least one line item",
-  });
+  .refine(
+    (input) =>
+      input.lineItems.length + input.standaloneAddOns.length + input.customLines.length > 0,
+    { message: "Add at least one line item" },
+  );
 
 export type QuoteInput = z.infer<typeof quoteInputSchema>;
 
