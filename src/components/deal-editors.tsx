@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import type { BoothUnitStatus, PaymentStatus } from "@prisma/client";
+import type { BoothUnitStatus, DealContactKind, PaymentStatus } from "@prisma/client";
 import {
   retryOpsSheetSyncAction,
   updateBoothUnitAction,
@@ -37,7 +37,7 @@ export type DealDetailsValues = {
 };
 
 export type DealContactValues = {
-  kind: "MAIN" | "FINANCE";
+  kind: DealContactKind;
   name: string;
   email: string;
   phone: string;
@@ -342,8 +342,11 @@ export function DealContactsEditorCard({
                     setContact(index, { kind: e.target.value as DealContactValues["kind"] })
                   }
                 >
-                  <option value="MAIN">Main contact</option>
-                  <option value="FINANCE">Finance contact</option>
+                  {Object.entries(CONTACT_KIND_LABELS).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
                 </Select>
                 <Input
                   placeholder="Name"

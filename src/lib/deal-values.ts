@@ -49,6 +49,7 @@ export const MARKET_OPTIONS = [
 export const CONTACT_KIND_LABELS: Record<DealContactKind, string> = {
   MAIN: "Main contact",
   FINANCE: "Finance contact",
+  ASSEMBLY: "Assembly contact",
 };
 
 export const FINISH_LABELS: Record<ProductFinish, string> = {

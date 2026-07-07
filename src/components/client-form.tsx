@@ -2,13 +2,14 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import type { DealContactKind } from "@prisma/client";
 import { createClientAction, updateClientAction } from "@/app/actions/clients";
-import { CLIENT_TYPE_LABELS } from "@/lib/deal-values";
+import { CLIENT_TYPE_LABELS, CONTACT_KIND_LABELS } from "@/lib/deal-values";
 import { Button, Card, Input, Select, Textarea } from "@/components/ui";
 import { VatNumberField } from "@/components/vat-check";
 
 type ContactDraft = {
-  kind: "MAIN" | "FINANCE";
+  kind: DealContactKind;
   name: string;
   email: string;
   phone: string;
@@ -179,15 +180,22 @@ export function ClientForm({
         {values.contacts.map((contact, index) => (
           <div
             key={index}
-            className="grid gap-2 rounded-lg border border-slate-200 p-3 sm:grid-cols-[repeat(5,1fr)_auto]"
+            className={`grid gap-2 rounded-lg border border-slate-200 p-3 ${
+              noCard
+                ? "lg:grid-cols-[11rem_repeat(4,minmax(0,1fr))_auto]"
+                : "sm:grid-cols-[repeat(5,1fr)_auto]"
+            }`}
           >
             <Select
               aria-label="Contact type"
               value={contact.kind}
               onChange={(e) => setContact(index, { kind: e.target.value as ContactDraft["kind"] })}
             >
-              <option value="MAIN">Main contact</option>
-              <option value="FINANCE">Finance contact</option>
+              {Object.entries(CONTACT_KIND_LABELS).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
             </Select>
             <Input
               placeholder="Name"

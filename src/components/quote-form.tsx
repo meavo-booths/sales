@@ -2,9 +2,11 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import type { DealContactKind } from "@prisma/client";
 import { createQuoteAction, updateQuoteAction } from "@/app/actions/quotes";
 import {
   CLIENT_TYPE_LABELS,
+  CONTACT_KIND_LABELS,
   FINISH_LABELS,
   MARKET_OPTIONS,
   PAYMENT_TERMS_LABELS,
@@ -24,7 +26,7 @@ export type ProductOption = {
 };
 
 type ContactDraft = {
-  kind: "MAIN" | "FINANCE";
+  kind: DealContactKind;
   name: string;
   email: string;
   phone: string;
@@ -476,8 +478,11 @@ export function QuoteForm({
                 value={contact.kind}
                 onChange={(e) => setContact(index, { kind: e.target.value as ContactDraft["kind"] })}
               >
-                <option value="MAIN">Main contact</option>
-                <option value="FINANCE">Finance contact</option>
+                {Object.entries(CONTACT_KIND_LABELS).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
               </Select>
               <Input
                 placeholder="Name"

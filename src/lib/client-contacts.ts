@@ -1,7 +1,7 @@
-import type { Prisma } from "@prisma/client";
+import type { DealContactKind, Prisma } from "@prisma/client";
 
 export type ContactValues = {
-  kind: "MAIN" | "FINANCE";
+  kind: DealContactKind;
   name: string;
   email: string;
   phone: string;

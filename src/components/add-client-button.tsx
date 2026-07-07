@@ -17,7 +17,7 @@ export function AddClientButton() {
         title="Add client"
         open={open}
         onClose={() => setOpen(false)}
-        maxWidthClassName="max-w-3xl"
+        maxWidthClassName="max-w-5xl"
         panelClassName="p-6"
         bodyClassName="mt-4"
       >

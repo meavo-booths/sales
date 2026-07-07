@@ -6,7 +6,7 @@ const dateString = z
   .transform((value) => new Date(`${value}T00:00:00.000Z`));
 
 export const contactInputSchema = z.object({
-  kind: z.enum(["MAIN", "FINANCE"]),
+  kind: z.enum(["MAIN", "FINANCE", "ASSEMBLY"]),
   name: z.string().trim().min(1, "Contact name is required"),
   email: z
     .string()
