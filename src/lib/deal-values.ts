@@ -46,6 +46,23 @@ export const MARKET_OPTIONS = [
   "Portugal",
 ] as const;
 
+export const SOCKET_TYPE_OPTIONS = [
+  "UK",
+  "EU",
+  "US",
+  "CH",
+  "AU",
+  "DE",
+  "FR",
+  "IT",
+  "ES",
+  "NO",
+  "CZ",
+  "RO",
+  "BG",
+  "PT",
+] as const;
+
 export const CONTACT_KIND_LABELS: Record<DealContactKind, string> = {
   MAIN: "Main contact",
   FINANCE: "Finance contact",

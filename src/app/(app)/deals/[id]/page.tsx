@@ -10,6 +10,7 @@ import {
 import { Badge, Card, PageHeader, VipBadge } from "@/components/ui";
 import { LineItemsCard } from "@/components/deal-sections";
 import {
+  AssemblyAndNotesEditorRow,
   BoothUnitEditor,
   DealContactsEditorCard,
   DealDetailsEditorCard,
@@ -117,8 +118,15 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
             paymentTerms: deal.paymentTerms,
             vatNumber: deal.vatNumber,
             registeredAddress: deal.registeredAddress,
-            assemblyAddress: deal.assemblyAddress,
+            socketType: deal.socketType,
+            targetDeliveryDate: deal.targetDeliveryDate?.toISOString().slice(0, 10) ?? "",
           }}
+        />
+
+        <AssemblyAndNotesEditorRow
+          dealId={deal.id}
+          assemblyAddress={deal.assemblyAddress}
+          notes={deal.notes}
         />
 
         <div className="grid gap-6 lg:grid-cols-2">
@@ -138,7 +146,6 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
               dealId={deal.id}
               paymentStatus={deal.paymentStatus}
               paymentPoDate={deal.paymentPoDate?.toISOString().slice(0, 10) ?? ""}
-              notes={deal.notes}
             />
           </Card>
         </div>

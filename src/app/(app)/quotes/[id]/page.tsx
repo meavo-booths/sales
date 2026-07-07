@@ -5,6 +5,7 @@ import { requireSalesAccess } from "@/lib/meavo-auth";
 import { DEAL_STAGE_LABELS } from "@/lib/deal-values";
 import { Badge, PageHeader, VipBadge } from "@/components/ui";
 import {
+  AssemblyAddressCard,
   ContactsCard,
   DealDetailsCard,
   LineItemsCard,
@@ -64,9 +65,10 @@ export default async function QuotePage({ params }: { params: Promise<{ id: stri
       <div className="space-y-6">
         <DealDetailsCard deal={quote} />
         <div className="grid gap-6 lg:grid-cols-2">
-          <ContactsCard deal={quote} />
+          <AssemblyAddressCard deal={quote} />
           <NotesCard deal={quote} />
         </div>
+        <ContactsCard deal={quote} />
         <LineItemsCard deal={quote} />
         {isOpen && <QuoteSecondaryActions quoteId={quote.id} />}
       </div>

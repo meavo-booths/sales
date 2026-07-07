@@ -7,6 +7,7 @@ import {
   retryOpsSheetSyncAction,
   updateBoothUnitAction,
   updateDealContactsAction,
+  updateDealAssemblyAndNotesAction,
   updateDealDetailsAction,
   updateDealReadyAction,
   updatePaymentAction,
@@ -18,6 +19,7 @@ import {
   MARKET_OPTIONS,
   PAYMENT_STATUS_LABELS,
   PAYMENT_TERMS_LABELS,
+  SOCKET_TYPE_OPTIONS,
   formatDate,
 } from "@/lib/deal-values";
 import { Button, Card, Input, Select, Textarea } from "@/components/ui";
@@ -33,7 +35,8 @@ export type DealDetailsValues = {
   paymentTerms: "UPFRONT_100" | "SPLIT_50_50" | "NET_30";
   vatNumber: string;
   registeredAddress: string;
-  assemblyAddress: string;
+  socketType: string;
+  targetDeliveryDate: string;
 };
 
 export type DealContactValues = {
@@ -107,24 +110,30 @@ export function DealDetailsEditorCard({
       </div>
 
       {!editing ? (
-        <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <DetailField label="Deal date" value={formatDate(new Date(details.dealDate))} />
           <DetailField label="Sales rep" value={details.salesRep} />
           <DetailField label="Market" value={details.market} />
-          {details.usState && <DetailField label="US State" value={details.usState} />}
+          <DetailField label="Socket type" value={details.socketType} />
           <DetailField label="Client type" value={CLIENT_TYPE_LABELS[details.clientType]} />
           <DetailField label="Payment terms" value={PAYMENT_TERMS_LABELS[details.paymentTerms]} />
+          <DetailField label="US State" value={details.usState} />
+          <DetailField
+            label="Target delivery"
+            value={
+              details.targetDeliveryDate
+                ? formatDate(new Date(details.targetDeliveryDate))
+                : ""
+            }
+          />
           <DetailField label="VAT number" value={details.vatNumber} />
-          <div className="sm:col-span-2 lg:col-span-3">
+          <div className="sm:col-span-2 lg:col-span-4">
             <DetailField label="Registered address (invoicing)" value={details.registeredAddress} />
-          </div>
-          <div className="sm:col-span-2 lg:col-span-3">
-            <DetailField label="Assembly address" value={details.assemblyAddress} />
           </div>
         </dl>
       ) : (
         <div className="space-y-3">
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Input
               label="Deal date"
               type="date"
@@ -192,18 +201,34 @@ export function DealDetailsEditorCard({
               onChange={(e) => set("clientName", e.target.value)}
               required
             />
+            <Select
+              label="Socket type"
+              value={values.socketType}
+              onChange={(e) => set("socketType", e.target.value)}
+            >
+              <option value="">Select socket type…</option>
+              {values.socketType &&
+                !SOCKET_TYPE_OPTIONS.includes(
+                  values.socketType as (typeof SOCKET_TYPE_OPTIONS)[number],
+                ) && <option value={values.socketType}>{values.socketType}</option>}
+              {SOCKET_TYPE_OPTIONS.map((socket) => (
+                <option key={socket} value={socket}>
+                  {socket}
+                </option>
+              ))}
+            </Select>
+            <Input
+              label="Target delivery"
+              type="date"
+              value={values.targetDeliveryDate}
+              onChange={(e) => set("targetDeliveryDate", e.target.value)}
+            />
           </div>
           <Textarea
             label="Registered address (invoicing)"
             rows={2}
             value={values.registeredAddress}
             onChange={(e) => set("registeredAddress", e.target.value)}
-          />
-          <Textarea
-            label="Assembly address (where the booths get installed)"
-            rows={2}
-            value={values.assemblyAddress}
-            onChange={(e) => set("assemblyAddress", e.target.value)}
           />
           {error && <p className="text-sm text-red-600">{error}</p>}
           <Button onClick={save} disabled={pending}>
@@ -212,6 +237,67 @@ export function DealDetailsEditorCard({
         </div>
       )}
     </Card>
+  );
+}
+
+export function AssemblyAndNotesEditorRow({
+  dealId,
+  assemblyAddress,
+  notes,
+}: {
+  dealId: string;
+  assemblyAddress: string;
+  notes: string;
+}) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [assembly, setAssembly] = useState(assemblyAddress);
+  const [notesValue, setNotesValue] = useState(notes);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const save = () => {
+    setMessage(null);
+    startTransition(async () => {
+      const result = await updateDealAssemblyAndNotesAction(dealId, {
+        assemblyAddress: assembly,
+        notes: notesValue,
+      });
+      setMessage(result.ok ? "Saved." : result.error);
+      router.refresh();
+    });
+  };
+
+  return (
+    <div className="grid gap-6 lg:grid-cols-2">
+      <Card>
+        <h2 className="mb-4 text-base font-semibold text-slate-900">Assembly address</h2>
+        <Textarea
+          rows={4}
+          value={assembly}
+          onChange={(e) => setAssembly(e.target.value)}
+          placeholder="Where the booths get installed"
+        />
+      </Card>
+      <Card>
+        <h2 className="mb-4 text-base font-semibold text-slate-900">Deal Notes</h2>
+        <Textarea
+          rows={4}
+          value={notesValue}
+          onChange={(e) => setNotesValue(e.target.value)}
+          placeholder="Internal notes, delivery expectations, special requests…"
+        />
+      </Card>
+      <div className="flex items-center gap-3 lg:col-span-2">
+        <Button onClick={save} disabled={pending}>
+          {pending ? "Saving…" : "Save"}
+        </Button>
+        {message && (
+          <p className={`text-sm ${message === "Saved." ? "text-green-700" : "text-red-600"}`}>
+            {message}
+          </p>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -403,18 +489,15 @@ export function PaymentEditor({
   dealId,
   paymentStatus,
   paymentPoDate,
-  notes,
 }: {
   dealId: string;
   paymentStatus: PaymentStatus;
   paymentPoDate: string;
-  notes: string;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [status, setStatus] = useState<PaymentStatus>(paymentStatus);
   const [poDate, setPoDate] = useState(paymentPoDate);
-  const [notesValue, setNotesValue] = useState(notes);
   const [message, setMessage] = useState<string | null>(null);
 
   const save = () => {
@@ -423,7 +506,6 @@ export function PaymentEditor({
       const result = await updatePaymentAction(dealId, {
         paymentStatus: status,
         paymentPoDate: poDate || null,
-        notes: notesValue,
       });
       setMessage(result.ok ? "Saved." : result.error);
       router.refresh();
@@ -451,12 +533,6 @@ export function PaymentEditor({
           onChange={(e) => setPoDate(e.target.value)}
         />
       </div>
-      <Textarea
-        label="Deal Notes"
-        rows={3}
-        value={notesValue}
-        onChange={(e) => setNotesValue(e.target.value)}
-      />
       <div className="flex items-center gap-3">
         <Button onClick={save} disabled={pending}>
           {pending ? "Saving…" : "Save"}

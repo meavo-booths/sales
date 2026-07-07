@@ -46,6 +46,8 @@ export default async function EditQuotePage({ params }: { params: Promise<{ id: 
     clientName: quote.clientName,
     registeredAddress: quote.registeredAddress,
     assemblyAddress: quote.assemblyAddress,
+    socketType: quote.socketType,
+    targetDeliveryDate: quote.targetDeliveryDate?.toISOString().slice(0, 10) ?? "",
     vatNumber: quote.vatNumber,
     clientType: quote.clientType,
     isVip: quote.client?.isVip ?? false,

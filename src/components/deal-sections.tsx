@@ -31,23 +31,31 @@ export function DealDetailsCard({ deal }: { deal: DealWithRelations }) {
   return (
     <Card>
       <h2 className="mb-4 text-base font-semibold text-slate-900">Details</h2>
-      <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Field label="Deal date" value={formatDate(deal.dealDate)} />
         <Field label="Sales rep" value={deal.salesRep} />
         <Field label="Market" value={deal.market} />
-        {deal.usState && <Field label="US State" value={deal.usState} />}
+        <Field label="Socket type" value={deal.socketType} />
         <Field label="Client type" value={CLIENT_TYPE_LABELS[deal.clientType]} />
         <Field label="Payment terms" value={PAYMENT_TERMS_LABELS[deal.paymentTerms]} />
+        <Field label="US State" value={deal.usState} />
+        <Field label="Target delivery" value={formatDate(deal.targetDeliveryDate)} />
         <Field label="VAT number" value={deal.vatNumber} />
-        <div className="sm:col-span-2 lg:col-span-3">
+        <div className="sm:col-span-2 lg:col-span-4">
           <Field label="Registered address (invoicing)" value={deal.registeredAddress} />
         </div>
-        {deal.assemblyAddress && (
-          <div className="sm:col-span-2 lg:col-span-3">
-            <Field label="Assembly address" value={deal.assemblyAddress} />
-          </div>
-        )}
       </dl>
+    </Card>
+  );
+}
+
+export function AssemblyAddressCard({ deal }: { deal: DealWithRelations }) {
+  return (
+    <Card>
+      <h2 className="mb-2 text-base font-semibold text-slate-900">Assembly address</h2>
+      <p className="whitespace-pre-wrap text-sm text-slate-700">
+        {deal.assemblyAddress || "—"}
+      </p>
     </Card>
   );
 }
@@ -176,11 +184,10 @@ export function LineItemsCard({ deal }: { deal: DealWithRelations }) {
 }
 
 export function NotesCard({ deal }: { deal: DealWithRelations }) {
-  if (!deal.notes) return null;
   return (
     <Card>
       <h2 className="mb-2 text-base font-semibold text-slate-900">Deal Notes</h2>
-      <p className="whitespace-pre-wrap text-sm text-slate-700">{deal.notes}</p>
+      <p className="whitespace-pre-wrap text-sm text-slate-700">{deal.notes || "—"}</p>
     </Card>
   );
 }

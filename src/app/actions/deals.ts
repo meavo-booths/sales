@@ -36,7 +36,16 @@ const dealDetailsInputSchema = z.object({
   paymentTerms: z.enum(["UPFRONT_100", "SPLIT_50_50", "NET_30"]),
   vatNumber: z.string().trim().max(100).default(""),
   registeredAddress: z.string().trim().max(2000).default(""),
+  socketType: z.string().trim().max(100).default(""),
+  targetDeliveryDate: z
+    .union([z.literal(""), z.string().regex(/^\d{4}-\d{2}-\d{2}$/)])
+    .default("")
+    .transform((value) => (value ? new Date(`${value}T00:00:00.000Z`) : null)),
+});
+
+const dealAssemblyNotesInputSchema = z.object({
   assemblyAddress: z.string().trim().max(2000).default(""),
+  notes: z.string().trim().max(5000).default(""),
 });
 
 const dealContactsInputSchema = z.object({
@@ -217,7 +226,39 @@ export async function updateDealDetailsAction(
       paymentTerms: input.paymentTerms,
       vatNumber: input.vatNumber,
       registeredAddress: input.registeredAddress,
+      socketType: input.socketType,
+      targetDeliveryDate: input.targetDeliveryDate,
+    },
+  });
+
+  revalidatePath("/deals");
+  revalidatePath(`/deals/${id}`);
+  return { ok: true, id };
+}
+
+export async function updateDealAssemblyAndNotesAction(
+  id: string,
+  rawInput: unknown,
+): Promise<DealActionResult> {
+  await requireSalesAccess();
+
+  const parsed = dealAssemblyNotesInputSchema.safeParse(rawInput);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  }
+  const input = parsed.data;
+
+  const deal = await prisma.deal.findUnique({ where: { id }, select: { stage: true } });
+  if (!deal) return { ok: false, error: "Deal not found" };
+  if (deal.stage !== "WON") {
+    return { ok: false, error: "Only won deals can be edited here" };
+  }
+
+  await prisma.deal.update({
+    where: { id },
+    data: {
       assemblyAddress: input.assemblyAddress,
+      notes: input.notes,
     },
   });
 

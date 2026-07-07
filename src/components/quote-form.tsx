@@ -10,6 +10,7 @@ import {
   FINISH_LABELS,
   MARKET_OPTIONS,
   PAYMENT_TERMS_LABELS,
+  SOCKET_TYPE_OPTIONS,
   formatMoney,
 } from "@/lib/deal-values";
 import { Button, Card, Input, Select, Textarea } from "@/components/ui";
@@ -77,6 +78,8 @@ export type QuoteFormValues = {
   clientName: string;
   registeredAddress: string;
   assemblyAddress: string;
+  socketType: string;
+  targetDeliveryDate: string;
   vatNumber: string;
   clientType: "DIRECT" | "AGENCY" | "COWORKING";
   isVip: boolean;
@@ -124,6 +127,8 @@ export function QuoteForm({
       clientName: "",
       registeredAddress: "",
       assemblyAddress: "",
+      socketType: "",
+      targetDeliveryDate: "",
       vatNumber: "",
       clientType: "DIRECT",
       isVip: false,
@@ -358,15 +363,22 @@ export function QuoteForm({
               </option>
             ))}
           </Select>
-          <div className="sm:col-span-2 lg:col-span-1 lg:row-span-2">
-            <Textarea
-              label="Assembly address"
-              rows={5}
-              value={values.assemblyAddress}
-              onChange={(e) => set("assemblyAddress", e.target.value)}
-              placeholder="Where the booths get installed"
-            />
-          </div>
+          <Select
+            label="Socket type"
+            value={values.socketType}
+            onChange={(e) => set("socketType", e.target.value)}
+          >
+            <option value="">Select socket type…</option>
+            {values.socketType &&
+              !SOCKET_TYPE_OPTIONS.includes(values.socketType as (typeof SOCKET_TYPE_OPTIONS)[number]) && (
+                <option value={values.socketType}>{values.socketType}</option>
+              )}
+            {SOCKET_TYPE_OPTIONS.map((socket) => (
+              <option key={socket} value={socket}>
+                {socket}
+              </option>
+            ))}
+          </Select>
           <Select
             label="Client type"
             value={values.clientType}
@@ -395,10 +407,25 @@ export function QuoteForm({
             onChange={(e) => set("usState", e.target.value)}
             placeholder="US deals only, e.g. California"
           />
-          <div className="sm:col-span-2 lg:col-span-4">
+          <Input
+            label="Target delivery"
+            type="date"
+            value={values.targetDeliveryDate}
+            onChange={(e) => set("targetDeliveryDate", e.target.value)}
+          />
+          <div className="sm:col-span-2">
+            <Textarea
+              label="Assembly address"
+              rows={4}
+              value={values.assemblyAddress}
+              onChange={(e) => set("assemblyAddress", e.target.value)}
+              placeholder="Where the booths get installed"
+            />
+          </div>
+          <div className="sm:col-span-2">
             <Textarea
               label="Deal Notes"
-              rows={2}
+              rows={4}
               value={values.notes}
               onChange={(e) => set("notes", e.target.value)}
               placeholder="Internal notes, delivery expectations, special requests…"

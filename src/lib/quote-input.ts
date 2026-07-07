@@ -5,6 +5,11 @@ const dateString = z
   .regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD")
   .transform((value) => new Date(`${value}T00:00:00.000Z`));
 
+const optionalDateString = z
+  .union([z.literal(""), z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD")])
+  .default("")
+  .transform((value) => (value ? new Date(`${value}T00:00:00.000Z`) : null));
+
 export const contactInputSchema = z.object({
   kind: z.enum(["MAIN", "FINANCE", "ASSEMBLY"]),
   name: z.string().trim().min(1, "Contact name is required"),
@@ -53,6 +58,8 @@ export const quoteInputSchema = z
     salesRep: z.string().trim().default(""),
     market: z.string().trim().default(""),
     usState: z.string().trim().max(100).default(""),
+    socketType: z.string().trim().max(100).default(""),
+    targetDeliveryDate: optionalDateString,
     clientName: z.string().trim().min(1, "Client name is required"),
     registeredAddress: z.string().trim().default(""),
     assemblyAddress: z.string().trim().default(""),
