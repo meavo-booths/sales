@@ -75,6 +75,10 @@ async function resolveClientId(tx: Tx, input: QuoteInput): Promise<string> {
     });
     if (!client) throw new Error("The selected client no longer exists");
     clientId = client.id;
+    await tx.client.update({
+      where: { id: clientId },
+      data: { isVip: input.isVip },
+    });
   } else {
     const client = await tx.client.create({
       data: {
@@ -83,6 +87,7 @@ async function resolveClientId(tx: Tx, input: QuoteInput): Promise<string> {
         vatNumber: input.vatNumber,
         clientType: input.clientType,
         market: input.market,
+        isVip: input.isVip,
       },
     });
     clientId = client.id;

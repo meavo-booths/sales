@@ -13,6 +13,7 @@ export default async function EditQuotePage({ params }: { params: Promise<{ id: 
   const quote = await prisma.deal.findUnique({
     where: { id },
     include: {
+      client: { select: { isVip: true } },
       contacts: { orderBy: { sortOrder: "asc" } },
       lineItems: { orderBy: { sortOrder: "asc" }, include: { product: true } },
     },
@@ -47,6 +48,7 @@ export default async function EditQuotePage({ params }: { params: Promise<{ id: 
     assemblyAddress: quote.assemblyAddress,
     vatNumber: quote.vatNumber,
     clientType: quote.clientType,
+    isVip: quote.client?.isVip ?? false,
     paymentTerms: quote.paymentTerms,
     notes: quote.notes,
     contacts: quote.contacts.map((c) => ({

@@ -43,10 +43,15 @@ export function ClientForm({
   clientId,
   initialValues,
   title,
+  noCard = false,
+  onCreated,
 }: {
   clientId?: string;
   initialValues?: ClientFormValues;
   title?: string;
+  /** When true, skip the outer Card wrapper (e.g. inside a modal). */
+  noCard?: boolean;
+  onCreated?: () => void;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -83,6 +88,10 @@ export function ClientForm({
       if (clientId) {
         setSaved(true);
         router.refresh();
+      } else if (onCreated) {
+        setValues(EMPTY_VALUES);
+        onCreated();
+        router.refresh();
       } else {
         router.push(`/clients/${result.id}`);
         router.refresh();
@@ -90,17 +99,19 @@ export function ClientForm({
     });
   };
 
-  return (
-    <Card>
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (!pending) submit();
-        }}
-      >
-      <h2 className="mb-4 text-base font-semibold text-slate-900">
-        {title ?? (clientId ? "Client details" : "Add client")}
-      </h2>
+  const heading =
+    title === undefined ? (clientId ? "Client details" : "Add client") : title;
+
+  const form = (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!pending) submit();
+      }}
+    >
+      {heading ? (
+        <h2 className="mb-4 text-base font-semibold text-slate-900">{heading}</h2>
+      ) : null}
       <div className="grid gap-3 sm:grid-cols-2">
         <Input
           label="Client name"
@@ -234,7 +245,9 @@ export function ClientForm({
           {pending ? "Saving…" : clientId ? "Save changes" : "Add client"}
         </Button>
       </div>
-      </form>
-    </Card>
+    </form>
   );
+
+  if (noCard) return form;
+  return <Card>{form}</Card>;
 }

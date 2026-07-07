@@ -58,6 +58,7 @@ export const quoteInputSchema = z
     assemblyAddress: z.string().trim().default(""),
     vatNumber: z.string().trim().default(""),
     clientType: z.enum(["DIRECT", "AGENCY", "COWORKING"]),
+    isVip: z.boolean().default(false),
     paymentTerms: z.enum(["UPFRONT_100", "SPLIT_50_50", "NET_30"]),
     notes: z.string().trim().default(""),
     contacts: z.array(contactInputSchema).min(1, "Add at least one contact"),
