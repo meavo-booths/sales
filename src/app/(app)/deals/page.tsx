@@ -8,6 +8,8 @@ import {
   formatDate,
   formatMoney,
 } from "@/lib/deal-values";
+import { LIST_PAGE_SIZE, parseListPage } from "@/lib/list-pagination";
+import { ListPagination } from "@/components/list-pagination";
 import { Badge, Card, EmptyState, PageHeader, VipBadge } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -28,23 +30,43 @@ const FILTERS = [
 export default async function DealsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ payment?: string }>;
+  searchParams: Promise<{ payment?: string; page?: string }>;
 }) {
   await requireSalesAccess();
 
   const params = await searchParams;
-  const payment = FILTERS.some((f) => f.key === params.payment) ? params.payment : "all";
+  const paymentParam = params.payment ?? "all";
+  const payment = FILTERS.some((f) => f.key === paymentParam) ? paymentParam : "all";
 
   const where: Prisma.DealWhereInput = {
     stage: "WON",
     ...(payment !== "all" ? { paymentStatus: payment as PaymentStatus } : {}),
   };
 
+  const totalDeals = await prisma.deal.count({ where });
+  const totalPages = Math.max(1, Math.ceil(totalDeals / LIST_PAGE_SIZE));
+  const page = parseListPage(params.page, totalPages);
+
   const deals = await prisma.deal.findMany({
     where,
     orderBy: { wonAt: "desc" },
+    skip: (page - 1) * LIST_PAGE_SIZE,
+    take: LIST_PAGE_SIZE,
     include: { lineItems: true, boothUnits: true, client: { select: { isVip: true } } },
   });
+
+  const pageHref = (target: number) => {
+    const query = new URLSearchParams();
+    if (payment !== "all") query.set("payment", payment);
+    if (target > 1) query.set("page", String(target));
+    const qs = query.toString();
+    return qs ? `/deals?${qs}` : "/deals";
+  };
+
+  const filterHref = (key: string) => {
+    if (key === "all") return "/deals";
+    return `/deals?payment=${key}`;
+  };
 
   return (
     <>
@@ -57,7 +79,7 @@ export default async function DealsPage({
         {FILTERS.map((f) => (
           <Link
             key={f.key}
-            href={f.key === "all" ? "/deals" : `/deals?payment=${f.key}`}
+            href={filterHref(f.key)}
             className={`rounded-full px-3 py-1 text-sm font-medium transition ${
               payment === f.key
                 ? "bg-slate-900 text-white"
@@ -119,6 +141,14 @@ export default async function DealsPage({
               </Link>
             );
           })}
+
+          <ListPagination
+            page={page}
+            totalPages={totalPages}
+            totalCount={totalDeals}
+            pageHref={pageHref}
+            countLabel="deal"
+          />
         </div>
       )}
     </>

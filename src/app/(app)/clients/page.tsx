@@ -19,11 +19,11 @@ import {
 } from "@/lib/client-hierarchy";
 import { AddClientButton } from "@/components/add-client-button";
 import { ClientListFilters } from "@/components/client-list-filters";
+import { ListPagination } from "@/components/list-pagination";
 import { Badge, Card, EmptyState, PageHeader, VipBadge } from "@/components/ui";
+import { LIST_PAGE_SIZE, parseListPage } from "@/lib/list-pagination";
 
 export const dynamic = "force-dynamic";
-
-const PAGE_SIZE = 25;
 
 type ClientRow = {
   id: string;
@@ -133,18 +133,14 @@ export default async function ClientsPage({
   ]);
   const countries = countryRows.map((row) => row.market);
 
-  const totalPages = Math.max(1, Math.ceil(totalClients / PAGE_SIZE));
-  const requestedPage = Number(pageParam);
-  const page = Math.min(
-    totalPages,
-    Number.isInteger(requestedPage) && requestedPage >= 1 ? requestedPage : 1,
-  );
+  const totalPages = Math.max(1, Math.ceil(totalClients / LIST_PAGE_SIZE));
+  const page = parseListPage(pageParam, totalPages);
 
   const clients = await prisma.client.findMany({
     where,
     orderBy: [{ isVip: "desc" }, { name: "asc" }],
-    skip: (page - 1) * PAGE_SIZE,
-    take: PAGE_SIZE,
+    skip: (page - 1) * LIST_PAGE_SIZE,
+    take: LIST_PAGE_SIZE,
     include: {
       parent: { select: { isVip: true, name: true } },
       _count: { select: { subsidiaries: true } },
@@ -263,37 +259,18 @@ export default async function ClientsPage({
           })
         )}
 
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between text-sm text-slate-600">
-            {page > 1 ? (
-              <Link
-                href={pageHref(page - 1)}
-                className="font-medium text-brand-700 hover:underline"
-              >
-                ← Previous
-              </Link>
-            ) : (
-              <span />
-            )}
-            <span>
-              Page {page} of {totalPages} · {totalClients} client
-              {totalClients !== 1 ? "s" : ""}
-              {allVisibleIds.length > clients.length
-                ? ` (${allVisibleIds.length} shown with subsidiaries)`
-                : ""}
-            </span>
-            {page < totalPages ? (
-              <Link
-                href={pageHref(page + 1)}
-                className="font-medium text-brand-700 hover:underline"
-              >
-                Next →
-              </Link>
-            ) : (
-              <span />
-            )}
-          </div>
-        )}
+        <ListPagination
+          page={page}
+          totalPages={totalPages}
+          totalCount={totalClients}
+          pageHref={pageHref}
+          countLabel="client"
+          summarySuffix={
+            allVisibleIds.length > clients.length
+              ? ` (${allVisibleIds.length} shown with subsidiaries)`
+              : undefined
+          }
+        />
       </div>
     </>
   );

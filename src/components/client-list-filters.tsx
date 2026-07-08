@@ -1,10 +1,12 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { CLIENT_TYPE_LABELS } from "@/lib/deal-values";
 import { appendFilterParams } from "@/lib/client-filters";
 import type { ClientHierarchyView } from "@/lib/client-hierarchy";
 import type { DealClientType } from "@prisma/client";
+import { Card } from "@/components/ui";
 
 const HIERARCHY_LABELS: Record<ClientHierarchyView, string> = {
   top: "Groups & standalone",
@@ -12,6 +14,48 @@ const HIERARCHY_LABELS: Record<ClientHierarchyView, string> = {
   subsidiaries: "Subsidiaries",
   all: "All",
 };
+
+function FilterChip({
+  active,
+  label,
+  onClick,
+}: {
+  active: boolean;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`rounded-full border px-3 py-1 text-sm font-medium transition ${
+        active
+          ? "border-brand-500 bg-brand-50 text-brand-800"
+          : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+      }`}
+    >
+      {label}
+    </button>
+  );
+}
+
+function FilterGroup({
+  label,
+  children,
+  className = "",
+}: {
+  label: string;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={className}>
+      <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500">{label}</p>
+      <div className="flex flex-wrap gap-2">{children}</div>
+    </div>
+  );
+}
 
 export function ClientListFilters({
   search,
@@ -74,9 +118,9 @@ export function ClientListFilters({
     selectedTypes.length > 0 || selectedCountries.length > 0 || hierarchyView !== "top";
 
   return (
-    <div className="space-y-3">
+    <Card className="p-4">
       <form
-        className="flex gap-2"
+        className="flex w-full flex-col gap-3 sm:flex-row"
         onSubmit={(event) => {
           event.preventDefault();
           const formData = new FormData(event.currentTarget);
@@ -93,101 +137,70 @@ export function ClientListFilters({
           name="q"
           defaultValue={search}
           placeholder="Search clients…"
-          className="w-full max-w-sm rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100"
+          className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100"
         />
-        <button
-          type="submit"
-          className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-        >
-          Search
-        </button>
+        <div className="flex shrink-0 gap-2">
+          <button
+            type="submit"
+            className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+          >
+            Search
+          </button>
+          {hasFilters && (
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-500 transition hover:bg-slate-50 hover:text-slate-700"
+            >
+              Clear filters
+            </button>
+          )}
+        </div>
       </form>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
-          Show
-        </span>
-        {(Object.entries(HIERARCHY_LABELS) as [ClientHierarchyView, string][]).map(
-          ([view, label]) => {
-            const active = hierarchyView === view;
-            return (
-              <button
+      <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <FilterGroup label="Show">
+          {(Object.entries(HIERARCHY_LABELS) as [ClientHierarchyView, string][]).map(
+            ([view, label]) => (
+              <FilterChip
                 key={view}
-                type="button"
+                active={hierarchyView === view}
+                label={label}
                 onClick={() => setHierarchyView(view)}
-                aria-pressed={active}
-                className={`rounded-full border px-3 py-1 text-sm font-medium transition ${
-                  active
-                    ? "border-brand-500 bg-brand-50 text-brand-800"
-                    : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
-                }`}
-              >
-                {label}
-              </button>
-            );
-          },
+              />
+            ),
+          )}
+        </FilterGroup>
+
+        <FilterGroup label="Client type">
+          {(Object.entries(CLIENT_TYPE_LABELS) as [DealClientType, string][]).map(
+            ([type, label]) => (
+              <FilterChip
+                key={type}
+                active={selectedTypeSet.has(type)}
+                label={label}
+                onClick={() => toggleType(type)}
+              />
+            ),
+          )}
+        </FilterGroup>
+
+        {countries.length > 0 && (
+          <FilterGroup
+            label="Country"
+            className={countries.length > 8 ? "md:col-span-2 xl:col-span-3" : ""}
+          >
+            {countries.map((country) => (
+              <FilterChip
+                key={country}
+                active={selectedCountrySet.has(country.toLowerCase())}
+                label={country}
+                onClick={() => toggleCountry(country)}
+              />
+            ))}
+          </FilterGroup>
         )}
       </div>
-
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
-          Client type
-        </span>
-        {(Object.entries(CLIENT_TYPE_LABELS) as [DealClientType, string][]).map(([type, label]) => {
-          const active = selectedTypeSet.has(type);
-          return (
-            <button
-              key={type}
-              type="button"
-              onClick={() => toggleType(type)}
-              aria-pressed={active}
-              className={`rounded-full border px-3 py-1 text-sm font-medium transition ${
-                active
-                  ? "border-brand-500 bg-brand-50 text-brand-800"
-                  : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
-              }`}
-            >
-              {label}
-            </button>
-          );
-        })}
-      </div>
-
-      {countries.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
-            Country
-          </span>
-          {countries.map((country) => {
-            const active = selectedCountrySet.has(country.toLowerCase());
-            return (
-              <button
-                key={country}
-                type="button"
-                onClick={() => toggleCountry(country)}
-                aria-pressed={active}
-                className={`rounded-full border px-3 py-1 text-sm font-medium transition ${
-                  active
-                    ? "border-brand-500 bg-brand-50 text-brand-800"
-                    : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
-                }`}
-              >
-                {country}
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      {hasFilters && (
-        <button
-          type="button"
-          onClick={clearFilters}
-          className="text-sm font-medium text-slate-500 hover:text-slate-700 hover:underline"
-        >
-          Clear filters
-        </button>
-      )}
-    </div>
+    </Card>
   );
 }

@@ -9,6 +9,8 @@ import {
   formatMoney,
 } from "@/lib/deal-values";
 import { Badge, Card, EmptyState, PageHeader, VipBadge } from "@/components/ui";
+import { ListPagination } from "@/components/list-pagination";
+import { LIST_PAGE_SIZE, parseListPage } from "@/lib/list-pagination";
 
 export const dynamic = "force-dynamic";
 
@@ -30,8 +32,6 @@ function stageWhere(filter: FilterKey): Prisma.DealWhereInput {
   return {};
 }
 
-const PAGE_SIZE = 25;
-
 export default async function QuotesPage({
   searchParams,
 }: {
@@ -46,18 +46,14 @@ export default async function QuotesPage({
 
   const where = stageWhere(filter);
   const totalQuotes = await prisma.deal.count({ where });
-  const totalPages = Math.max(1, Math.ceil(totalQuotes / PAGE_SIZE));
-  const requestedPage = Number(params.page);
-  const page = Math.min(
-    totalPages,
-    Number.isInteger(requestedPage) && requestedPage >= 1 ? requestedPage : 1,
-  );
+  const totalPages = Math.max(1, Math.ceil(totalQuotes / LIST_PAGE_SIZE));
+  const page = parseListPage(params.page, totalPages);
 
   const quotes = await prisma.deal.findMany({
     where,
     orderBy: { createdAt: "desc" },
-    skip: (page - 1) * PAGE_SIZE,
-    take: PAGE_SIZE,
+    skip: (page - 1) * LIST_PAGE_SIZE,
+    take: LIST_PAGE_SIZE,
     include: {
       lineItems: { include: { product: { select: { kind: true } } } },
       client: { select: { isVip: true } },
@@ -148,33 +144,13 @@ export default async function QuotesPage({
             );
           })}
 
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between text-sm text-slate-600">
-              {page > 1 ? (
-                <Link
-                  href={pageHref(page - 1)}
-                  className="font-medium text-brand-700 hover:underline"
-                >
-                  ← Previous
-                </Link>
-              ) : (
-                <span />
-              )}
-              <span>
-                Page {page} of {totalPages} · {totalQuotes} quote{totalQuotes !== 1 ? "s" : ""}
-              </span>
-              {page < totalPages ? (
-                <Link
-                  href={pageHref(page + 1)}
-                  className="font-medium text-brand-700 hover:underline"
-                >
-                  Next →
-                </Link>
-              ) : (
-                <span />
-              )}
-            </div>
-          )}
+          <ListPagination
+            page={page}
+            totalPages={totalPages}
+            totalCount={totalQuotes}
+            pageHref={pageHref}
+            countLabel="quote"
+          />
         </div>
       )}
     </>
