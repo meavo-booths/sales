@@ -69,7 +69,7 @@ export async function rollupClientIds(parentId: string): Promise<string[]> {
 export async function rollupRevenueForClientIds(clientIds: string[]): Promise<number> {
   if (clientIds.length === 0) return 0;
   const rows = await prisma.$queryRaw<{ revenue: number }[]>`
-    SELECT COALESCE(SUM(li.quantity * li."unitPrice"), 0)::float AS revenue
+    SELECT COALESCE(SUM(li.quantity * COALESCE(li."unitPriceEur", li."unitPrice")), 0)::float AS revenue
     FROM "QuoteLineItem" li
     JOIN "Deal" d ON d.id = li."dealId"
     WHERE d."clientId" = ANY(${clientIds}) AND d.stage = 'WON'

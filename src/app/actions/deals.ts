@@ -1,13 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { BoothUnitStatus, PaymentStatus } from "@prisma/client";
+import { BoothUnitStatus, PaymentStatus, Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireSalesAccess } from "@/lib/meavo-auth";
 import { contactInputSchema, convertInputSchema } from "@/lib/quote-input";
 import { exportDealToOpsSheet } from "@/lib/ops-sheet-export";
 import { syncClientContacts } from "@/lib/client-contacts";
+import { fetchExchangeRateToEur, isQuoteCurrency } from "@/lib/exchange-rates";
 
 const paymentInputSchema = z.object({
   paymentStatus: z.nativeEnum(PaymentStatus),
@@ -123,6 +124,9 @@ export async function convertQuoteAction(
       })),
     );
 
+  const currency = isQuoteCurrency(deal.currency) ? deal.currency : "EUR";
+  const exchangeRateToEur = await fetchExchangeRateToEur(currency);
+
   await prisma.$transaction([
     prisma.deal.update({
       where: { id },
@@ -131,9 +135,20 @@ export async function convertQuoteAction(
         dealId,
         wonAt: new Date(),
         paymentPoDate: paymentPoDate ?? undefined,
+        exchangeRateToEur: new Prisma.Decimal(exchangeRateToEur.toFixed(8)),
       },
     }),
     prisma.boothUnit.createMany({ data: boothUnits }),
+    ...deal.lineItems.map((lineItem) =>
+      prisma.quoteLineItem.update({
+        where: { id: lineItem.id },
+        data: {
+          unitPriceEur: new Prisma.Decimal(
+            (Number(lineItem.unitPrice) * exchangeRateToEur).toFixed(2),
+          ),
+        },
+      }),
+    ),
   ]);
 
   // Append to the Ops File; failures are recorded on the deal, never thrown.

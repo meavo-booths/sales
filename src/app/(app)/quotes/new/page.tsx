@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireSalesAccess } from "@/lib/meavo-auth";
 import { mapClientsForQuotePicker } from "@/lib/client-hierarchy";
+import { parseProductCurrency } from "@/lib/exchange-rates";
 import { PageHeader } from "@/components/ui";
 import { QuoteForm } from "@/components/quote-form";
 
@@ -13,7 +14,10 @@ export default async function NewQuotePage() {
     prisma.product.findMany({
       where: { isActive: true },
       orderBy: [{ kind: "asc" }, { name: "asc" }],
-      include: { addOnRestrictions: { select: { boothId: true } } },
+      include: {
+        addOnRestrictions: { select: { boothId: true } },
+        availability: { select: { market: true, clientType: true } },
+      },
     }),
     prisma.client.findMany({
       orderBy: [{ isVip: "desc" }, { name: "asc" }],
@@ -38,7 +42,12 @@ export default async function NewQuotePage() {
           sku: p.sku,
           kind: p.kind,
           listPrice: Number(p.listPrice),
+          currency: parseProductCurrency(p.currency),
           restrictedToBoothIds: p.addOnRestrictions.map((r) => r.boothId),
+          availability: p.availability.map((row) => ({
+            market: row.market,
+            clientType: row.clientType,
+          })),
         }))}
         clients={mapClientsForQuotePicker(clients)}
         defaultSalesRep={session.user.name ?? ""}

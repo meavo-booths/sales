@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { QUOTE_CURRENCIES } from "@/lib/exchange-rates";
 
 const dateString = z
   .string()
@@ -65,6 +66,7 @@ export const quoteInputSchema = z
     assemblyAddress: z.string().trim().default(""),
     vatNumber: z.string().trim().default(""),
     clientType: z.enum(["DIRECT", "AGENCY", "COWORKING"]),
+    currency: z.enum(QUOTE_CURRENCIES).default("EUR"),
     isVip: z.boolean().default(false),
     paymentTerms: z.enum(["UPFRONT_100", "SPLIT_50_50", "NET_30"]),
     notes: z.string().trim().default(""),

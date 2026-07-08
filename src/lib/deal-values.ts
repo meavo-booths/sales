@@ -46,6 +46,9 @@ export const MARKET_OPTIONS = [
   "Portugal",
 ] as const;
 
+export const QUOTE_CURRENCIES = ["EUR", "GBP", "CZK", "USD"] as const;
+export type QuoteCurrency = (typeof QUOTE_CURRENCIES)[number];
+
 export const SOCKET_TYPE_OPTIONS = [
   "UK",
   "EU",

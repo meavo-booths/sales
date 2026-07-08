@@ -7,6 +7,8 @@ import { requireSalesAccess } from "@/lib/meavo-auth";
 import { nextQuoteNumber } from "@/lib/quote-number";
 import { quoteInputSchema, type QuoteInput } from "@/lib/quote-input";
 import { syncClientContacts } from "@/lib/client-contacts";
+import { fetchExchangeRateToEur, isQuoteCurrency } from "@/lib/exchange-rates";
+import { productMatchesAvailability } from "@/lib/product-availability";
 
 export type QuoteActionResult =
   | { ok: true; id: string }
@@ -60,6 +62,41 @@ async function validateProductKinds(input: QuoteInput): Promise<string | null> {
   return null;
 }
 
+async function validateProductAvailability(input: QuoteInput): Promise<string | null> {
+  if (!input.market) return null;
+
+  const productIds = [
+    ...new Set([
+      ...input.lineItems.map((item) => item.productId),
+      ...input.lineItems.flatMap((item) => item.addOns.map((addOn) => addOn.productId)),
+      ...input.standaloneAddOns.map((addOn) => addOn.productId),
+    ]),
+  ];
+  if (productIds.length === 0) return null;
+
+  const products = await prisma.product.findMany({
+    where: { id: { in: productIds } },
+    select: {
+      id: true,
+      name: true,
+      availability: { select: { market: true, clientType: true } },
+    },
+  });
+
+  for (const product of products) {
+    if (
+      !productMatchesAvailability(product.availability, input.market, input.clientType)
+    ) {
+      return `${product.name} is not available for ${input.market} / ${input.clientType}`;
+    }
+  }
+  return null;
+}
+
+function unitPriceEurValue(unitPrice: number, exchangeRateToEur: number): Prisma.Decimal {
+  return new Prisma.Decimal((unitPrice * exchangeRateToEur).toFixed(2));
+}
+
 /**
  * Link the picked client, or create a new one from the quote's client fields.
  * Either way the quote's contacts are merged into the client's directory so
@@ -98,7 +135,12 @@ async function resolveClientId(tx: Tx, input: QuoteInput): Promise<string> {
 }
 
 /** Creates booth lines, their attached add-ons, then standalone add-ons. */
-async function createLineItems(tx: Tx, dealId: string, input: QuoteInput): Promise<void> {
+async function createLineItems(
+  tx: Tx,
+  dealId: string,
+  input: QuoteInput,
+  exchangeRateToEur: number,
+): Promise<void> {
   let sortOrder = 0;
 
   for (const item of input.lineItems) {
@@ -108,6 +150,7 @@ async function createLineItems(tx: Tx, dealId: string, input: QuoteInput): Promi
         productId: item.productId,
         quantity: item.quantity,
         unitPrice: new Prisma.Decimal(item.unitPrice.toFixed(2)),
+        unitPriceEur: unitPriceEurValue(item.unitPrice, exchangeRateToEur),
         finish: item.finish,
         finishDetails: item.finishDetails,
         description: item.description,
@@ -121,6 +164,7 @@ async function createLineItems(tx: Tx, dealId: string, input: QuoteInput): Promi
           productId: addOn.productId,
           quantity: addOn.quantity,
           unitPrice: new Prisma.Decimal(addOn.unitPrice.toFixed(2)),
+          unitPriceEur: unitPriceEurValue(addOn.unitPrice, exchangeRateToEur),
           description: addOn.description,
           sortOrder: sortOrder++,
           parentLineItemId: parent.id,
@@ -136,6 +180,7 @@ async function createLineItems(tx: Tx, dealId: string, input: QuoteInput): Promi
         productId: addOn.productId,
         quantity: addOn.quantity,
         unitPrice: new Prisma.Decimal(addOn.unitPrice.toFixed(2)),
+        unitPriceEur: unitPriceEurValue(addOn.unitPrice, exchangeRateToEur),
         description: addOn.description,
         sortOrder: sortOrder++,
       },
@@ -149,6 +194,7 @@ async function createLineItems(tx: Tx, dealId: string, input: QuoteInput): Promi
         customName: custom.name,
         quantity: custom.quantity,
         unitPrice: new Prisma.Decimal(custom.unitPrice.toFixed(2)),
+        unitPriceEur: unitPriceEurValue(custom.unitPrice, exchangeRateToEur),
         description: custom.description,
         sortOrder: sortOrder++,
       },
@@ -166,7 +212,13 @@ export async function createQuoteAction(rawInput: unknown): Promise<QuoteActionR
   const kindError = await validateProductKinds(input);
   if (kindError) return { ok: false, error: kindError };
 
+  const availabilityError = await validateProductAvailability(input);
+  if (availabilityError) return { ok: false, error: availabilityError };
+
+  const currency = isQuoteCurrency(input.currency) ? input.currency : "EUR";
+
   try {
+    const exchangeRateToEur = await fetchExchangeRateToEur(currency);
     const quoteNumber = await nextQuoteNumber();
 
     const dealId = await prisma.$transaction(async (tx) => {
@@ -186,13 +238,15 @@ export async function createQuoteAction(rawInput: unknown): Promise<QuoteActionR
           assemblyAddress: input.assemblyAddress,
           vatNumber: input.vatNumber,
           clientType: input.clientType,
+          currency,
+          exchangeRateToEur: new Prisma.Decimal(exchangeRateToEur.toFixed(8)),
           paymentTerms: input.paymentTerms,
           notes: input.notes,
           createdByUserId: session.user.id,
           contacts: { create: contactsCreate(input) },
         },
       });
-      await createLineItems(tx, deal.id, input);
+      await createLineItems(tx, deal.id, input, exchangeRateToEur);
       return deal.id;
     });
 
@@ -223,7 +277,14 @@ export async function updateQuoteAction(
   const kindError = await validateProductKinds(input);
   if (kindError) return { ok: false, error: kindError };
 
+  const availabilityError = await validateProductAvailability(input);
+  if (availabilityError) return { ok: false, error: availabilityError };
+
+  const currency = isQuoteCurrency(input.currency) ? input.currency : "EUR";
+
   try {
+    const exchangeRateToEur = await fetchExchangeRateToEur(currency);
+
     await prisma.$transaction(async (tx) => {
       const clientId = await resolveClientId(tx, input);
       await tx.dealContact.deleteMany({ where: { dealId: id } });
@@ -243,12 +304,14 @@ export async function updateQuoteAction(
           assemblyAddress: input.assemblyAddress,
           vatNumber: input.vatNumber,
           clientType: input.clientType,
+          currency,
+          exchangeRateToEur: new Prisma.Decimal(exchangeRateToEur.toFixed(8)),
           paymentTerms: input.paymentTerms,
           notes: input.notes,
           contacts: { create: contactsCreate(input) },
         },
       });
-      await createLineItems(tx, id, input);
+      await createLineItems(tx, id, input, exchangeRateToEur);
     });
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Could not save quote" };

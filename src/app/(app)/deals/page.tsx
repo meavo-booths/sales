@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { PaymentStatus, Prisma } from "@prisma/client";
+import { dealTotalEur } from "@/lib/line-item-eur";
 import { prisma } from "@/lib/prisma";
 import { requireSalesAccess } from "@/lib/meavo-auth";
 import {
@@ -96,10 +97,7 @@ export default async function DealsPage({
       ) : (
         <div className="space-y-3">
           {deals.map((deal) => {
-            const total = deal.lineItems.reduce(
-              (sum, li) => sum + li.quantity * Number(li.unitPrice),
-              0,
-            );
+            const total = dealTotalEur(deal);
             const statusCounts = deal.boothUnits.reduce<Record<string, number>>((acc, unit) => {
               acc[unit.status] = (acc[unit.status] ?? 0) + 1;
               return acc;
@@ -133,9 +131,7 @@ export default async function DealsPage({
                           .join(" · ") || "No booth units"}
                       </p>
                     </div>
-                    <p className="font-semibold text-slate-900">
-                      {formatMoney(total, deal.currency)}
-                    </p>
+                    <p className="font-semibold text-slate-900">{formatMoney(total)}</p>
                   </div>
                 </Card>
               </Link>

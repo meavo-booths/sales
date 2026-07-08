@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { dealTotalEur } from "@/lib/line-item-eur";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireSalesAccess } from "@/lib/meavo-auth";
@@ -41,7 +42,7 @@ export default async function ClientPage({
       contacts: { orderBy: { sortOrder: "asc" } },
       deals: {
         orderBy: { createdAt: "desc" },
-        include: { lineItems: { select: { quantity: true, unitPrice: true } } },
+        include: { lineItems: { select: { quantity: true, unitPrice: true, unitPriceEur: true } } },
       },
       _count: { select: { subsidiaries: true } },
     },
@@ -66,11 +67,7 @@ export default async function ClientPage({
 
   const wonDeals = client.deals.filter((d) => d.stage === "WON");
   const openQuotes = client.deals.filter((d) => d.stage === "QUOTE");
-  const localRevenue = wonDeals.reduce(
-    (sum, deal) =>
-      sum + deal.lineItems.reduce((s, li) => s + li.quantity * Number(li.unitPrice), 0),
-    0,
-  );
+  const localRevenue = wonDeals.reduce((sum, deal) => sum + dealTotalEur(deal), 0);
 
   return (
     <>
@@ -201,10 +198,14 @@ export default async function ClientPage({
             </EmptyState>
           ) : (
             client.deals.map((deal) => {
-              const total = deal.lineItems.reduce(
+              const quoteTotal = deal.lineItems.reduce(
                 (sum, li) => sum + li.quantity * Number(li.unitPrice),
                 0,
               );
+              const displayTotal =
+                deal.stage === "WON"
+                  ? formatMoney(dealTotalEur(deal))
+                  : formatMoney(quoteTotal, deal.currency);
               const href = deal.stage === "WON" ? `/deals/${deal.id}` : `/quotes/${deal.id}`;
               return (
                 <Link key={deal.id} href={href} className="block">
@@ -230,9 +231,7 @@ export default async function ClientPage({
                           {deal.salesRep && ` · ${deal.salesRep}`}
                         </p>
                       </div>
-                      <p className="font-semibold text-slate-900">
-                        {formatMoney(total, deal.currency)}
-                      </p>
+                      <p className="font-semibold text-slate-900">{displayTotal}</p>
                     </div>
                   </Card>
                 </Link>

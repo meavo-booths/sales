@@ -16,10 +16,10 @@
     "schema": "node_modules/@meavo/db/prisma/schema.prisma"
   },
   "dependencies": {
-    "@meavo/db": "github:meavo-booths/meavo-db#v0.8.3",
+    "@meavo/db": "github:meavo-booths/meavo-db#v0.9.1",
     "@meavo/navigation": "git+https://github.com/meavo-booths/meavo-navigation.git#v0.1.2",
     "@neondatabase/serverless": "^1.1.0",
-    "@prisma/client": "^6.1.0",
+    "@prisma/client": "^6.19.3",
     "@react-pdf/renderer": "^4.3.1",
     "@vercel/blob": "^2.4.0",
     "googleapis": "^144.0.0",

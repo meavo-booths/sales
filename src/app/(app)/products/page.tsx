@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { prisma } from "@/lib/prisma";
 import { requireSalesAccess } from "@/lib/meavo-auth";
+import { parseProductCurrency } from "@/lib/exchange-rates";
 import { Card, EmptyState, PageHeader } from "@/components/ui";
 import {
   AddOnCreateForm,
@@ -53,7 +54,10 @@ export default async function ProductsPage() {
 
   const products = await prisma.product.findMany({
     orderBy: [{ isActive: "desc" }, { name: "asc" }],
-    include: { addOnRestrictions: { select: { boothId: true } } },
+    include: {
+      addOnRestrictions: { select: { boothId: true } },
+      availability: { select: { market: true, clientType: true } },
+    },
   });
 
   const toRow = (product: (typeof products)[number]): ProductRow => ({
@@ -64,8 +68,13 @@ export default async function ProductsPage() {
     description: product.description,
     imageUrl: product.imageUrl,
     listPrice: product.listPrice.toFixed(2),
+    currency: parseProductCurrency(product.currency),
     isActive: product.isActive,
     restrictedBoothIds: product.addOnRestrictions.map((r) => r.boothId),
+    availability: product.availability.map((row) => ({
+      market: row.market,
+      clientType: row.clientType,
+    })),
   });
 
   const booths = products.filter((p) => p.kind === "BOOTH");

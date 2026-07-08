@@ -1,21 +1,31 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { DealContactKind } from "@prisma/client";
 import { createQuoteAction, updateQuoteAction } from "@/app/actions/quotes";
+import { getFxRateToEurAction } from "@/app/actions/fx";
 import {
   CLIENT_TYPE_LABELS,
   CONTACT_KIND_LABELS,
   FINISH_LABELS,
   MARKET_OPTIONS,
   PAYMENT_TERMS_LABELS,
+  QUOTE_CURRENCIES,
   SOCKET_TYPE_OPTIONS,
   formatMoney,
+  type QuoteCurrency,
 } from "@/lib/deal-values";
+import { convertBetweenQuoteCurrencies } from "@/lib/exchange-rates";
 import { isClientVip, isQuoteSelectableClient } from "@/lib/client-hierarchy";
+import { productMatchesAvailability } from "@/lib/product-availability";
 import { Button, Card, Input, Select, Textarea } from "@/components/ui";
 import { VatNumberField } from "@/components/vat-check";
+
+export type ProductAvailabilityRow = {
+  market: string;
+  clientType: "DIRECT" | "AGENCY" | "COWORKING";
+};
 
 export type ProductOption = {
   id: string;
@@ -23,8 +33,11 @@ export type ProductOption = {
   sku: string;
   kind: "BOOTH" | "ADDON";
   listPrice: number;
+  currency: QuoteCurrency;
   /** For add-ons: booth product ids this add-on is limited to. Empty = any booth. */
   restrictedToBoothIds: string[];
+  /** Allowed market + client type pairs. Empty = all combinations. */
+  availability: ProductAvailabilityRow[];
 };
 
 type ContactDraft = {
@@ -87,6 +100,7 @@ export type QuoteFormValues = {
   targetDeliveryDate: string;
   vatNumber: string;
   clientType: "DIRECT" | "AGENCY" | "COWORKING";
+  currency: QuoteCurrency;
   isVip: boolean;
   paymentTerms: "UPFRONT_100" | "SPLIT_50_50" | "NET_30";
   notes: string;
@@ -158,6 +172,7 @@ export function QuoteForm({
       targetDeliveryDate: "",
       vatNumber: "",
       clientType: "DIRECT",
+      currency: "EUR",
       isVip: false,
       paymentTerms: "UPFRONT_100",
       notes: "",
@@ -168,6 +183,84 @@ export function QuoteForm({
     },
   );
 
+  const [fxRatesToEur, setFxRatesToEur] = useState<Partial<Record<QuoteCurrency, number>>>({
+    EUR: 1,
+  });
+
+  const productCurrencies = useMemo(
+    () => [...new Set(products.map((product) => product.currency))],
+    [products],
+  );
+
+  useEffect(() => {
+    const needed = new Set<QuoteCurrency>([values.currency, ...productCurrencies]);
+    let cancelled = false;
+
+    void (async () => {
+      const rates: Partial<Record<QuoteCurrency, number>> = { EUR: 1 };
+      for (const currency of needed) {
+        if (currency === "EUR") continue;
+        const result = await getFxRateToEurAction(currency);
+        if (result.ok) rates[currency] = result.rate;
+      }
+      if (!cancelled) setFxRatesToEur(rates);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [values.currency, productCurrencies]);
+
+  const fetchFxRates = async (
+    currencies: Iterable<QuoteCurrency>,
+  ): Promise<Partial<Record<QuoteCurrency, number>>> => {
+    const rates: Partial<Record<QuoteCurrency, number>> = { EUR: 1, ...fxRatesToEur };
+    for (const currency of currencies) {
+      if (currency === "EUR" || rates[currency]) continue;
+      const result = await getFxRateToEurAction(currency);
+      if (result.ok) rates[currency] = result.rate;
+    }
+    setFxRatesToEur(rates);
+    return rates;
+  };
+
+  const catalogUnitPrice = (
+    product: ProductOption,
+    quoteCurrency: QuoteCurrency = values.currency,
+    rates: Partial<Record<QuoteCurrency, number>> = fxRatesToEur,
+  ) =>
+    convertBetweenQuoteCurrencies(product.listPrice, product.currency, quoteCurrency, rates);
+
+  const selectedProductIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const line of values.lineItems) {
+      ids.add(line.productId);
+      for (const addOn of line.addOns) ids.add(addOn.productId);
+    }
+    for (const addOn of values.standaloneAddOns) ids.add(addOn.productId);
+    return ids;
+  }, [values.lineItems, values.standaloneAddOns]);
+
+  const availableBoothProducts = useMemo(
+    () =>
+      boothProducts.filter(
+        (product) =>
+          selectedProductIds.has(product.id) ||
+          productMatchesAvailability(product.availability, values.market, values.clientType),
+      ),
+    [boothProducts, selectedProductIds, values.market, values.clientType],
+  );
+
+  const availableAddOnProducts = useMemo(
+    () =>
+      addOnProducts.filter(
+        (product) =>
+          selectedProductIds.has(product.id) ||
+          productMatchesAvailability(product.availability, values.market, values.clientType),
+      ),
+    [addOnProducts, selectedProductIds, values.market, values.clientType],
+  );
+
   const selectedClient = useMemo(
     () => (values.clientId ? clients.find((c) => c.id === values.clientId) : undefined),
     [clients, values.clientId],
@@ -175,6 +268,47 @@ export function QuoteForm({
 
   const set = <K extends keyof QuoteFormValues>(key: K, value: QuoteFormValues[K]) =>
     setValues((prev) => ({ ...prev, [key]: value }));
+
+  const changeCurrency = async (currency: QuoteCurrency) => {
+    const productIds = new Set<string>();
+    for (const line of values.lineItems) {
+      productIds.add(line.productId);
+      for (const addOn of line.addOns) productIds.add(addOn.productId);
+    }
+    for (const addOn of values.standaloneAddOns) productIds.add(addOn.productId);
+
+    const currencies = new Set<QuoteCurrency>([currency]);
+    for (const productId of productIds) {
+      const product = products.find((p) => p.id === productId);
+      if (product) currencies.add(product.currency);
+    }
+
+    const rates = await fetchFxRates(currencies);
+    setError(null);
+    setValues((prev) => {
+      const priceForProduct = (productId: string, fallback: number) => {
+        const product = products.find((p) => p.id === productId);
+        if (!product) return fallback;
+        return catalogUnitPrice(product, currency, rates);
+      };
+      return {
+        ...prev,
+        currency,
+        lineItems: prev.lineItems.map((line) => ({
+          ...line,
+          unitPrice: priceForProduct(line.productId, line.unitPrice),
+          addOns: line.addOns.map((addOn) => ({
+            ...addOn,
+            unitPrice: priceForProduct(addOn.productId, addOn.unitPrice),
+          })),
+        })),
+        standaloneAddOns: prev.standaloneAddOns.map((addOn) => ({
+          ...addOn,
+          unitPrice: priceForProduct(addOn.productId, addOn.unitPrice),
+        })),
+      };
+    });
+  };
 
   const pickClient = (clientId: string) => {
     if (!clientId) {
@@ -216,7 +350,7 @@ export function QuoteForm({
     }));
 
   const addLineItem = () => {
-    const first = boothProducts[0];
+    const first = availableBoothProducts[0];
     if (!first) return;
     setValues((prev) => ({
       ...prev,
@@ -225,7 +359,7 @@ export function QuoteForm({
         {
           productId: first.id,
           quantity: 1,
-          unitPrice: first.listPrice,
+          unitPrice: catalogUnitPrice(first),
           finish: "WHITE_STOCK",
           finishDetails: "",
           description: "",
@@ -241,17 +375,22 @@ export function QuoteForm({
    * always kept so existing quotes still render and save.
    */
   const addOnsForBooth = (boothProductId: string, currentAddOnId?: string) =>
-    addOnProducts.filter(
+    availableAddOnProducts.filter(
       (p) =>
         p.restrictedToBoothIds.length === 0 ||
         p.restrictedToBoothIds.includes(boothProductId) ||
         p.id === currentAddOnId,
     );
 
-  const newAddOnDraft = (options: ProductOption[] = addOnProducts): AddOnDraft | null => {
+  const newAddOnDraft = (options: ProductOption[] = availableAddOnProducts): AddOnDraft | null => {
     const first = options[0];
     if (!first) return null;
-    return { productId: first.id, quantity: 1, unitPrice: first.listPrice, description: "" };
+    return {
+      productId: first.id,
+      quantity: 1,
+      unitPrice: catalogUnitPrice(first),
+      description: "",
+    };
   };
 
   const setAttachedAddOn = (lineIndex: number, addOnIndex: number, patch: Partial<AddOnDraft>) =>
@@ -311,7 +450,7 @@ export function QuoteForm({
     addOn: AddOnDraft,
     update: (patch: Partial<AddOnDraft>) => void,
     remove: () => void,
-    options: ProductOption[] = addOnProducts,
+    options: ProductOption[] = availableAddOnProducts,
   ) => (
     <div className="grid gap-2 sm:grid-cols-[2fr_1fr_1fr_1.5fr_auto]">
       <Select
@@ -321,7 +460,7 @@ export function QuoteForm({
           const product = options.find((p) => p.id === e.target.value);
           update({
             productId: e.target.value,
-            unitPrice: product ? product.listPrice : addOn.unitPrice,
+            unitPrice: product ? catalogUnitPrice(product) : addOn.unitPrice,
           });
         }}
       >
@@ -623,9 +762,32 @@ export function QuoteForm({
 
       <Card>
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-base font-semibold text-slate-900">Line items</h2>
+          <div className="flex flex-wrap items-center gap-3">
+            <h2 className="text-base font-semibold text-slate-900">Line items</h2>
+            <div className="flex flex-wrap gap-1.5">
+              {QUOTE_CURRENCIES.map((currency) => (
+                <button
+                  key={currency}
+                  type="button"
+                  onClick={() => void changeCurrency(currency)}
+                  aria-pressed={values.currency === currency}
+                  className={`rounded-full px-3 py-1 text-sm font-medium transition ${
+                    values.currency === currency
+                      ? "bg-slate-900 text-white"
+                      : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50"
+                  }`}
+                >
+                  {currency}
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="flex gap-2">
-            <Button variant="secondary" onClick={addLineItem} disabled={boothProducts.length === 0}>
+            <Button
+              variant="secondary"
+              onClick={addLineItem}
+              disabled={availableBoothProducts.length === 0}
+            >
               Products
             </Button>
             <Button
@@ -638,7 +800,7 @@ export function QuoteForm({
                   standaloneAddOns: [...prev.standaloneAddOns, draft],
                 }));
               }}
-              disabled={addOnProducts.length === 0}
+              disabled={availableAddOnProducts.length === 0}
             >
               Add-ons
             </Button>
@@ -659,6 +821,13 @@ export function QuoteForm({
           </div>
         </div>
 
+        {availableBoothProducts.length === 0 && boothProducts.length > 0 && values.market && (
+          <p className="text-sm text-amber-700">
+            No products match this market and client type. Change deal details or update product
+            availability.
+          </p>
+        )}
+
         {boothProducts.length === 0 && (
           <p className="text-sm text-amber-700">
             No active products in the catalog. Add products first.
@@ -678,14 +847,14 @@ export function QuoteForm({
                     label="Product"
                     value={item.productId}
                     onChange={(e) => {
-                      const product = boothProducts.find((p) => p.id === e.target.value);
+                      const product = availableBoothProducts.find((p) => p.id === e.target.value);
                       setLineItem(index, {
                         productId: e.target.value,
-                        unitPrice: product ? product.listPrice : item.unitPrice,
+                        unitPrice: product ? catalogUnitPrice(product) : item.unitPrice,
                       });
                     }}
                   >
-                    {boothProducts.map((product) => (
+                    {availableBoothProducts.map((product) => (
                       <option key={product.id} value={product.id}>
                         {product.name} ({product.sku})
                       </option>
@@ -789,6 +958,7 @@ export function QuoteForm({
                     {formatMoney(
                       item.quantity * item.unitPrice +
                         item.addOns.reduce((s, a) => s + a.quantity * a.unitPrice, 0),
+                      values.currency,
                     )}
                   </p>
                 </div>
@@ -810,7 +980,7 @@ export function QuoteForm({
                     })),
                 )}
                 <p className="mt-2 text-right text-sm font-medium text-slate-700">
-                  {formatMoney(addOn.quantity * addOn.unitPrice)}
+                  {formatMoney(addOn.quantity * addOn.unitPrice, values.currency)}
                 </p>
               </div>
             ))}
@@ -869,15 +1039,21 @@ export function QuoteForm({
                   </div>
                 </div>
                 <p className="mt-2 text-right text-sm font-medium text-slate-700">
-                  {formatMoney(custom.quantity * custom.unitPrice)}
+                  {formatMoney(custom.quantity * custom.unitPrice, values.currency)}
                 </p>
               </div>
             ))}
 
             <p className="text-right text-base font-semibold text-slate-900">
-              Total: {formatMoney(total)}
+              Total: {formatMoney(total, values.currency)}
             </p>
           </div>
+        )}
+
+        {availableAddOnProducts.length === 0 && addOnProducts.length > 0 && values.market && (
+          <p className="mt-3 text-xs text-amber-700">
+            No add-ons match this market and client type.
+          </p>
         )}
 
         {addOnProducts.length === 0 && (

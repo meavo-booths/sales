@@ -8,8 +8,14 @@ import {
   type ProductActionState,
 } from "@/app/actions/products";
 import { Button, Card, Input, Select, Textarea } from "@/components/ui";
+import { CLIENT_TYPE_LABELS, MARKET_OPTIONS, QUOTE_CURRENCIES, formatMoney, type QuoteCurrency } from "@/lib/deal-values";
 
 const initialState: ProductActionState = {};
+
+export type ProductAvailabilityRow = {
+  market: string;
+  clientType: "DIRECT" | "AGENCY" | "COWORKING";
+};
 
 export type ProductRow = {
   id: string;
@@ -19,9 +25,12 @@ export type ProductRow = {
   description: string;
   imageUrl: string | null;
   listPrice: string;
+  currency: QuoteCurrency;
   isActive: boolean;
   /** For add-ons: booth product ids this add-on is limited to. Empty = any booth. */
   restrictedBoothIds: string[];
+  /** Allowed market + client type pairs. Empty = all combinations. */
+  availability: ProductAvailabilityRow[];
 };
 
 export type BoothOption = {
@@ -30,19 +39,47 @@ export type BoothOption = {
   sku: string;
 };
 
+function CurrencyPills({ defaultValue = "EUR" }: { defaultValue?: QuoteCurrency }) {
+  return (
+    <fieldset>
+      <legend className="text-sm font-medium text-slate-700">Currency</legend>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {QUOTE_CURRENCIES.map((currency) => (
+          <label
+            key={currency}
+            className="inline-flex cursor-pointer items-center rounded-full border border-slate-200 has-[:checked]:border-slate-900 has-[:checked]:bg-slate-900 has-[:checked]:text-white"
+          >
+            <input
+              type="radio"
+              name="currency"
+              value={currency}
+              defaultChecked={currency === defaultValue}
+              className="sr-only"
+            />
+            <span className="px-3 py-1 text-sm font-medium">{currency}</span>
+          </label>
+        ))}
+      </div>
+    </fieldset>
+  );
+}
+
 function ProductFields({ product }: { product?: ProductRow }) {
   return (
     <div className="grid gap-3 sm:grid-cols-2">
       <Input label="Name (model)" name="name" defaultValue={product?.name} required />
       <Input label="SKU" name="sku" defaultValue={product?.sku} required />
       <Input
-        label="List price (EUR)"
+        label="List price"
         name="listPrice"
         type="number"
         step="0.01"
         min="0"
         defaultValue={product?.listPrice}
       />
+      <div className="flex items-end">
+        <CurrencyPills defaultValue={product?.currency ?? "EUR"} />
+      </div>
       <Input label="Image" name="image" type="file" accept="image/*" />
       <div className="sm:col-span-2">
         <Textarea
@@ -90,6 +127,63 @@ function BoothPicker({
   );
 }
 
+function AvailabilityPicker({ product }: { product?: ProductRow }) {
+  const selectedMarkets = new Set(product?.availability.map((row) => row.market) ?? []);
+  const selectedClientTypes = new Set(
+    product?.availability.map((row) => row.clientType) ?? [],
+  );
+
+  return (
+    <fieldset className="space-y-4">
+      <div>
+        <legend className="text-sm font-medium text-slate-700">Markets</legend>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {MARKET_OPTIONS.map((market) => (
+            <label
+              key={market}
+              className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 px-3 py-1 text-sm text-slate-700"
+            >
+              <input
+                type="checkbox"
+                name="markets"
+                value={market}
+                defaultChecked={selectedMarkets.has(market)}
+                className="h-4 w-4 rounded border-slate-300"
+              />
+              {market}
+            </label>
+          ))}
+        </div>
+      </div>
+      <div>
+        <legend className="text-sm font-medium text-slate-700">Client types</legend>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {(Object.entries(CLIENT_TYPE_LABELS) as [ProductAvailabilityRow["clientType"], string][]).map(
+            ([value, label]) => (
+              <label
+                key={value}
+                className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 px-3 py-1 text-sm text-slate-700"
+              >
+                <input
+                  type="checkbox"
+                  name="clientTypes"
+                  value={value}
+                  defaultChecked={selectedClientTypes.has(value)}
+                  className="h-4 w-4 rounded border-slate-300"
+                />
+                {label}
+              </label>
+            ),
+          )}
+        </div>
+      </div>
+      <p className="text-xs text-slate-500">
+        Leave all unchecked to make this product available in every market and client type.
+      </p>
+    </fieldset>
+  );
+}
+
 export function BoothCreateForm() {
   const [state, formAction, pending] = useActionState(createProductAction, initialState);
 
@@ -97,6 +191,7 @@ export function BoothCreateForm() {
     <form action={formAction} className="mt-4 space-y-4">
       <input type="hidden" name="kind" value="BOOTH" />
       <ProductFields />
+      <AvailabilityPicker />
       {state.error && <p className="text-sm text-red-600">{state.error}</p>}
       {state.success && <p className="text-sm text-green-700">Booth created.</p>}
       <Button type="submit" disabled={pending}>
@@ -113,6 +208,7 @@ export function AddOnCreateForm({ booths }: { booths: BoothOption[] }) {
     <form action={formAction} className="mt-4 space-y-4">
       <input type="hidden" name="kind" value="ADDON" />
       <ProductFields />
+      <AvailabilityPicker />
       <BoothPicker booths={booths} />
       {state.error && <p className="text-sm text-red-600">{state.error}</p>}
       {state.success && <p className="text-sm text-green-700">Add-on created.</p>}
@@ -165,7 +261,7 @@ export function ProductListItem({
             <p className="mt-1 text-sm text-slate-600">{product.description}</p>
           )}
           <p className="mt-1 text-sm font-medium text-slate-900">
-            €{Number(product.listPrice).toFixed(2)}
+            {formatMoney(product.listPrice, product.currency)}
           </p>
           {isAddOn && (
             <p className="mt-1 text-xs text-slate-500">
@@ -177,6 +273,17 @@ export function ProductListItem({
                     .join(", ")}`}
             </p>
           )}
+          <p className="mt-1 text-xs text-slate-500">
+            {product.availability.length === 0
+              ? "Available in all markets and client types"
+              : `Markets / client types: ${[
+                  ...new Set(
+                    product.availability.map(
+                      (row) => `${row.market} (${CLIENT_TYPE_LABELS[row.clientType]})`,
+                    ),
+                  ),
+                ].join(", ")}`}
+          </p>
         </div>
         <Button variant="secondary" onClick={() => setEditing((v) => !v)}>
           {editing ? "Close" : "Edit"}
@@ -195,6 +302,7 @@ export function ProductListItem({
             </Select>
           )}
           <ProductFields product={product} />
+          <AvailabilityPicker product={product} />
           {isAddOn && (
             <BoothPicker booths={booths} defaultSelected={product.restrictedBoothIds} />
           )}

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { dealTotalEur } from "@/lib/line-item-eur";
 import { requireSalesAccess } from "@/lib/meavo-auth";
 import {
   CLIENT_TYPE_LABELS,
@@ -100,10 +101,7 @@ export default async function QuotesPage({
       ) : (
         <div className="space-y-3">
           {quotes.map((quote) => {
-            const total = quote.lineItems.reduce(
-              (sum, li) => sum + li.quantity * Number(li.unitPrice),
-              0,
-            );
+            const total = dealTotalEur(quote);
             const booths = quote.lineItems
               .filter((li) => li.product?.kind === "BOOTH")
               .reduce((sum, li) => sum + li.quantity, 0);
@@ -130,9 +128,7 @@ export default async function QuotesPage({
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="font-semibold text-slate-900">
-                        {formatMoney(total, quote.currency)}
-                      </p>
+                      <p className="font-semibold text-slate-900">{formatMoney(total)}</p>
                       <p className="text-sm text-slate-500">
                         {booths} booth{booths === 1 ? "" : "s"} · {formatDate(quote.dealDate)}
                         {quote.salesRep && ` · ${quote.salesRep}`}

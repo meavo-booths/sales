@@ -2,9 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { put } from "@vercel/blob";
-import { Prisma } from "@prisma/client";
+import { Prisma, type DealClientType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireSalesAccess } from "@/lib/meavo-auth";
+import { isQuoteCurrency, type QuoteCurrency } from "@/lib/exchange-rates";
 
 export type ProductActionState = { error?: string; success?: boolean };
 
@@ -37,6 +38,37 @@ function parseBoothIds(formData: FormData): string[] {
   return [...new Set(formData.getAll("boothIds").map((v) => String(v).trim()).filter(Boolean))];
 }
 
+const CLIENT_TYPES: DealClientType[] = ["DIRECT", "AGENCY", "COWORKING"];
+
+/** Market × client type rows. Empty = available for all combinations. */
+function parseAvailability(formData: FormData): { market: string; clientType: DealClientType }[] {
+  const markets = [
+    ...new Set(formData.getAll("markets").map((v) => String(v).trim()).filter(Boolean)),
+  ];
+  const clientTypes = [
+    ...new Set(
+      formData
+        .getAll("clientTypes")
+        .map((v) => String(v).trim())
+        .filter((v): v is DealClientType => CLIENT_TYPES.includes(v as DealClientType)),
+    ),
+  ];
+  if (markets.length === 0 || clientTypes.length === 0) return [];
+
+  const rows: { market: string; clientType: DealClientType }[] = [];
+  for (const market of markets) {
+    for (const clientType of clientTypes) {
+      rows.push({ market, clientType });
+    }
+  }
+  return rows;
+}
+
+function parseCurrency(formData: FormData): QuoteCurrency {
+  const raw = String(formData.get("currency") ?? "EUR").trim();
+  return isQuoteCurrency(raw) ? raw : "EUR";
+}
+
 export async function createProductAction(
   _prev: ProductActionState,
   formData: FormData,
@@ -56,6 +88,8 @@ export async function createProductAction(
 
     const kind = parseKind(formData.get("kind"));
     const boothIds = kind === "ADDON" ? parseBoothIds(formData) : [];
+    const availability = parseAvailability(formData);
+    const currency = parseCurrency(formData);
 
     await prisma.product.create({
       data: {
@@ -64,11 +98,19 @@ export async function createProductAction(
         kind,
         description,
         listPrice: parsePrice(formData.get("listPrice")),
+        currency,
         imageUrl,
         ...(boothIds.length > 0
           ? {
               addOnRestrictions: {
                 create: boothIds.map((boothId) => ({ boothId })),
+              },
+            }
+          : {}),
+        ...(availability.length > 0
+          ? {
+              availability: {
+                create: availability,
               },
             }
           : {}),
@@ -106,6 +148,8 @@ export async function updateProductAction(
 
     const kind = parseKind(formData.get("kind"));
     const boothIds = kind === "ADDON" ? parseBoothIds(formData) : [];
+    const availability = parseAvailability(formData);
+    const currency = parseCurrency(formData);
 
     await prisma.$transaction([
       prisma.product.update({
@@ -116,6 +160,7 @@ export async function updateProductAction(
           kind,
           description,
           listPrice: parsePrice(formData.get("listPrice")),
+          currency,
           isActive: formData.get("isActive") === "on",
           ...(imageUrl ? { imageUrl } : {}),
         },
@@ -125,6 +170,14 @@ export async function updateProductAction(
         ? [
             prisma.productAddOnRestriction.createMany({
               data: boothIds.map((boothId) => ({ addOnId: id, boothId })),
+            }),
+          ]
+        : []),
+      prisma.productAvailability.deleteMany({ where: { productId: id } }),
+      ...(availability.length > 0
+        ? [
+            prisma.productAvailability.createMany({
+              data: availability.map((row) => ({ productId: id, ...row })),
             }),
           ]
         : []),

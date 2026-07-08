@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireSalesAccess } from "@/lib/meavo-auth";
 import { mapClientsForQuotePicker } from "@/lib/client-hierarchy";
+import { parseProductCurrency } from "@/lib/exchange-rates";
 import { PageHeader } from "@/components/ui";
 import { QuoteForm, type QuoteFormValues } from "@/components/quote-form";
 
@@ -26,7 +27,10 @@ export default async function EditQuotePage({ params }: { params: Promise<{ id: 
     prisma.product.findMany({
       where: { isActive: true },
       orderBy: [{ kind: "asc" }, { name: "asc" }],
-      include: { addOnRestrictions: { select: { boothId: true } } },
+      include: {
+        addOnRestrictions: { select: { boothId: true } },
+        availability: { select: { market: true, clientType: true } },
+      },
     }),
     prisma.client.findMany({
       orderBy: [{ isVip: "desc" }, { name: "asc" }],
@@ -55,6 +59,7 @@ export default async function EditQuotePage({ params }: { params: Promise<{ id: 
     targetDeliveryDate: quote.targetDeliveryDate?.toISOString().slice(0, 10) ?? "",
     vatNumber: quote.vatNumber,
     clientType: quote.clientType,
+    currency: parseProductCurrency(quote.currency),
     isVip: quote.client?.isVip ?? false,
     paymentTerms: quote.paymentTerms,
     notes: quote.notes,
@@ -97,19 +102,48 @@ export default async function EditQuotePage({ params }: { params: Promise<{ id: 
     })),
   };
 
+  const quoteProductIds = [
+    ...new Set(
+      quote.lineItems.map((li) => li.productId).filter((id): id is string => Boolean(id)),
+    ),
+  ];
+
+  const extraProducts =
+    quoteProductIds.length > 0
+      ? await prisma.product.findMany({
+          where: {
+            id: { in: quoteProductIds },
+            isActive: false,
+          },
+          include: {
+            addOnRestrictions: { select: { boothId: true } },
+            availability: { select: { market: true, clientType: true } },
+          },
+        })
+      : [];
+
+  const allProducts = [...products, ...extraProducts.filter((p) => !products.some((x) => x.id === p.id))];
+
+  const mapProduct = (p: (typeof allProducts)[number]) => ({
+    id: p.id,
+    name: p.name,
+    sku: p.sku,
+    kind: p.kind,
+    listPrice: Number(p.listPrice),
+    currency: parseProductCurrency(p.currency),
+    restrictedToBoothIds: p.addOnRestrictions.map((r) => r.boothId),
+    availability: p.availability.map((row) => ({
+      market: row.market,
+      clientType: row.clientType,
+    })),
+  });
+
   return (
     <>
       <PageHeader title={`Edit ${quote.quoteNumber}`} description={quote.clientName} />
       <QuoteForm
         quoteId={quote.id}
-        products={products.map((p) => ({
-          id: p.id,
-          name: p.name,
-          sku: p.sku,
-          kind: p.kind,
-          listPrice: Number(p.listPrice),
-          restrictedToBoothIds: p.addOnRestrictions.map((r) => r.boothId),
-        }))}
+        products={allProducts.map(mapProduct)}
         clients={mapClientsForQuotePicker(clients)}
         initialValues={initialValues}
       />

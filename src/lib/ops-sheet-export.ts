@@ -7,6 +7,7 @@ import {
   isOpsSheetConfigured,
 } from "@/lib/sheets-client";
 import { CLIENT_TYPE_LABELS, formatSheetDate } from "@/lib/deal-values";
+import { lineItemAmountEur } from "@/lib/line-item-eur";
 import { prisma } from "@/lib/prisma";
 
 /**
@@ -91,7 +92,7 @@ export function buildExportGroups(deal: DealForExport): ExportGroup[] {
   for (const item of booths) {
     const key = `${item.productId}::${item.finish}`;
     groupKeyByLineId.set(item.id, key);
-    const amount = item.quantity * Number(item.unitPrice);
+    const amount = lineItemAmountEur(item);
     const existing = groups.get(key);
     if (existing) {
       existing.quantity = (existing.quantity ?? 0) + item.quantity;
@@ -116,7 +117,7 @@ export function buildExportGroups(deal: DealForExport): ExportGroup[] {
   };
 
   for (const item of addOns) {
-    const amount = item.quantity * Number(item.unitPrice);
+    const amount = lineItemAmountEur(item);
     const parentKey = item.parentLineItemId
       ? groupKeyByLineId.get(item.parentLineItemId)
       : undefined;
