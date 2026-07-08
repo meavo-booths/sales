@@ -3,18 +3,28 @@
 import { useRouter } from "next/navigation";
 import { CLIENT_TYPE_LABELS } from "@/lib/deal-values";
 import { appendFilterParams } from "@/lib/client-filters";
+import type { ClientHierarchyView } from "@/lib/client-hierarchy";
 import type { DealClientType } from "@prisma/client";
+
+const HIERARCHY_LABELS: Record<ClientHierarchyView, string> = {
+  top: "Groups & standalone",
+  groups: "Groups only",
+  subsidiaries: "Subsidiaries",
+  all: "All",
+};
 
 export function ClientListFilters({
   search,
   selectedTypes,
   selectedCountries,
   countries,
+  hierarchyView,
 }: {
   search: string;
   selectedTypes: DealClientType[];
   selectedCountries: string[];
   countries: string[];
+  hierarchyView: ClientHierarchyView;
 }) {
   const router = useRouter();
   const selectedTypeSet = new Set(selectedTypes);
@@ -24,12 +34,14 @@ export function ClientListFilters({
     search: string;
     types: DealClientType[];
     countries: string[];
+    hierarchyView: ClientHierarchyView;
     page?: number;
   }) => {
     const params = new URLSearchParams();
     if (next.search.trim()) params.set("q", next.search.trim());
     appendFilterParams(params, "type", next.types);
     appendFilterParams(params, "country", next.countries);
+    if (next.hierarchyView !== "top") params.set("view", next.hierarchyView);
     if (next.page && next.page > 1) params.set("page", String(next.page));
     const qs = params.toString();
     router.push(qs ? `/clients?${qs}` : "/clients");
@@ -39,7 +51,7 @@ export function ClientListFilters({
     const nextTypes = selectedTypeSet.has(type)
       ? selectedTypes.filter((value) => value !== type)
       : [...selectedTypes, type];
-    navigate({ search, types: nextTypes, countries: selectedCountries });
+    navigate({ search, types: nextTypes, countries: selectedCountries, hierarchyView });
   };
 
   const toggleCountry = (country: string) => {
@@ -47,14 +59,19 @@ export function ClientListFilters({
     const nextCountries = selectedCountrySet.has(key)
       ? selectedCountries.filter((value) => value.toLowerCase() !== key)
       : [...selectedCountries, country];
-    navigate({ search, types: selectedTypes, countries: nextCountries });
+    navigate({ search, types: selectedTypes, countries: nextCountries, hierarchyView });
+  };
+
+  const setHierarchyView = (view: ClientHierarchyView) => {
+    navigate({ search, types: selectedTypes, countries: selectedCountries, hierarchyView: view });
   };
 
   const clearFilters = () => {
-    navigate({ search, types: [], countries: [] });
+    navigate({ search, types: [], countries: [], hierarchyView: "top" });
   };
 
-  const hasFilters = selectedTypes.length > 0 || selectedCountries.length > 0;
+  const hasFilters =
+    selectedTypes.length > 0 || selectedCountries.length > 0 || hierarchyView !== "top";
 
   return (
     <div className="space-y-3">
@@ -67,6 +84,7 @@ export function ClientListFilters({
             search: String(formData.get("q") ?? ""),
             types: selectedTypes,
             countries: selectedCountries,
+            hierarchyView,
           });
         }}
       >
@@ -84,6 +102,32 @@ export function ClientListFilters({
           Search
         </button>
       </form>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
+          Show
+        </span>
+        {(Object.entries(HIERARCHY_LABELS) as [ClientHierarchyView, string][]).map(
+          ([view, label]) => {
+            const active = hierarchyView === view;
+            return (
+              <button
+                key={view}
+                type="button"
+                onClick={() => setHierarchyView(view)}
+                aria-pressed={active}
+                className={`rounded-full border px-3 py-1 text-sm font-medium transition ${
+                  active
+                    ? "border-brand-500 bg-brand-50 text-brand-800"
+                    : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                }`}
+              >
+                {label}
+              </button>
+            );
+          },
+        )}
+      </div>
 
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-xs font-medium uppercase tracking-wide text-slate-500">

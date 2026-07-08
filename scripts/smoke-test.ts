@@ -20,7 +20,7 @@ function assert(condition: unknown, message: string): asserts condition {
 
 async function cleanup() {
   await prisma.deal.deleteMany({ where: { clientName: "Smoke Test GmbH" } });
-  await prisma.client.deleteMany({ where: { name: "Smoke Test GmbH" } });
+  await prisma.client.deleteMany({ where: { name: { in: ["Smoke Test GmbH", "Smoke Test Group", "Smoke Test UK"] } } });
   await prisma.product.deleteMany({ where: { sku: { startsWith: "SMOKE-ADDON" } } });
 }
 
@@ -174,6 +174,59 @@ async function main() {
     .reduce((sum, d) => sum + d.lineItems.reduce((s, li) => s + li.quantity * Number(li.unitPrice), 0), 0);
   console.log("Client revenue:", revenue);
   assert(revenue === 2 * 4500 + 2 * 350 + 12500 + 420, `client revenue wrong: ${revenue}`);
+
+  // Parent company hierarchy: group head → subsidiary → quote on subsidiary.
+  const parent = await prisma.client.create({
+    data: { name: "Smoke Test Group", website: "https://smoke-group.example.com", isVip: true },
+  });
+  const subsidiary = await prisma.client.create({
+    data: {
+      name: "Smoke Test UK",
+      parentClientId: parent.id,
+      market: "United Kingdom",
+      registeredAddress: "1 Test Lane, London",
+      vatNumber: "GB123456789",
+      clientType: "DIRECT",
+    },
+  });
+  const subDeal = await prisma.deal.create({
+    data: {
+      quoteNumber: `MQ-SMOKE-SUB-${Date.now()}`,
+      clientId: subsidiary.id,
+      stage: "WON",
+      dealDate: new Date(),
+      salesRep: "Smoke Test",
+      market: subsidiary.market,
+      clientName: subsidiary.name,
+      registeredAddress: subsidiary.registeredAddress,
+      vatNumber: subsidiary.vatNumber,
+      clientType: subsidiary.clientType,
+      paymentTerms: "UPFRONT_100",
+      lineItems: {
+        create: {
+          productId: soho.id,
+          quantity: 1,
+          unitPrice: new Prisma.Decimal("1000.00"),
+          finish: "WHITE_STOCK",
+          sortOrder: 0,
+        },
+      },
+    },
+    include: { lineItems: true },
+  });
+  const subIds = await prisma.client.findMany({
+    where: { parentClientId: parent.id },
+    select: { id: true },
+  });
+  assert(subIds.length === 1 && subIds[0].id === subsidiary.id, "subsidiary lookup failed");
+  const groupRevenue = await prisma.$queryRaw<{ revenue: number }[]>`
+    SELECT COALESCE(SUM(li.quantity * li."unitPrice"), 0)::float AS revenue
+    FROM "QuoteLineItem" li
+    JOIN "Deal" d ON d.id = li."dealId"
+    WHERE d."clientId" = ANY(${subIds.map((r) => r.id)}) AND d.stage = 'WON'
+  `;
+  assert(groupRevenue[0]?.revenue === 1000, `group rollup revenue wrong: ${groupRevenue[0]?.revenue}`);
+  console.log("Hierarchy smoke OK: parent", parent.id, "subsidiary deal", subDeal.id);
 
   // Cleanup (deal cascade removes contacts/line items/booth units).
   await cleanup();

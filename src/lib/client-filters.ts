@@ -50,3 +50,5 @@ export function appendFilterParams(
     params.append(key, value);
   }
 }
+
+export { parseClientHierarchyView, type ClientHierarchyView } from "@/lib/client-hierarchy";

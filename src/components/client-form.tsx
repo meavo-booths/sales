@@ -3,7 +3,11 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import type { DealContactKind } from "@prisma/client";
-import { createClientAction, updateClientAction } from "@/app/actions/clients";
+import {
+  createClientAction,
+  updateClientAction,
+  type ParentCompanyOption,
+} from "@/app/actions/clients";
 import { CLIENT_TYPE_LABELS, CONTACT_KIND_LABELS } from "@/lib/deal-values";
 import { Button, Card, Input, Select, Textarea } from "@/components/ui";
 import { VatNumberField } from "@/components/vat-check";
@@ -24,6 +28,8 @@ export type ClientFormValues = {
   market: string;
   website: string;
   isVip: boolean;
+  parentClientId: string | null;
+  isGroupAccount: boolean;
   contacts: ContactDraft[];
 };
 
@@ -37,6 +43,8 @@ const EMPTY_VALUES: ClientFormValues = {
   market: "",
   website: "",
   isVip: false,
+  parentClientId: null,
+  isGroupAccount: false,
   contacts: [],
 };
 
@@ -45,6 +53,8 @@ export function ClientForm({
   initialValues,
   title,
   noCard = false,
+  isGroupHead = false,
+  parentOptions = [],
   onCreated,
 }: {
   clientId?: string;
@@ -52,6 +62,9 @@ export function ClientForm({
   title?: string;
   /** When true, skip the outer Card wrapper (e.g. inside a modal). */
   noCard?: boolean;
+  /** Existing group head with subsidiaries — locks parent picker and billing fields. */
+  isGroupHead?: boolean;
+  parentOptions?: ParentCompanyOption[];
   onCreated?: () => void;
 }) {
   const router = useRouter();
@@ -59,6 +72,9 @@ export function ClientForm({
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [values, setValues] = useState<ClientFormValues>(initialValues ?? EMPTY_VALUES);
+
+  const showBillingFields = !values.isGroupAccount && !isGroupHead;
+  const showParentPicker = !values.isGroupAccount && !isGroupHead && parentOptions.length > 0;
 
   const set = <K extends keyof ClientFormValues>(key: K, value: ClientFormValues[K]) => {
     setSaved(false);
@@ -77,8 +93,11 @@ export function ClientForm({
     setError(null);
     setSaved(false);
     startTransition(async () => {
-      // Rows without a name would fail validation — drop them silently.
-      const input = { ...values, contacts: values.contacts.filter((c) => c.name.trim()) };
+      const input = {
+        ...values,
+        contacts: values.contacts.filter((c) => c.name.trim()),
+        parentClientId: values.isGroupAccount ? null : values.parentClientId,
+      };
       const result = clientId
         ? await updateClientAction(clientId, input)
         : await createClientAction(input);
@@ -113,6 +132,45 @@ export function ClientForm({
       {heading ? (
         <h2 className="mb-4 text-base font-semibold text-slate-900">{heading}</h2>
       ) : null}
+
+      {!clientId && (
+        <div className="mb-4">
+          <button
+            type="button"
+            onClick={() =>
+              setValues((prev) => ({
+                ...prev,
+                isGroupAccount: !prev.isGroupAccount,
+                parentClientId: null,
+                vatNumber: prev.isGroupAccount ? prev.vatNumber : "",
+                registeredAddress: prev.isGroupAccount ? prev.registeredAddress : "",
+              }))
+            }
+            aria-pressed={values.isGroupAccount}
+            className={`rounded-lg border px-4 py-2 text-sm font-medium transition ${
+              values.isGroupAccount
+                ? "border-brand-500 bg-brand-50 text-brand-800"
+                : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+            }`}
+          >
+            This is a parent / group account
+          </button>
+          {values.isGroupAccount && (
+            <p className="mt-2 text-sm text-slate-500">
+              Group accounts are for rollup stats and shared contacts. Add subsidiaries separately
+              and link quotes to the local company.
+            </p>
+          )}
+        </div>
+      )}
+
+      {isGroupHead && (
+        <p className="mb-4 text-sm text-slate-500">
+          This is a group head with subsidiaries. Billing fields are optional; create quotes on
+          subsidiary records.
+        </p>
+      )}
+
       <div className="grid gap-3 sm:grid-cols-2">
         <Input
           label="Client name"
@@ -126,6 +184,22 @@ export function ClientForm({
           onChange={(e) => set("market", e.target.value)}
           placeholder="e.g. Germany"
         />
+        {showParentPicker && (
+          <div className="sm:col-span-2">
+            <Select
+              label="Parent company"
+              value={values.parentClientId ?? ""}
+              onChange={(e) => set("parentClientId", e.target.value || null)}
+            >
+              <option value="">None (standalone)</option>
+              {parentOptions.map((parent) => (
+                <option key={parent.id} value={parent.id}>
+                  {parent.name}
+                </option>
+              ))}
+            </Select>
+          </div>
+        )}
         <Select
           label="Client type"
           value={values.clientType}
@@ -137,10 +211,12 @@ export function ClientForm({
             </option>
           ))}
         </Select>
-        <VatNumberField
-          value={values.vatNumber}
-          onChange={(value) => set("vatNumber", value)}
-        />
+        {showBillingFields && (
+          <VatNumberField
+            value={values.vatNumber}
+            onChange={(value) => set("vatNumber", value)}
+          />
+        )}
         <Input
           label="Website"
           value={values.website}
@@ -162,14 +238,16 @@ export function ClientForm({
             ★ VIP client
           </button>
         </div>
-        <div className="sm:col-span-2">
-          <Textarea
-            label="Registered address"
-            rows={2}
-            value={values.registeredAddress}
-            onChange={(e) => set("registeredAddress", e.target.value)}
-          />
-        </div>
+        {showBillingFields && (
+          <div className="sm:col-span-2">
+            <Textarea
+              label="Registered address"
+              rows={2}
+              value={values.registeredAddress}
+              onChange={(e) => set("registeredAddress", e.target.value)}
+            />
+          </div>
+        )}
       </div>
 
       <h3 className="mb-2 mt-6 text-sm font-semibold text-slate-900">Contacts</h3>

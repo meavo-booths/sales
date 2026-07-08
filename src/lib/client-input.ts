@@ -9,6 +9,9 @@ export const clientInputSchema = z.object({
   market: z.string().trim().default(""),
   website: z.string().trim().default(""),
   isVip: z.boolean().default(false),
+  parentClientId: z.string().trim().nullable().optional(),
+  /** UI-only on create: group head with no billing fields required. */
+  isGroupAccount: z.boolean().default(false),
   contacts: z.array(contactInputSchema).default([]),
 });
 

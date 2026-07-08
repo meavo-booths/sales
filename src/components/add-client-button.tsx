@@ -1,11 +1,16 @@
 "use client";
 
 import { useState } from "react";
+import type { ParentCompanyOption } from "@/app/actions/clients";
 import { ClientForm } from "@/components/client-form";
 import { Modal } from "@/components/modal";
 import { Button } from "@/components/ui";
 
-export function AddClientButton() {
+export function AddClientButton({
+  parentOptions = [],
+}: {
+  parentOptions?: ParentCompanyOption[];
+}) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -25,6 +30,7 @@ export function AddClientButton() {
           <ClientForm
             noCard
             title=""
+            parentOptions={parentOptions}
             onCreated={() => setOpen(false)}
           />
         )}

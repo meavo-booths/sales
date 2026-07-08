@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireSalesAccess } from "@/lib/meavo-auth";
+import { mapClientsForQuotePicker } from "@/lib/client-hierarchy";
 import { PageHeader } from "@/components/ui";
 import { QuoteForm, type QuoteFormValues } from "@/components/quote-form";
 
@@ -29,7 +30,11 @@ export default async function EditQuotePage({ params }: { params: Promise<{ id: 
     }),
     prisma.client.findMany({
       orderBy: [{ isVip: "desc" }, { name: "asc" }],
-      include: { contacts: { orderBy: { sortOrder: "asc" } } },
+      include: {
+        parent: { select: { name: true, isVip: true } },
+        contacts: { orderBy: { sortOrder: "asc" } },
+        _count: { select: { subsidiaries: true } },
+      },
     }),
   ]);
 
@@ -105,22 +110,7 @@ export default async function EditQuotePage({ params }: { params: Promise<{ id: 
           listPrice: Number(p.listPrice),
           restrictedToBoothIds: p.addOnRestrictions.map((r) => r.boothId),
         }))}
-        clients={clients.map((c) => ({
-          id: c.id,
-          name: c.name,
-          registeredAddress: c.registeredAddress,
-          vatNumber: c.vatNumber,
-          clientType: c.clientType,
-          market: c.market,
-          isVip: c.isVip,
-          contacts: c.contacts.map((contact) => ({
-            kind: contact.kind,
-            name: contact.name,
-            email: contact.email,
-            phone: contact.phone,
-            role: contact.role,
-          })),
-        }))}
+        clients={mapClientsForQuotePicker(clients)}
         initialValues={initialValues}
       />
     </>

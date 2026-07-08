@@ -13,6 +13,7 @@ import {
   SOCKET_TYPE_OPTIONS,
   formatMoney,
 } from "@/lib/deal-values";
+import { isClientVip, isQuoteSelectableClient } from "@/lib/client-hierarchy";
 import { Button, Card, Input, Select, Textarea } from "@/components/ui";
 import { VatNumberField } from "@/components/vat-check";
 
@@ -42,6 +43,10 @@ export type ClientOption = {
   clientType: "DIRECT" | "AGENCY" | "COWORKING";
   market: string;
   isVip: boolean;
+  parentClientId: string | null;
+  parentName: string | null;
+  parentIsVip: boolean;
+  subsidiaryCount: number;
   contacts: ContactDraft[];
 };
 
@@ -117,6 +122,28 @@ export function QuoteForm({
   const boothProducts = useMemo(() => products.filter((p) => p.kind === "BOOTH"), [products]);
   const addOnProducts = useMemo(() => products.filter((p) => p.kind === "ADDON"), [products]);
 
+  const groupHeads = useMemo(
+    () =>
+      clients.filter(
+        (c) => !c.parentClientId && clients.some((other) => other.parentClientId === c.id),
+      ),
+    [clients],
+  );
+
+  const selectableClients = useMemo(
+    () => clients.filter((c) => isQuoteSelectableClient(c.subsidiaryCount)),
+    [clients],
+  );
+
+  const [parentFilterId, setParentFilterId] = useState<string>("");
+
+  const filteredSelectableClients = useMemo(() => {
+    if (!parentFilterId) return selectableClients;
+    return selectableClients.filter(
+      (c) => c.id === parentFilterId || c.parentClientId === parentFilterId,
+    );
+  }, [selectableClients, parentFilterId]);
+
   const [values, setValues] = useState<QuoteFormValues>(
     initialValues ?? {
       clientId: null,
@@ -141,6 +168,11 @@ export function QuoteForm({
     },
   );
 
+  const selectedClient = useMemo(
+    () => (values.clientId ? clients.find((c) => c.id === values.clientId) : undefined),
+    [clients, values.clientId],
+  );
+
   const set = <K extends keyof QuoteFormValues>(key: K, value: QuoteFormValues[K]) =>
     setValues((prev) => ({ ...prev, [key]: value }));
 
@@ -150,7 +182,11 @@ export function QuoteForm({
       return;
     }
     const client = clients.find((c) => c.id === clientId);
-    if (!client) return;
+    if (!client || !isQuoteSelectableClient(client.subsidiaryCount)) return;
+    const effectiveVip = isClientVip(
+      client,
+      client.parentIsVip ? { isVip: client.parentIsVip } : null,
+    );
     setValues((prev) => ({
       ...prev,
       clientId: client.id,
@@ -159,7 +195,7 @@ export function QuoteForm({
       vatNumber: client.vatNumber,
       clientType: client.clientType,
       market: client.market,
-      isVip: client.isVip,
+      isVip: effectiveVip,
       contacts:
         client.contacts.length > 0
           ? client.contacts.map((c) => ({ ...c }))
@@ -437,23 +473,49 @@ export function QuoteForm({
       <Card>
         <h2 className="mb-4 text-base font-semibold text-slate-900">Client</h2>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <div>
+          {groupHeads.length > 0 && (
+            <Select
+              label="Filter by group"
+              value={parentFilterId}
+              onChange={(e) => setParentFilterId(e.target.value)}
+            >
+              <option value="">All clients</option>
+              {groupHeads.map((group) => (
+                <option key={group.id} value={group.id}>
+                  {group.name}
+                </option>
+              ))}
+            </Select>
+          )}
+          <div className={groupHeads.length > 0 ? "" : "sm:col-span-2 lg:col-span-1"}>
             <Select
               label="Client"
               value={values.clientId ?? ""}
               onChange={(e) => pickClient(e.target.value)}
             >
               <option value="">New client (created when the quote is saved)</option>
-              {clients.map((client) => (
-                <option key={client.id} value={client.id}>
-                  {client.isVip ? "★ " : ""}
-                  {client.name}
-                  {client.market ? ` — ${client.market}` : ""}
-                </option>
-              ))}
+              {filteredSelectableClients.map((client) => {
+                const effectiveVip = isClientVip(
+                  client,
+                  client.parentIsVip ? { isVip: client.parentIsVip } : null,
+                );
+                const label = client.parentName
+                  ? `${client.name} (${client.parentName})`
+                  : client.name;
+                return (
+                  <option key={client.id} value={client.id}>
+                    {effectiveVip ? "★ " : ""}
+                    {label}
+                    {client.market ? ` — ${client.market}` : ""}
+                  </option>
+                );
+              })}
             </Select>
             {values.clientId && (
               <p className="mt-1 text-xs text-slate-500">
+                {selectedClient?.parentName
+                  ? `Part of ${selectedClient.parentName}. `
+                  : ""}
                 Fields are this quote&apos;s snapshot — edit the master record on the Clients page.
               </p>
             )}
