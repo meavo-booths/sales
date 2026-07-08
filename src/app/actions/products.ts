@@ -2,14 +2,25 @@
 
 import { revalidatePath } from "next/cache";
 import { put } from "@vercel/blob";
-import { Prisma, type DealClientType } from "@prisma/client";
+import {
+  Prisma,
+  type AddOnProductFamily,
+  type BoothProductFamily,
+  type DealClientType,
+} from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireSalesAccess } from "@/lib/meavo-auth";
+import {
+  ADDON_FAMILY_OPTIONS,
+  BOOTH_FAMILY_OPTIONS,
+} from "@/lib/deal-values";
 import { isQuoteCurrency, type QuoteCurrency } from "@/lib/exchange-rates";
 
 export type ProductActionState = { error?: string; success?: boolean };
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const BOOTH_FAMILIES = new Set<string>(BOOTH_FAMILY_OPTIONS);
+const ADDON_FAMILIES = new Set<string>(ADDON_FAMILY_OPTIONS);
 
 async function uploadImage(file: File): Promise<string> {
   if (file.size > MAX_IMAGE_BYTES) throw new Error("Image must be under 5MB");
@@ -33,9 +44,16 @@ function parseKind(value: FormDataEntryValue | null): "BOOTH" | "ADDON" {
   return value === "ADDON" ? "ADDON" : "BOOTH";
 }
 
-/** Booth ids an add-on is limited to. Empty array = available for any booth. */
-function parseBoothIds(formData: FormData): string[] {
-  return [...new Set(formData.getAll("boothIds").map((v) => String(v).trim()).filter(Boolean))];
+/** Booth families an add-on is limited to. Empty array = available for any family. */
+function parseBoothFamilies(formData: FormData): BoothProductFamily[] {
+  return [
+    ...new Set(
+      formData
+        .getAll("boothFamilies")
+        .map((v) => String(v).trim())
+        .filter((v): v is BoothProductFamily => BOOTH_FAMILIES.has(v)),
+    ),
+  ];
 }
 
 const CLIENT_TYPES: DealClientType[] = ["DIRECT", "AGENCY", "COWORKING"];
@@ -69,6 +87,16 @@ function parseCurrency(formData: FormData): QuoteCurrency {
   return isQuoteCurrency(raw) ? raw : "EUR";
 }
 
+function parseBoothFamily(formData: FormData): BoothProductFamily | null {
+  const raw = String(formData.get("boothFamily") ?? "").trim();
+  return BOOTH_FAMILIES.has(raw) ? (raw as BoothProductFamily) : null;
+}
+
+function parseAddOnFamily(formData: FormData): AddOnProductFamily | null {
+  const raw = String(formData.get("addOnFamily") ?? "").trim();
+  return ADDON_FAMILIES.has(raw) ? (raw as AddOnProductFamily) : null;
+}
+
 export async function createProductAction(
   _prev: ProductActionState,
   formData: FormData,
@@ -76,34 +104,41 @@ export async function createProductAction(
   await requireSalesAccess();
 
   const name = String(formData.get("name") ?? "").trim();
-  const sku = String(formData.get("sku") ?? "").trim().toUpperCase();
+  const version = String(formData.get("version") ?? "").trim().toUpperCase();
   const description = String(formData.get("description") ?? "").trim();
   if (!name) return { error: "Name is required" };
-  if (!sku) return { error: "SKU is required" };
+  if (!version) return { error: "Version is required" };
+
+  const kind = parseKind(formData.get("kind"));
+  const boothFamily = kind === "BOOTH" ? parseBoothFamily(formData) : null;
+  const addOnFamily = kind === "ADDON" ? parseAddOnFamily(formData) : null;
+  if (kind === "BOOTH" && !boothFamily) return { error: "Product family is required" };
+  if (kind === "ADDON" && !addOnFamily) return { error: "Product family is required" };
 
   try {
     const image = formData.get("image");
     const imageUrl =
       image instanceof File && image.size > 0 ? await uploadImage(image) : null;
 
-    const kind = parseKind(formData.get("kind"));
-    const boothIds = kind === "ADDON" ? parseBoothIds(formData) : [];
+    const boothFamilies = kind === "ADDON" ? parseBoothFamilies(formData) : [];
     const availability = parseAvailability(formData);
     const currency = parseCurrency(formData);
 
     await prisma.product.create({
       data: {
         name,
-        sku,
+        version,
         kind,
+        boothFamily: boothFamily ?? undefined,
+        addOnFamily: addOnFamily ?? undefined,
         description,
         listPrice: parsePrice(formData.get("listPrice")),
         currency,
         imageUrl,
-        ...(boothIds.length > 0
+        ...(boothFamilies.length > 0
           ? {
-              addOnRestrictions: {
-                create: boothIds.map((boothId) => ({ boothId })),
+              familyRestrictions: {
+                create: boothFamilies.map((family) => ({ boothFamily: family })),
               },
             }
           : {}),
@@ -117,9 +152,6 @@ export async function createProductAction(
       },
     });
   } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-      return { error: `A product with SKU ${sku} already exists` };
-    }
     return { error: error instanceof Error ? error.message : "Could not create product" };
   }
 
@@ -135,19 +167,24 @@ export async function updateProductAction(
 
   const id = String(formData.get("id") ?? "");
   const name = String(formData.get("name") ?? "").trim();
-  const sku = String(formData.get("sku") ?? "").trim().toUpperCase();
+  const version = String(formData.get("version") ?? "").trim().toUpperCase();
   const description = String(formData.get("description") ?? "").trim();
   if (!id) return { error: "Missing product" };
   if (!name) return { error: "Name is required" };
-  if (!sku) return { error: "SKU is required" };
+  if (!version) return { error: "Version is required" };
+
+  const kind = parseKind(formData.get("kind"));
+  const boothFamily = kind === "BOOTH" ? parseBoothFamily(formData) : null;
+  const addOnFamily = kind === "ADDON" ? parseAddOnFamily(formData) : null;
+  if (kind === "BOOTH" && !boothFamily) return { error: "Product family is required" };
+  if (kind === "ADDON" && !addOnFamily) return { error: "Product family is required" };
 
   try {
     const image = formData.get("image");
     const imageUrl =
       image instanceof File && image.size > 0 ? await uploadImage(image) : undefined;
 
-    const kind = parseKind(formData.get("kind"));
-    const boothIds = kind === "ADDON" ? parseBoothIds(formData) : [];
+    const boothFamilies = kind === "ADDON" ? parseBoothFamilies(formData) : [];
     const availability = parseAvailability(formData);
     const currency = parseCurrency(formData);
 
@@ -156,8 +193,10 @@ export async function updateProductAction(
         where: { id },
         data: {
           name,
-          sku,
+          version,
           kind,
+          boothFamily: kind === "BOOTH" ? boothFamily : null,
+          addOnFamily: kind === "ADDON" ? addOnFamily : null,
           description,
           listPrice: parsePrice(formData.get("listPrice")),
           currency,
@@ -165,11 +204,11 @@ export async function updateProductAction(
           ...(imageUrl ? { imageUrl } : {}),
         },
       }),
-      prisma.productAddOnRestriction.deleteMany({ where: { addOnId: id } }),
-      ...(boothIds.length > 0
+      prisma.productAddOnFamilyRestriction.deleteMany({ where: { addOnId: id } }),
+      ...(boothFamilies.length > 0
         ? [
-            prisma.productAddOnRestriction.createMany({
-              data: boothIds.map((boothId) => ({ addOnId: id, boothId })),
+            prisma.productAddOnFamilyRestriction.createMany({
+              data: boothFamilies.map((boothFamily) => ({ addOnId: id, boothFamily })),
             }),
           ]
         : []),
@@ -183,9 +222,6 @@ export async function updateProductAction(
         : []),
     ]);
   } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-      return { error: `A product with SKU ${sku} already exists` };
-    }
     return { error: error instanceof Error ? error.message : "Could not update product" };
   }
 

@@ -8,6 +8,11 @@ import { QuoteForm, type QuoteFormValues } from "@/components/quote-form";
 
 export const dynamic = "force-dynamic";
 
+const productInclude = {
+  familyRestrictions: { select: { boothFamily: true } },
+  availability: { select: { market: true, clientType: true } },
+} as const;
+
 export default async function EditQuotePage({ params }: { params: Promise<{ id: string }> }) {
   await requireSalesAccess();
 
@@ -27,10 +32,7 @@ export default async function EditQuotePage({ params }: { params: Promise<{ id: 
     prisma.product.findMany({
       where: { isActive: true },
       orderBy: [{ kind: "asc" }, { name: "asc" }],
-      include: {
-        addOnRestrictions: { select: { boothId: true } },
-        availability: { select: { market: true, clientType: true } },
-      },
+      include: productInclude,
     }),
     prisma.client.findMany({
       orderBy: [{ isVip: "desc" }, { name: "asc" }],
@@ -115,10 +117,7 @@ export default async function EditQuotePage({ params }: { params: Promise<{ id: 
             id: { in: quoteProductIds },
             isActive: false,
           },
-          include: {
-            addOnRestrictions: { select: { boothId: true } },
-            availability: { select: { market: true, clientType: true } },
-          },
+          include: productInclude,
         })
       : [];
 
@@ -127,11 +126,13 @@ export default async function EditQuotePage({ params }: { params: Promise<{ id: 
   const mapProduct = (p: (typeof allProducts)[number]) => ({
     id: p.id,
     name: p.name,
-    sku: p.sku,
+    version: p.version,
     kind: p.kind,
     listPrice: Number(p.listPrice),
     currency: parseProductCurrency(p.currency),
-    restrictedToBoothIds: p.addOnRestrictions.map((r) => r.boothId),
+    boothFamily: p.boothFamily,
+    addOnFamily: p.addOnFamily,
+    restrictedToBoothFamilies: p.familyRestrictions.map((r) => r.boothFamily),
     availability: p.availability.map((row) => ({
       market: row.market,
       clientType: row.clientType,

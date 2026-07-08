@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import type { DealContactKind } from "@prisma/client";
+import type { AddOnProductFamily, BoothProductFamily, DealContactKind } from "@prisma/client";
 import { createQuoteAction, updateQuoteAction } from "@/app/actions/quotes";
 import { getFxRateToEurAction } from "@/app/actions/fx";
 import {
@@ -30,13 +30,13 @@ export type ProductAvailabilityRow = {
 export type ProductOption = {
   id: string;
   name: string;
-  sku: string;
+  version: string;
   kind: "BOOTH" | "ADDON";
   listPrice: number;
   currency: QuoteCurrency;
-  /** For add-ons: booth product ids this add-on is limited to. Empty = any booth. */
-  restrictedToBoothIds: string[];
-  /** Allowed market + client type pairs. Empty = all combinations. */
+  boothFamily: BoothProductFamily | null;
+  addOnFamily: AddOnProductFamily | null;
+  restrictedToBoothFamilies: BoothProductFamily[];
   availability: ProductAvailabilityRow[];
 };
 
@@ -374,13 +374,16 @@ export function QuoteForm({
    * explicitly compatible with the booth. The currently selected add-on is
    * always kept so existing quotes still render and save.
    */
-  const addOnsForBooth = (boothProductId: string, currentAddOnId?: string) =>
-    availableAddOnProducts.filter(
+  const addOnsForBooth = (boothProductId: string, currentAddOnId?: string) => {
+    const boothProduct = products.find((p) => p.id === boothProductId);
+    const boothFamily = boothProduct?.boothFamily;
+    return availableAddOnProducts.filter(
       (p) =>
-        p.restrictedToBoothIds.length === 0 ||
-        p.restrictedToBoothIds.includes(boothProductId) ||
+        p.restrictedToBoothFamilies.length === 0 ||
+        (boothFamily != null && p.restrictedToBoothFamilies.includes(boothFamily)) ||
         p.id === currentAddOnId,
     );
+  };
 
   const newAddOnDraft = (options: ProductOption[] = availableAddOnProducts): AddOnDraft | null => {
     const first = options[0];
@@ -466,7 +469,7 @@ export function QuoteForm({
       >
         {options.map((product) => (
           <option key={product.id} value={product.id}>
-            {product.name} ({product.sku})
+            {product.name} ({product.version})
           </option>
         ))}
       </Select>
@@ -856,7 +859,7 @@ export function QuoteForm({
                   >
                     {availableBoothProducts.map((product) => (
                       <option key={product.id} value={product.id}>
-                        {product.name} ({product.sku})
+                        {product.name} ({product.version})
                       </option>
                     ))}
                   </Select>

@@ -21,7 +21,7 @@ function assert(condition: unknown, message: string): asserts condition {
 async function cleanup() {
   await prisma.deal.deleteMany({ where: { clientName: "Smoke Test GmbH" } });
   await prisma.client.deleteMany({ where: { name: { in: ["Smoke Test GmbH", "Smoke Test Group", "Smoke Test UK"] } } });
-  await prisma.product.deleteMany({ where: { sku: { startsWith: "SMOKE-ADDON" } } });
+  await prisma.product.deleteMany({ where: { version: { startsWith: "SMOKE-ADDON" } } });
 }
 
 async function main() {
@@ -35,20 +35,32 @@ async function main() {
   console.log("Quote number:", quoteNumber);
 
   const [soho, camden] = await Promise.all([
-    prisma.product.findUniqueOrThrow({ where: { sku: "MEAVO-SOHO" } }),
-    prisma.product.findUniqueOrThrow({ where: { sku: "MEAVO-CAMDEN-4" } }),
+    prisma.product.findFirstOrThrow({ where: { version: "MEAVO-SOHO", boothFamily: "SOHO" } }),
+    prisma.product.findFirstOrThrow({ where: { version: "MEAVO-CAMDEN-4", boothFamily: "CAMDEN_4" } }),
   ]);
 
   // Temp add-on products.
   const [warranty, chair] = await Promise.all([
     prisma.product.create({
-      data: { name: "Extra warranty", sku: "SMOKE-ADDON-WARRANTY", kind: "ADDON", listPrice: new Prisma.Decimal("350.00") },
+      data: {
+        name: "Extra warranty",
+        version: "SMOKE-ADDON-WARRANTY",
+        kind: "ADDON",
+        addOnFamily: "WARRANTY",
+        listPrice: new Prisma.Decimal("350.00"),
+      },
     }),
     prisma.product.create({
-      data: { name: "Ergonomic chair", sku: "SMOKE-ADDON-CHAIR", kind: "ADDON", listPrice: new Prisma.Decimal("420.00") },
+      data: {
+        name: "Ergonomic chair",
+        version: "SMOKE-ADDON-CHAIR",
+        kind: "ADDON",
+        addOnFamily: "OFFICE_CHAIR",
+        listPrice: new Prisma.Decimal("420.00"),
+      },
     }),
   ]);
-  console.log("Add-on products created:", warranty.sku, chair.sku);
+  console.log("Add-on products created:", warranty.version, chair.version);
 
   // Client with contacts (mirrors createClientAction).
   const client = await prisma.client.create({

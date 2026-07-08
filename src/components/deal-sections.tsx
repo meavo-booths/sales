@@ -108,7 +108,7 @@ function LineItemRow({
           {item.product?.name ?? item.customName}
         </span>
         <span className="ml-2 text-xs text-slate-500">
-          {item.product ? item.product.sku : "Custom"}
+          {item.product ? item.product.version : "Custom"}
         </span>
         {(item.description || item.product?.description) && (
           <p className="text-xs text-slate-500">

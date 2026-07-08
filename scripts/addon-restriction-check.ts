@@ -1,5 +1,5 @@
 /**
- * Quick check for ProductAddOnRestriction: create a restricted add-on,
+ * Quick check for ProductAddOnFamilyRestriction: create a restricted add-on,
  * verify the relation reads back, then clean up.
  *
  * Run: npx tsx --env-file=.env scripts/addon-restriction-check.ts
@@ -9,34 +9,35 @@ import { PrismaClient, Prisma } from "@prisma/client";
 const prisma = new PrismaClient();
 
 async function main() {
-  await prisma.product.deleteMany({ where: { sku: "SMOKE-ADDON-RESTRICTED" } });
+  await prisma.product.deleteMany({ where: { version: "SMOKE-ADDON-RESTRICTED" } });
 
-  const booth = await prisma.product.findFirstOrThrow({ where: { kind: "BOOTH" } });
+  const booth = await prisma.product.findFirstOrThrow({ where: { kind: "BOOTH", boothFamily: { not: null } } });
+  if (!booth.boothFamily) throw new Error("booth product missing boothFamily");
 
   const addOn = await prisma.product.create({
     data: {
       name: "Restricted add-on",
-      sku: "SMOKE-ADDON-RESTRICTED",
+      version: "SMOKE-ADDON-RESTRICTED",
       kind: "ADDON",
+      addOnFamily: "WARRANTY",
       listPrice: new Prisma.Decimal("100.00"),
-      addOnRestrictions: { create: [{ boothId: booth.id }] },
+      familyRestrictions: { create: [{ boothFamily: booth.boothFamily }] },
     },
-    include: { addOnRestrictions: true },
+    include: { familyRestrictions: true },
   });
-  console.log("Created add-on restricted to:", booth.name, addOn.addOnRestrictions);
+  console.log("Created add-on restricted to:", booth.boothFamily, addOn.familyRestrictions);
 
-  const fromBoothSide = await prisma.product.findUniqueOrThrow({
-    where: { id: booth.id },
-    include: { boothAddOns: { include: { addOn: { select: { sku: true } } } } },
+  const readBack = await prisma.productAddOnFamilyRestriction.findMany({
+    where: { addOnId: addOn.id },
   });
-  if (!fromBoothSide.boothAddOns.some((r) => r.addOn.sku === "SMOKE-ADDON-RESTRICTED")) {
-    throw new Error("booth-side relation did not read back");
+  if (!readBack.some((r) => r.boothFamily === booth.boothFamily)) {
+    throw new Error("family restriction did not read back");
   }
-  console.log("Booth-side relation reads back OK");
+  console.log("Family restriction reads back OK");
 
   // Cascade check: deleting the add-on removes the restriction rows.
   await prisma.product.delete({ where: { id: addOn.id } });
-  const remaining = await prisma.productAddOnRestriction.count({
+  const remaining = await prisma.productAddOnFamilyRestriction.count({
     where: { addOnId: addOn.id },
   });
   if (remaining !== 0) throw new Error(`expected 0 remaining restrictions, got ${remaining}`);

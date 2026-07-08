@@ -2,13 +2,24 @@
 
 import Image from "next/image";
 import { useActionState, useState } from "react";
+import type { AddOnProductFamily, BoothProductFamily } from "@prisma/client";
 import {
   createProductAction,
   updateProductAction,
   type ProductActionState,
 } from "@/app/actions/products";
 import { Button, Card, Input, Select, Textarea } from "@/components/ui";
-import { CLIENT_TYPE_LABELS, MARKET_OPTIONS, QUOTE_CURRENCIES, formatMoney, type QuoteCurrency } from "@/lib/deal-values";
+import {
+  ADDON_FAMILY_LABELS,
+  ADDON_FAMILY_OPTIONS,
+  BOOTH_FAMILY_LABELS,
+  BOOTH_FAMILY_OPTIONS,
+  CLIENT_TYPE_LABELS,
+  MARKET_OPTIONS,
+  QUOTE_CURRENCIES,
+  formatMoney,
+  type QuoteCurrency,
+} from "@/lib/deal-values";
 
 const initialState: ProductActionState = {};
 
@@ -20,23 +31,18 @@ export type ProductAvailabilityRow = {
 export type ProductRow = {
   id: string;
   name: string;
-  sku: string;
+  version: string;
   kind: "BOOTH" | "ADDON";
+  boothFamily: BoothProductFamily | null;
+  addOnFamily: AddOnProductFamily | null;
   description: string;
   imageUrl: string | null;
   listPrice: string;
   currency: QuoteCurrency;
   isActive: boolean;
-  /** For add-ons: booth product ids this add-on is limited to. Empty = any booth. */
-  restrictedBoothIds: string[];
-  /** Allowed market + client type pairs. Empty = all combinations. */
+  /** For add-ons: booth families this add-on is limited to. Empty = any family. */
+  restrictedBoothFamilies: BoothProductFamily[];
   availability: ProductAvailabilityRow[];
-};
-
-export type BoothOption = {
-  id: string;
-  name: string;
-  sku: string;
 };
 
 function CurrencyPills({ defaultValue = "EUR" }: { defaultValue?: QuoteCurrency }) {
@@ -64,11 +70,30 @@ function CurrencyPills({ defaultValue = "EUR" }: { defaultValue?: QuoteCurrency 
   );
 }
 
-function ProductFields({ product }: { product?: ProductRow }) {
+function ProductFields({
+  product,
+  kind,
+}: {
+  product?: ProductRow;
+  kind: "BOOTH" | "ADDON";
+}) {
+  const familyOptions = kind === "BOOTH" ? BOOTH_FAMILY_OPTIONS : ADDON_FAMILY_OPTIONS;
+  const familyLabels = kind === "BOOTH" ? BOOTH_FAMILY_LABELS : ADDON_FAMILY_LABELS;
+  const familyName = kind === "BOOTH" ? "boothFamily" : "addOnFamily";
+  const currentFamily = kind === "BOOTH" ? product?.boothFamily : product?.addOnFamily;
+
   return (
     <div className="grid gap-3 sm:grid-cols-2">
-      <Input label="Name (model)" name="name" defaultValue={product?.name} required />
-      <Input label="SKU" name="sku" defaultValue={product?.sku} required />
+      <Input label="Name" name="name" defaultValue={product?.name} required />
+      <Input label="Version" name="version" defaultValue={product?.version} required />
+      <Select label="Product family" name={familyName} defaultValue={currentFamily ?? ""} required>
+        <option value="">Select family…</option>
+        {familyOptions.map((family) => (
+          <option key={family} value={family}>
+            {(familyLabels as Record<string, string>)[family]}
+          </option>
+        ))}
+      </Select>
       <Input
         label="List price"
         name="listPrice"
@@ -93,35 +118,30 @@ function ProductFields({ product }: { product?: ProductRow }) {
   );
 }
 
-function BoothPicker({
-  booths,
+function BoothFamilyPicker({
   defaultSelected,
 }: {
-  booths: BoothOption[];
-  defaultSelected?: string[];
+  defaultSelected?: BoothProductFamily[];
 }) {
-  if (booths.length === 0) return null;
   return (
     <fieldset>
-      <legend className="text-sm font-medium text-slate-700">Available for</legend>
+      <legend className="text-sm font-medium text-slate-700">Available for booth families</legend>
       <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
-        {booths.map((booth) => (
-          <label key={booth.id} className="flex items-center gap-2 text-sm text-slate-700">
+        {BOOTH_FAMILY_OPTIONS.map((family) => (
+          <label key={family} className="flex items-center gap-2 text-sm text-slate-700">
             <input
               type="checkbox"
-              name="boothIds"
-              value={booth.id}
-              defaultChecked={defaultSelected?.includes(booth.id)}
+              name="boothFamilies"
+              value={family}
+              defaultChecked={defaultSelected?.includes(family)}
               className="h-4 w-4 rounded border-slate-300"
             />
-            <span className="min-w-0 truncate">
-              {booth.name} <span className="text-xs text-slate-500">{booth.sku}</span>
-            </span>
+            <span>{BOOTH_FAMILY_LABELS[family]}</span>
           </label>
         ))}
       </div>
       <p className="mt-2 text-xs text-slate-500">
-        Leave all unchecked to allow this add-on on any booth.
+        Leave all unchecked to allow this add-on on any booth family.
       </p>
     </fieldset>
   );
@@ -184,13 +204,23 @@ function AvailabilityPicker({ product }: { product?: ProductRow }) {
   );
 }
 
+function familyLabel(product: ProductRow): string {
+  if (product.kind === "BOOTH" && product.boothFamily) {
+    return BOOTH_FAMILY_LABELS[product.boothFamily];
+  }
+  if (product.kind === "ADDON" && product.addOnFamily) {
+    return ADDON_FAMILY_LABELS[product.addOnFamily];
+  }
+  return "—";
+}
+
 export function BoothCreateForm() {
   const [state, formAction, pending] = useActionState(createProductAction, initialState);
 
   return (
     <form action={formAction} className="mt-4 space-y-4">
       <input type="hidden" name="kind" value="BOOTH" />
-      <ProductFields />
+      <ProductFields kind="BOOTH" />
       <AvailabilityPicker />
       {state.error && <p className="text-sm text-red-600">{state.error}</p>}
       {state.success && <p className="text-sm text-green-700">Booth created.</p>}
@@ -201,15 +231,15 @@ export function BoothCreateForm() {
   );
 }
 
-export function AddOnCreateForm({ booths }: { booths: BoothOption[] }) {
+export function AddOnCreateForm() {
   const [state, formAction, pending] = useActionState(createProductAction, initialState);
 
   return (
     <form action={formAction} className="mt-4 space-y-4">
       <input type="hidden" name="kind" value="ADDON" />
-      <ProductFields />
+      <ProductFields kind="ADDON" />
       <AvailabilityPicker />
-      <BoothPicker booths={booths} />
+      <BoothFamilyPicker />
       {state.error && <p className="text-sm text-red-600">{state.error}</p>}
       {state.success && <p className="text-sm text-green-700">Add-on created.</p>}
       <Button type="submit" disabled={pending}>
@@ -219,13 +249,7 @@ export function AddOnCreateForm({ booths }: { booths: BoothOption[] }) {
   );
 }
 
-export function ProductListItem({
-  product,
-  booths,
-}: {
-  product: ProductRow;
-  booths: BoothOption[];
-}) {
+export function ProductListItem({ product }: { product: ProductRow }) {
   const [editing, setEditing] = useState(false);
   const [state, formAction, pending] = useActionState(updateProductAction, initialState);
 
@@ -250,7 +274,10 @@ export function ProductListItem({
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-medium text-slate-900">{product.name}</span>
-            <span className="text-xs text-slate-500">{product.sku}</span>
+            <span className="text-xs text-slate-500">{product.version}</span>
+            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
+              {familyLabel(product)}
+            </span>
             {!product.isActive && (
               <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">
                 Inactive
@@ -265,11 +292,10 @@ export function ProductListItem({
           </p>
           {isAddOn && (
             <p className="mt-1 text-xs text-slate-500">
-              {product.restrictedBoothIds.length === 0
-                ? "Available for any booth"
-                : `Available for: ${product.restrictedBoothIds
-                    .map((id) => booths.find((b) => b.id === id)?.name)
-                    .filter(Boolean)
+              {product.restrictedBoothFamilies.length === 0
+                ? "Available for any booth family"
+                : `Available for: ${product.restrictedBoothFamilies
+                    .map((family) => BOOTH_FAMILY_LABELS[family])
                     .join(", ")}`}
             </p>
           )}
@@ -301,10 +327,10 @@ export function ProductListItem({
               <option value="ADDON">Add-on</option>
             </Select>
           )}
-          <ProductFields product={product} />
+          <ProductFields product={product} kind={product.kind} />
           <AvailabilityPicker product={product} />
           {isAddOn && (
-            <BoothPicker booths={booths} defaultSelected={product.restrictedBoothIds} />
+            <BoothFamilyPicker defaultSelected={product.restrictedBoothFamilies} />
           )}
           <label className="flex items-center gap-2 text-sm text-slate-700">
             <input

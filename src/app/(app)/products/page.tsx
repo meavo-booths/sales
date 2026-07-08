@@ -7,7 +7,6 @@ import {
   AddOnCreateForm,
   BoothCreateForm,
   ProductListItem,
-  type BoothOption,
   type ProductRow,
 } from "@/components/product-forms";
 
@@ -55,7 +54,7 @@ export default async function ProductsPage() {
   const products = await prisma.product.findMany({
     orderBy: [{ isActive: "desc" }, { name: "asc" }],
     include: {
-      addOnRestrictions: { select: { boothId: true } },
+      familyRestrictions: { select: { boothFamily: true } },
       availability: { select: { market: true, clientType: true } },
     },
   });
@@ -63,14 +62,16 @@ export default async function ProductsPage() {
   const toRow = (product: (typeof products)[number]): ProductRow => ({
     id: product.id,
     name: product.name,
-    sku: product.sku,
+    version: product.version,
     kind: product.kind,
+    boothFamily: product.boothFamily,
+    addOnFamily: product.addOnFamily,
     description: product.description,
     imageUrl: product.imageUrl,
     listPrice: product.listPrice.toFixed(2),
     currency: parseProductCurrency(product.currency),
     isActive: product.isActive,
-    restrictedBoothIds: product.addOnRestrictions.map((r) => r.boothId),
+    restrictedBoothFamilies: product.familyRestrictions.map((r) => r.boothFamily),
     availability: product.availability.map((row) => ({
       market: row.market,
       clientType: row.clientType,
@@ -80,47 +81,37 @@ export default async function ProductsPage() {
   const booths = products.filter((p) => p.kind === "BOOTH");
   const addOns = products.filter((p) => p.kind === "ADDON");
 
-  const boothOptions: BoothOption[] = booths.map((b) => ({
-    id: b.id,
-    name: b.name,
-    sku: b.sku,
-  }));
-
   return (
     <>
       <PageHeader
         title="Products"
-        description="Booth models, plus add-ons that can be sold standalone or attached to booths."
+        description="Localized catalog entries for booth families and add-ons."
       />
 
       <div className="space-y-8">
         <div className="grid gap-6 lg:grid-cols-2">
           <CreateCard
             title="Create booth"
-            description="Add a booth model with its SKU, list price, and image."
+            description="Add a localized booth entry with family, version, list price, and image."
           >
             <BoothCreateForm />
           </CreateCard>
 
           <CreateCard
             title="Create add-on"
-            description="Add extras like warranties, chairs, or monitors, and pick which booths they fit."
+            description="Add extras and pick which booth families they are compatible with."
           >
-            <AddOnCreateForm booths={boothOptions} />
+            <AddOnCreateForm />
           </CreateCard>
         </div>
 
         <section className="space-y-3">
           <h2 className="text-base font-semibold text-slate-900">Booths</h2>
           {booths.length === 0 ? (
-            <EmptyState>No booth models yet. Add your first booth model.</EmptyState>
+            <EmptyState>No booth entries yet. Add your first booth.</EmptyState>
           ) : (
             booths.map((product) => (
-              <ProductListItem
-                key={product.id}
-                product={toRow(product)}
-                booths={boothOptions}
-              />
+              <ProductListItem key={product.id} product={toRow(product)} />
             ))
           )}
         </section>
@@ -134,11 +125,7 @@ export default async function ProductsPage() {
             </EmptyState>
           ) : (
             addOns.map((product) => (
-              <ProductListItem
-                key={product.id}
-                product={toRow(product)}
-                booths={boothOptions}
-              />
+              <ProductListItem key={product.id} product={toRow(product)} />
             ))
           )}
         </section>

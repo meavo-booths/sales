@@ -1,4 +1,6 @@
 import type {
+  AddOnProductFamily,
+  BoothProductFamily,
   BoothUnitStatus,
   DealClientType,
   DealContactKind,
@@ -48,6 +50,30 @@ export const MARKET_OPTIONS = [
 
 export const QUOTE_CURRENCIES = ["EUR", "GBP", "CZK", "USD"] as const;
 export type QuoteCurrency = (typeof QUOTE_CURRENCIES)[number];
+
+export const BOOTH_FAMILY_LABELS: Record<BoothProductFamily, string> = {
+  SOHO: "Soho",
+  WORKSTATION: "Workstation",
+  CAMDEN_2: "Camden 2",
+  CAMDEN_4: "Camden 4",
+  HAVEN_ONE: "Haven One",
+  HAVEN_FOCUS: "Haven Focus",
+  HAVEN_2: "Haven 2",
+  HAVEN_4: "Haven 4",
+};
+
+export const ADDON_FAMILY_LABELS: Record<AddOnProductFamily, string> = {
+  BAR_STOOL: "Bar Stool",
+  OFFICE_CHAIR: "Office Chair",
+  MONITOR: "Monitor",
+  MONITOR_WITH_CAMERA: "Monitor with Camera",
+  WARRANTY: "Warranty",
+  ASSEMBLY: "Assembly",
+  MOVING_SERVICE: "Moving Service",
+};
+
+export const BOOTH_FAMILY_OPTIONS = Object.keys(BOOTH_FAMILY_LABELS) as BoothProductFamily[];
+export const ADDON_FAMILY_OPTIONS = Object.keys(ADDON_FAMILY_LABELS) as AddOnProductFamily[];
 
 export const SOCKET_TYPE_OPTIONS = [
   "UK",

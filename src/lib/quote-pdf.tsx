@@ -126,7 +126,7 @@ function LineItemRow({
             {item.product?.name ?? item.customName}
           </Text>
           <Text style={{ color: MUTED }}>
-            {item.description || item.product?.description || item.product?.sku || ""}
+            {item.description || item.product?.description || item.product?.version || ""}
           </Text>
         </View>
       </View>
