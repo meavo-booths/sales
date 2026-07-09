@@ -16,7 +16,7 @@
     "schema": "node_modules/@meavo/db/prisma/schema.prisma"
   },
   "dependencies": {
-    "@meavo/db": "github:meavo-booths/meavo-db#v0.10.0",
+    "@meavo/db": "github:meavo-booths/meavo-db#v0.10.1",
     "@meavo/navigation": "git+https://github.com/meavo-booths/meavo-navigation.git#v0.1.2",
     "@neondatabase/serverless": "^1.1.0",
     "@prisma/client": "^6.19.3",

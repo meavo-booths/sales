@@ -114,6 +114,7 @@ type QuotePickerClientRow = {
   vatNumber: string;
   clientType: "DIRECT" | "AGENCY" | "COWORKING";
   market: string;
+  website: string;
   isVip: boolean;
   parentClientId: string | null;
   parent: { name: string; isVip: boolean } | null;
@@ -135,6 +136,7 @@ export function mapClientsForQuotePicker(clients: QuotePickerClientRow[]) {
     vatNumber: c.vatNumber,
     clientType: c.clientType,
     market: c.market,
+    website: c.website,
     isVip: c.isVip,
     parentClientId: c.parentClientId,
     parentName: c.parent?.name ?? null,

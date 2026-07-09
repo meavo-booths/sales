@@ -35,8 +35,16 @@ export type DealDetailsValues = {
   paymentTerms: "UPFRONT_100" | "SPLIT_50_50" | "NET_30";
   vatNumber: string;
   registeredAddress: string;
+  website: string;
   socketType: string;
   targetDeliveryDate: string;
+};
+
+export type DealAssemblyNotesValues = {
+  assemblyAddress: string;
+  notes: string;
+  clientPo: string;
+  actualClient: string;
 };
 
 export type DealContactValues = {
@@ -127,6 +135,7 @@ export function DealDetailsEditorCard({
             }
           />
           <DetailField label="VAT number" value={details.vatNumber} />
+          <DetailField label="URL" value={details.website} />
           <div className="sm:col-span-2 lg:col-span-4">
             <DetailField label="Registered address (invoicing)" value={details.registeredAddress} />
           </div>
@@ -223,6 +232,13 @@ export function DealDetailsEditorCard({
               value={values.targetDeliveryDate}
               onChange={(e) => set("targetDeliveryDate", e.target.value)}
             />
+            <Input
+              label="URL"
+              type="url"
+              value={values.website}
+              onChange={(e) => set("website", e.target.value)}
+              placeholder="https://example.com"
+            />
           </div>
           <Textarea
             label="Registered address (invoicing)"
@@ -242,52 +258,66 @@ export function DealDetailsEditorCard({
 
 export function AssemblyAndNotesEditorRow({
   dealId,
-  assemblyAddress,
-  notes,
+  values: initialValues,
 }: {
   dealId: string;
-  assemblyAddress: string;
-  notes: string;
+  values: DealAssemblyNotesValues;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [assembly, setAssembly] = useState(assemblyAddress);
-  const [notesValue, setNotesValue] = useState(notes);
+  const [values, setValues] = useState(initialValues);
   const [message, setMessage] = useState<string | null>(null);
+
+  const set = <K extends keyof DealAssemblyNotesValues>(key: K, value: DealAssemblyNotesValues[K]) =>
+    setValues((prev) => ({ ...prev, [key]: value }));
 
   const save = () => {
     setMessage(null);
     startTransition(async () => {
-      const result = await updateDealAssemblyAndNotesAction(dealId, {
-        assemblyAddress: assembly,
-        notes: notesValue,
-      });
+      const result = await updateDealAssemblyAndNotesAction(dealId, values);
       setMessage(result.ok ? "Saved." : result.error);
       router.refresh();
     });
   };
 
   return (
-    <div className="grid gap-6 lg:grid-cols-2">
+    <div className="grid gap-6 lg:grid-cols-4">
+      <Card className="lg:col-span-2">
+        <h2 className="mb-4 text-base font-semibold text-slate-900">Deal Notes</h2>
+        <Textarea
+          rows={4}
+          value={values.notes}
+          onChange={(e) => set("notes", e.target.value)}
+          placeholder="Internal notes, delivery expectations, special requests…"
+        />
+      </Card>
       <Card>
         <h2 className="mb-4 text-base font-semibold text-slate-900">Assembly address</h2>
         <Textarea
           rows={4}
-          value={assembly}
-          onChange={(e) => setAssembly(e.target.value)}
+          value={values.assemblyAddress}
+          onChange={(e) => set("assemblyAddress", e.target.value)}
           placeholder="Where the booths get installed"
         />
       </Card>
       <Card>
-        <h2 className="mb-4 text-base font-semibold text-slate-900">Deal Notes</h2>
-        <Textarea
-          rows={4}
-          value={notesValue}
-          onChange={(e) => setNotesValue(e.target.value)}
-          placeholder="Internal notes, delivery expectations, special requests…"
-        />
+        <h2 className="mb-4 text-base font-semibold text-slate-900">PO & client</h2>
+        <div className="space-y-3">
+          <Input
+            label="Client PO"
+            value={values.clientPo}
+            onChange={(e) => set("clientPo", e.target.value)}
+            placeholder="Customer purchase order"
+          />
+          <Input
+            label="Actual Client"
+            value={values.actualClient}
+            onChange={(e) => set("actualClient", e.target.value)}
+            placeholder="End customer if billed via agency"
+          />
+        </div>
       </Card>
-      <div className="flex items-center gap-3 lg:col-span-2">
+      <div className="flex items-center gap-3 lg:col-span-4">
         <Button onClick={save} disabled={pending}>
           {pending ? "Saving…" : "Save"}
         </Button>

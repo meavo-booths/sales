@@ -37,6 +37,7 @@ const dealDetailsInputSchema = z.object({
   paymentTerms: z.enum(["UPFRONT_100", "SPLIT_50_50", "NET_30"]),
   vatNumber: z.string().trim().max(100).default(""),
   registeredAddress: z.string().trim().max(2000).default(""),
+  website: z.string().trim().max(500).default(""),
   socketType: z.string().trim().max(100).default(""),
   targetDeliveryDate: z
     .union([z.literal(""), z.string().regex(/^\d{4}-\d{2}-\d{2}$/)])
@@ -47,6 +48,8 @@ const dealDetailsInputSchema = z.object({
 const dealAssemblyNotesInputSchema = z.object({
   assemblyAddress: z.string().trim().max(2000).default(""),
   notes: z.string().trim().max(5000).default(""),
+  clientPo: z.string().trim().max(500).default(""),
+  actualClient: z.string().trim().max(500).default(""),
 });
 
 const dealContactsInputSchema = z.object({
@@ -241,6 +244,7 @@ export async function updateDealDetailsAction(
       paymentTerms: input.paymentTerms,
       vatNumber: input.vatNumber,
       registeredAddress: input.registeredAddress,
+      website: input.website,
       socketType: input.socketType,
       targetDeliveryDate: input.targetDeliveryDate,
     },
@@ -274,6 +278,8 @@ export async function updateDealAssemblyAndNotesAction(
     data: {
       assemblyAddress: input.assemblyAddress,
       notes: input.notes,
+      clientPo: input.clientPo,
+      actualClient: input.actualClient,
     },
   });
 

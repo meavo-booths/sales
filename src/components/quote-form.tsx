@@ -20,6 +20,7 @@ import { convertBetweenQuoteCurrencies } from "@/lib/exchange-rates";
 import { isClientVip, isQuoteSelectableClient } from "@/lib/client-hierarchy";
 import { productMatchesAvailability } from "@/lib/product-availability";
 import { Button, Card, Input, Select, Textarea } from "@/components/ui";
+import { ClientNameAutocomplete } from "@/components/client-name-autocomplete";
 import { VatNumberField } from "@/components/vat-check";
 
 export type ProductAvailabilityRow = {
@@ -55,6 +56,7 @@ export type ClientOption = {
   vatNumber: string;
   clientType: "DIRECT" | "AGENCY" | "COWORKING";
   market: string;
+  website: string;
   isVip: boolean;
   parentClientId: string | null;
   parentName: string | null;
@@ -95,7 +97,10 @@ export type QuoteFormValues = {
   usState: string;
   clientName: string;
   registeredAddress: string;
+  website: string;
   assemblyAddress: string;
+  clientPo: string;
+  actualClient: string;
   socketType: string;
   targetDeliveryDate: string;
   vatNumber: string;
@@ -136,27 +141,10 @@ export function QuoteForm({
   const boothProducts = useMemo(() => products.filter((p) => p.kind === "BOOTH"), [products]);
   const addOnProducts = useMemo(() => products.filter((p) => p.kind === "ADDON"), [products]);
 
-  const groupHeads = useMemo(
-    () =>
-      clients.filter(
-        (c) => !c.parentClientId && clients.some((other) => other.parentClientId === c.id),
-      ),
-    [clients],
-  );
-
   const selectableClients = useMemo(
     () => clients.filter((c) => isQuoteSelectableClient(c.subsidiaryCount)),
     [clients],
   );
-
-  const [parentFilterId, setParentFilterId] = useState<string>("");
-
-  const filteredSelectableClients = useMemo(() => {
-    if (!parentFilterId) return selectableClients;
-    return selectableClients.filter(
-      (c) => c.id === parentFilterId || c.parentClientId === parentFilterId,
-    );
-  }, [selectableClients, parentFilterId]);
 
   const [values, setValues] = useState<QuoteFormValues>(
     initialValues ?? {
@@ -167,7 +155,10 @@ export function QuoteForm({
       usState: "",
       clientName: "",
       registeredAddress: "",
+      website: "",
       assemblyAddress: "",
+      clientPo: "",
+      actualClient: "",
       socketType: "",
       targetDeliveryDate: "",
       vatNumber: "",
@@ -261,9 +252,17 @@ export function QuoteForm({
     [addOnProducts, selectedProductIds, values.market, values.clientType],
   );
 
-  const selectedClient = useMemo(
-    () => (values.clientId ? clients.find((c) => c.id === values.clientId) : undefined),
-    [clients, values.clientId],
+  const clientNameOptions = useMemo(
+    () =>
+      selectableClients.map((client) => ({
+        id: client.id,
+        name: client.name,
+        market: client.market,
+        isVip: client.isVip,
+        parentName: client.parentName,
+        parentIsVip: client.parentIsVip,
+      })),
+    [selectableClients],
   );
 
   const set = <K extends keyof QuoteFormValues>(key: K, value: QuoteFormValues[K]) =>
@@ -311,10 +310,6 @@ export function QuoteForm({
   };
 
   const pickClient = (clientId: string) => {
-    if (!clientId) {
-      setValues((prev) => ({ ...prev, clientId: null }));
-      return;
-    }
     const client = clients.find((c) => c.id === clientId);
     if (!client || !isQuoteSelectableClient(client.subsidiaryCount)) return;
     const effectiveVip = isClientVip(
@@ -326,6 +321,7 @@ export function QuoteForm({
       clientId: client.id,
       clientName: client.name,
       registeredAddress: client.registeredAddress,
+      website: client.website,
       vatNumber: client.vatNumber,
       clientType: client.clientType,
       market: client.market,
@@ -593,20 +589,32 @@ export function QuoteForm({
           />
           <div className="sm:col-span-2">
             <Textarea
-              label="Assembly address"
-              rows={4}
-              value={values.assemblyAddress}
-              onChange={(e) => set("assemblyAddress", e.target.value)}
-              placeholder="Where the booths get installed"
-            />
-          </div>
-          <div className="sm:col-span-2">
-            <Textarea
               label="Deal Notes"
               rows={4}
               value={values.notes}
               onChange={(e) => set("notes", e.target.value)}
               placeholder="Internal notes, delivery expectations, special requests…"
+            />
+          </div>
+          <Textarea
+            label="Assembly address"
+            rows={4}
+            value={values.assemblyAddress}
+            onChange={(e) => set("assemblyAddress", e.target.value)}
+            placeholder="Where the booths get installed"
+          />
+          <div className="space-y-3">
+            <Input
+              label="Client PO"
+              value={values.clientPo}
+              onChange={(e) => set("clientPo", e.target.value)}
+              placeholder="Customer purchase order"
+            />
+            <Input
+              label="Actual Client"
+              value={values.actualClient}
+              onChange={(e) => set("actualClient", e.target.value)}
+              placeholder="End customer if billed via agency"
             />
           </div>
         </div>
@@ -615,59 +623,18 @@ export function QuoteForm({
       <Card>
         <h2 className="mb-4 text-base font-semibold text-slate-900">Client</h2>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {groupHeads.length > 0 && (
-            <Select
-              label="Filter by group"
-              value={parentFilterId}
-              onChange={(e) => setParentFilterId(e.target.value)}
-            >
-              <option value="">All clients</option>
-              {groupHeads.map((group) => (
-                <option key={group.id} value={group.id}>
-                  {group.name}
-                </option>
-              ))}
-            </Select>
-          )}
-          <div className={groupHeads.length > 0 ? "" : "sm:col-span-2 lg:col-span-1"}>
-            <Select
-              label="Client"
-              value={values.clientId ?? ""}
-              onChange={(e) => pickClient(e.target.value)}
-            >
-              <option value="">New client (created when the quote is saved)</option>
-              {filteredSelectableClients.map((client) => {
-                const effectiveVip = isClientVip(
-                  client,
-                  client.parentIsVip ? { isVip: client.parentIsVip } : null,
-                );
-                const label = client.parentName
-                  ? `${client.name} (${client.parentName})`
-                  : client.name;
-                return (
-                  <option key={client.id} value={client.id}>
-                    {effectiveVip ? "★ " : ""}
-                    {label}
-                    {client.market ? ` — ${client.market}` : ""}
-                  </option>
-                );
-              })}
-            </Select>
-            {values.clientId && (
-              <p className="mt-1 text-xs text-slate-500">
-                {selectedClient?.parentName
-                  ? `Part of ${selectedClient.parentName}. `
-                  : ""}
-                Fields are this quote&apos;s snapshot — edit the master record on the Clients page.
-              </p>
-            )}
+          <div className="sm:col-span-2 lg:col-span-1">
+            <ClientNameAutocomplete
+              clients={clientNameOptions}
+              value={values.clientName}
+              clientId={values.clientId}
+              required
+              onChangeName={(clientName, clientId) =>
+                setValues((prev) => ({ ...prev, clientName, clientId }))
+              }
+              onSelectClient={pickClient}
+            />
           </div>
-          <Input
-            label="Client name"
-            value={values.clientName}
-            onChange={(e) => set("clientName", e.target.value)}
-            required
-          />
           <VatNumberField
             value={values.vatNumber}
             onChange={(value) => set("vatNumber", value)}
@@ -687,6 +654,13 @@ export function QuoteForm({
               ★ VIP client
             </button>
           </div>
+          <Input
+            label="URL"
+            type="url"
+            value={values.website}
+            onChange={(e) => set("website", e.target.value)}
+            placeholder="https://example.com"
+          />
           <div className="sm:col-span-2 lg:col-span-3">
             <Textarea
               label="Registered address (invoicing)"

@@ -118,6 +118,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
             paymentTerms: deal.paymentTerms,
             vatNumber: deal.vatNumber,
             registeredAddress: deal.registeredAddress,
+            website: deal.website,
             socketType: deal.socketType,
             targetDeliveryDate: deal.targetDeliveryDate?.toISOString().slice(0, 10) ?? "",
           }}
@@ -125,8 +126,12 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
 
         <AssemblyAndNotesEditorRow
           dealId={deal.id}
-          assemblyAddress={deal.assemblyAddress}
-          notes={deal.notes}
+          values={{
+            assemblyAddress: deal.assemblyAddress,
+            notes: deal.notes,
+            clientPo: deal.clientPo,
+            actualClient: deal.actualClient,
+          }}
         />
 
         <div className="grid gap-6 lg:grid-cols-2">
