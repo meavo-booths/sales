@@ -9,7 +9,9 @@ import { contactInputSchema, convertInputSchema } from "@/lib/quote-input";
 import { exportDealToOpsSheet } from "@/lib/ops-sheet-export";
 import { exportDealToXero } from "@/lib/xero/export-deal";
 import { syncClientContacts } from "@/lib/client-contacts";
+import { isClientVip } from "@/lib/client-hierarchy";
 import { fetchExchangeRateToEur, isQuoteCurrency } from "@/lib/exchange-rates";
+import { enqueueNotification } from "@/lib/notifications/enqueue";
 
 const paymentInputSchema = z.object({
   paymentStatus: z.nativeEnum(PaymentStatus),
@@ -86,6 +88,33 @@ export async function checkDealIdAction(rawDealId: string): Promise<DealIdCheck>
   };
 }
 
+/** Fire-and-forget: notify the sales team when a won deal belongs to a VIP client. */
+async function notifyIfVipDealWon(
+  dealDbId: string,
+  dealId: string,
+  clientId: string | null,
+  clientName: string,
+  quoteNumber: string,
+): Promise<void> {
+  try {
+    if (!clientId) return;
+    const client = await prisma.client.findUnique({
+      where: { id: clientId },
+      select: { isVip: true, parent: { select: { isVip: true } } },
+    });
+    if (!client || !isClientVip(client, client.parent)) return;
+
+    await enqueueNotification({
+      sourceApp: "sales",
+      eventType: "sales.deal.vip_won",
+      idempotencyKey: `sales:deal:vip_won:${dealDbId}`,
+      payload: { dealDbId, dealId, clientName, quoteNumber },
+    });
+  } catch (error) {
+    console.error("VIP deal notification enqueue failed:", error);
+  }
+}
+
 /**
  * The FUCK YEAH button. Marks the quote as won under the rep-entered DealID
  * and spawns one BoothUnit per booth (status PLANNED) for manufacturing.
@@ -154,6 +183,8 @@ export async function convertQuoteAction(
       }),
     ),
   ]);
+
+  void notifyIfVipDealWon(id, dealId, deal.clientId, deal.clientName, deal.quoteNumber);
 
   // Append to the Ops File and create the Xero draft invoice; failures are
   // recorded on the deal, never thrown.
