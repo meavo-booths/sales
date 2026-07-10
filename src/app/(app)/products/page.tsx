@@ -7,6 +7,7 @@ import {
   AddOnCreateForm,
   BoothCreateForm,
   ProductListItem,
+  SyncXeroProductsButton,
   type ProductRow,
 } from "@/components/product-forms";
 
@@ -76,6 +77,7 @@ export default async function ProductsPage() {
       market: row.market,
       clientType: row.clientType,
     })),
+    xeroItemCode: product.xeroItemCode,
   });
 
   const booths = products.filter((p) => p.kind === "BOOTH");
@@ -86,7 +88,9 @@ export default async function ProductsPage() {
       <PageHeader
         title="Products"
         description="Localized catalog entries for booth families and add-ons."
-      />
+      >
+        <SyncXeroProductsButton />
+      </PageHeader>
 
       <div className="space-y-8">
         <div className="grid gap-6 lg:grid-cols-2">

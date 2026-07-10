@@ -8,6 +8,7 @@ import {
   formatDate,
   formatMoney,
 } from "@/lib/deal-values";
+import { dealTotals, formatVatRate } from "@/lib/vat";
 import { Card } from "@/components/ui";
 
 type DealWithRelations = Prisma.DealGetPayload<{
@@ -140,6 +141,51 @@ function LineItemRow({
   );
 }
 
+/** Subtotal / VAT / total footer rows for the line items table (5 columns). */
+export function TotalsFooter({
+  subtotal,
+  market,
+  currency,
+}: {
+  subtotal: number;
+  market: string;
+  currency: string;
+}) {
+  const totals = dealTotals(subtotal, market);
+  return (
+    <tfoot>
+      <tr>
+        <td colSpan={4} className="py-3 pr-4 text-right font-semibold text-slate-900">
+          {totals.vatRate > 0 ? "Subtotal (excl. VAT)" : "Total (excl. VAT)"}
+        </td>
+        <td className="py-3 text-right text-base font-semibold text-slate-900">
+          {formatMoney(totals.subtotal, currency)}
+        </td>
+      </tr>
+      {totals.vatRate > 0 && (
+        <>
+          <tr>
+            <td colSpan={4} className="py-1 pr-4 text-right text-sm text-slate-600">
+              VAT ({formatVatRate(totals.vatRate)})
+            </td>
+            <td className="py-1 text-right text-sm text-slate-600">
+              {formatMoney(totals.vatAmount, currency)}
+            </td>
+          </tr>
+          <tr className="border-t border-slate-200">
+            <td colSpan={4} className="py-3 pr-4 text-right font-semibold text-slate-900">
+              Total (incl. VAT)
+            </td>
+            <td className="py-3 text-right text-base font-semibold text-slate-900">
+              {formatMoney(totals.totalInclVat, currency)}
+            </td>
+          </tr>
+        </>
+      )}
+    </tfoot>
+  );
+}
+
 export function LineItemsCard({ deal }: { deal: DealWithRelations }) {
   const sorted = [...deal.lineItems].sort((a, b) => a.sortOrder - b.sortOrder);
   const topLevel = sorted.filter((item) => !item.parentLineItemId);
@@ -170,16 +216,11 @@ export function LineItemsCard({ deal }: { deal: DealWithRelations }) {
               </Fragment>
             ))}
           </tbody>
-          <tfoot>
-            <tr>
-              <td colSpan={4} className="py-3 pr-4 text-right font-semibold text-slate-900">
-                Total (excl. VAT)
-              </td>
-              <td className="py-3 text-right text-base font-semibold text-slate-900">
-                {formatMoney(dealTotal(deal), deal.currency)}
-              </td>
-            </tr>
-          </tfoot>
+          <TotalsFooter
+            subtotal={dealTotal(deal)}
+            market={deal.market}
+            currency={deal.currency}
+          />
         </table>
       </div>
     </Card>

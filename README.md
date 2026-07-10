@@ -39,6 +39,8 @@ Open [http://localhost:3002](http://localhost:3002).
 | `GOOGLE_SERVICE_ACCOUNT_JSON` | Service account JSON — needs **Editor** on the Ops File |
 | `BLOB_READ_WRITE_TOKEN` | Product image uploads |
 | `ASSEMBLY_URL` | Link target for the Assembly record on deal pages |
+| `XERO_CLIENT_ID` / `XERO_CLIENT_SECRET` | Xero Custom Connection (client credentials) |
+| `XERO_SALES_ACCOUNT_CODE` | Optional last-resort revenue account code; per-market accounts are configured in Settings → Xero |
 
 ## Ops File write-back
 
@@ -51,6 +53,32 @@ the gateway sheet import keep working unchanged.
 Columns are resolved from the sheet's header row with the same slugification as the gateway
 import, so column order changes don't break the export. If the sync fails, the deal page shows a
 badge with a retry button — conversion itself is never blocked.
+
+## Xero integration
+
+Uses a Xero **Custom Connection** (OAuth2 client credentials, scopes
+`accounting.invoices accounting.contacts accounting.settings.read`).
+
+- **Invoicing** — winning a deal creates a DRAFT `ACCREC` invoice in Xero: contact is
+  found-or-created by client name (cached on the Client), line items stay excl. VAT with the
+  market's mapped tax type and post to the market's mapped revenue account, the invoice template
+  comes from the market → branding theme mapping, and payment terms set the due date (Net 30 =
+  +30 days). Failures never block conversion; the deal page shows the error with a retry button.
+- **Setup gate** — auto-invoicing stays off until an admin reviews and confirms the market →
+  branding theme, market → tax rate, and market → revenue account mappings under
+  **Settings → Xero** (admin-only nav link). Editing mappings clears the confirmation.
+- **Revenue accounts** — each market maps to a Xero revenue account (e.g. UK → `200 Sales UK`,
+  Germany → `201 Sales DACH`); unmapped markets use the default account from the setup page, or
+  `XERO_SALES_ACCOUNT_CODE` as a last resort. The mapped account is set explicitly on every
+  invoice line, overriding any default account on the Xero item.
+- **Product import** — “Sync from Xero” (Products page or Xero settings) imports Xero Items
+  one-way by item code: Xero owns name, description, list price, and active state; kind,
+  families, images, availability, and add-on restrictions stay Sales-owned. Items without an
+  item code are skipped; items removed in Xero are deactivated, not deleted.
+- **VAT on quotes** — market-based VAT (`src/lib/vat.ts`: UK 20%, Germany 19%, others 0%) adds
+  Subtotal / VAT / Total (incl. VAT) rows to quote forms, deal pages, and the quote PDF.
+
+Test against the free Xero Demo Company before pointing the credentials at the production org.
 
 ## Deploy
 

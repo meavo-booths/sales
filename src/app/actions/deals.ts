@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { requireSalesAccess } from "@/lib/meavo-auth";
 import { contactInputSchema, convertInputSchema } from "@/lib/quote-input";
 import { exportDealToOpsSheet } from "@/lib/ops-sheet-export";
+import { exportDealToXero } from "@/lib/xero/export-deal";
 import { syncClientContacts } from "@/lib/client-contacts";
 import { fetchExchangeRateToEur, isQuoteCurrency } from "@/lib/exchange-rates";
 
@@ -154,8 +155,9 @@ export async function convertQuoteAction(
     ),
   ]);
 
-  // Append to the Ops File; failures are recorded on the deal, never thrown.
-  await exportDealToOpsSheet(id);
+  // Append to the Ops File and create the Xero draft invoice; failures are
+  // recorded on the deal, never thrown.
+  await Promise.all([exportDealToOpsSheet(id), exportDealToXero(id)]);
 
   revalidatePath("/");
   revalidatePath("/deals");

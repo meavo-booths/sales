@@ -37,9 +37,11 @@ export async function Nav() {
     gatewayUrl: GATEWAY_URL,
   });
 
+  const navLinks = admin ? [...links, { href: "/settings/xero", label: "Xero" }] : links;
+
   return (
     <MeavoNavBar
-      links={links}
+      links={navLinks}
       logoHref={GATEWAY_URL}
       toolSwitcher={{
         currentId: resolveCurrentToolId(toolOptions, MEAVO_APP_KEY),

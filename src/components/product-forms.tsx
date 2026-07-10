@@ -1,13 +1,15 @@
 "use client";
 
 import Image from "next/image";
-import { useActionState, useState } from "react";
+import { useActionState, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import type { AddOnProductFamily, BoothProductFamily } from "@prisma/client";
 import {
   createProductAction,
   updateProductAction,
   type ProductActionState,
 } from "@/app/actions/products";
+import { syncProductsFromXeroAction } from "@/app/actions/xero";
 import { Button, Card, Input, Select, Textarea } from "@/components/ui";
 import {
   ADDON_FAMILY_LABELS,
@@ -22,6 +24,44 @@ import {
 } from "@/lib/deal-values";
 
 const initialState: ProductActionState = {};
+
+/** Pull the Xero item catalogue into the Product table (one-way import). */
+export function SyncXeroProductsButton() {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [status, setStatus] = useState<{ ok: boolean; text: string } | null>(null);
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {status && (
+        <p className={`text-xs ${status.ok ? "text-green-700" : "text-red-600"}`}>
+          {status.text}
+        </p>
+      )}
+      <Button
+        variant="secondary"
+        disabled={pending}
+        onClick={() => {
+          setStatus(null);
+          startTransition(async () => {
+            const result = await syncProductsFromXeroAction();
+            setStatus(
+              result.ok
+                ? {
+                    ok: true,
+                    text: `Synced: ${result.created} created, ${result.updated} updated, ${result.deactivated} deactivated`,
+                  }
+                : { ok: false, text: result.error },
+            );
+            router.refresh();
+          });
+        }}
+      >
+        {pending ? "Syncing…" : "Sync from Xero"}
+      </Button>
+    </div>
+  );
+}
 
 export type ProductAvailabilityRow = {
   market: string;
@@ -43,6 +83,8 @@ export type ProductRow = {
   /** For add-ons: booth families this add-on is limited to. Empty = any family. */
   restrictedBoothFamilies: BoothProductFamily[];
   availability: ProductAvailabilityRow[];
+  /** Xero item code when the product is linked to a Xero item. */
+  xeroItemCode: string | null;
 };
 
 function CurrencyPills({ defaultValue = "EUR" }: { defaultValue?: QuoteCurrency }) {
@@ -281,6 +323,11 @@ export function ProductListItem({ product }: { product: ProductRow }) {
             {!product.isActive && (
               <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">
                 Inactive
+              </span>
+            )}
+            {product.xeroItemCode && (
+              <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-800">
+                Xero: {product.xeroItemCode}
               </span>
             )}
           </div>

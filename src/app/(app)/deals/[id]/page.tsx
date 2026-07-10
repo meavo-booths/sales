@@ -17,6 +17,7 @@ import {
   PaymentEditor,
   ReadyToAssembleToggle,
   RetrySheetSyncButton,
+  RetryXeroInvoiceButton,
 } from "@/components/deal-editors";
 
 export const dynamic = "force-dynamic";
@@ -100,9 +101,28 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
             </div>
           </Card>
         )}
-        {deal.sheetSyncedAt && (
+        {deal.xeroSyncError && (
+          <Card className="border-amber-300 bg-amber-50">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium text-amber-900">Xero invoice not created</p>
+                <p className="text-sm text-amber-800">{deal.xeroSyncError}</p>
+              </div>
+              <RetryXeroInvoiceButton dealId={deal.id} />
+            </div>
+          </Card>
+        )}
+        {(deal.sheetSyncedAt || deal.xeroInvoiceId) && (
           <p className="text-xs text-slate-500">
-            Synced to the Ops File on {formatDate(deal.sheetSyncedAt)}.
+            {[
+              deal.sheetSyncedAt && `Synced to the Ops File on ${formatDate(deal.sheetSyncedAt)}.`,
+              deal.xeroInvoiceId &&
+                `Xero draft invoice ${deal.xeroInvoiceNumber || "created"}${
+                  deal.xeroSyncedAt ? ` on ${formatDate(deal.xeroSyncedAt)}` : ""
+                }.`,
+            ]
+              .filter(Boolean)
+              .join(" ")}
           </p>
         )}
 

@@ -15,3 +15,16 @@ export async function requireSalesAccess() {
 
   return session;
 }
+
+/** Sales access + system ADMIN role — used for integration settings. */
+export async function requireSalesAdmin() {
+  const session = await requireSalesAccess();
+
+  const user = await prisma.user.findUnique({
+    where: { id: session.user!.id },
+    select: { systemRole: true },
+  });
+  if (user?.systemRole !== "ADMIN") redirect("/");
+
+  return session;
+}

@@ -12,6 +12,7 @@ import {
   updateDealReadyAction,
   updatePaymentAction,
 } from "@/app/actions/deals";
+import { retryXeroInvoiceAction } from "@/app/actions/xero";
 import {
   BOOTH_UNIT_STATUS_LABELS,
   CLIENT_TYPE_LABELS,
@@ -644,6 +645,32 @@ export function BoothUnitEditor({
           {error}
         </p>
       )}
+    </div>
+  );
+}
+
+export function RetryXeroInvoiceButton({ dealId }: { dealId: string }) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  return (
+    <div className="flex items-center gap-2">
+      <Button
+        variant="secondary"
+        disabled={pending}
+        onClick={() => {
+          setError(null);
+          startTransition(async () => {
+            const result = await retryXeroInvoiceAction(dealId);
+            if (!result.ok) setError(result.error);
+            router.refresh();
+          });
+        }}
+      >
+        {pending ? "Creating…" : "Retry Xero invoice"}
+      </Button>
+      {error && <p className="text-sm text-red-600">{error}</p>}
     </div>
   );
 }

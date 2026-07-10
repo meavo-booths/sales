@@ -17,6 +17,7 @@ import {
   type QuoteCurrency,
 } from "@/lib/deal-values";
 import { convertBetweenQuoteCurrencies } from "@/lib/exchange-rates";
+import { dealTotals, formatVatRate } from "@/lib/vat";
 import { isClientVip, isQuoteSelectableClient } from "@/lib/client-hierarchy";
 import { productMatchesAvailability } from "@/lib/product-availability";
 import { Button, Card, Input, Select, Textarea } from "@/components/ui";
@@ -27,6 +28,38 @@ export type ProductAvailabilityRow = {
   market: string;
   clientType: "DIRECT" | "AGENCY" | "COWORKING";
 };
+
+function QuoteTotals({
+  subtotal,
+  market,
+  currency,
+}: {
+  subtotal: number;
+  market: string;
+  currency: string;
+}) {
+  const totals = dealTotals(subtotal, market);
+  if (totals.vatRate === 0) {
+    return (
+      <p className="text-right text-base font-semibold text-slate-900">
+        Total (excl. VAT): {formatMoney(totals.subtotal, currency)}
+      </p>
+    );
+  }
+  return (
+    <div className="space-y-1 text-right">
+      <p className="text-sm text-slate-600">
+        Subtotal (excl. VAT): {formatMoney(totals.subtotal, currency)}
+      </p>
+      <p className="text-sm text-slate-600">
+        VAT ({formatVatRate(totals.vatRate)}): {formatMoney(totals.vatAmount, currency)}
+      </p>
+      <p className="text-base font-semibold text-slate-900">
+        Total (incl. VAT): {formatMoney(totals.totalInclVat, currency)}
+      </p>
+    </div>
+  );
+}
 
 export type ProductOption = {
   id: string;
@@ -1021,9 +1054,7 @@ export function QuoteForm({
               </div>
             ))}
 
-            <p className="text-right text-base font-semibold text-slate-900">
-              Total: {formatMoney(total, values.currency)}
-            </p>
+            <QuoteTotals subtotal={total} market={values.market} currency={values.currency} />
           </div>
         )}
 

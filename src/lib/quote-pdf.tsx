@@ -18,6 +18,7 @@ import {
   formatDate,
   formatMoney,
 } from "@/lib/deal-values";
+import { dealTotals, formatVatRate } from "@/lib/vat";
 
 type QuoteForPdf = Prisma.DealGetPayload<{
   include: { contacts: true; lineItems: { include: { product: true } } };
@@ -79,6 +80,8 @@ const styles = StyleSheet.create({
   },
   totalLabel: { fontFamily: "Helvetica-Bold", fontSize: 11 },
   totalValue: { fontFamily: "Helvetica-Bold", fontSize: 11, color: BRAND },
+  subtotalLabel: { fontSize: 10, color: SLATE },
+  subtotalValue: { fontSize: 10, color: SLATE },
   footer: {
     position: "absolute",
     left: 40,
@@ -153,10 +156,11 @@ function LineItemRow({
 
 export function QuotePdfDocument({ quote }: { quote: QuoteForPdf }) {
   const logoPath = path.join(process.cwd(), "public", "meavo-logo.png");
-  const total = quote.lineItems.reduce(
+  const subtotal = quote.lineItems.reduce(
     (sum, item) => sum + item.quantity * Number(item.unitPrice),
     0,
   );
+  const totals = dealTotals(subtotal, quote.market);
   const mainContacts = quote.contacts.filter((c) => c.kind === "MAIN");
 
   // Attached add-ons render indented under their booth; everything else is a top-level row.
@@ -210,7 +214,11 @@ export function QuotePdfDocument({ quote }: { quote: QuoteForPdf }) {
               Payment terms: {PAYMENT_TERMS_LABELS[quote.paymentTerms]}
             </Text>
             <Text style={styles.line}>Currency: {quote.currency}</Text>
-            <Text style={styles.line}>Prices exclude VAT.</Text>
+            <Text style={styles.line}>
+              {totals.vatRate > 0
+                ? `Line prices exclude VAT. ${formatVatRate(totals.vatRate)} VAT is added to the total.`
+                : "Prices exclude VAT."}
+            </Text>
           </View>
         </View>
 
@@ -230,10 +238,35 @@ export function QuotePdfDocument({ quote }: { quote: QuoteForPdf }) {
               ))}
             </React.Fragment>
           ))}
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Total (excl. VAT)</Text>
-            <Text style={styles.totalValue}>{formatMoney(total, quote.currency)}</Text>
-          </View>
+          {totals.vatRate > 0 ? (
+            <>
+              <View style={styles.totalRow}>
+                <Text style={styles.subtotalLabel}>Subtotal (excl. VAT)</Text>
+                <Text style={styles.subtotalValue}>
+                  {formatMoney(totals.subtotal, quote.currency)}
+                </Text>
+              </View>
+              <View style={[styles.totalRow, { paddingVertical: 2 }]}>
+                <Text style={styles.subtotalLabel}>
+                  VAT ({formatVatRate(totals.vatRate)})
+                </Text>
+                <Text style={styles.subtotalValue}>
+                  {formatMoney(totals.vatAmount, quote.currency)}
+                </Text>
+              </View>
+              <View style={styles.totalRow}>
+                <Text style={styles.totalLabel}>Total (incl. VAT)</Text>
+                <Text style={styles.totalValue}>
+                  {formatMoney(totals.totalInclVat, quote.currency)}
+                </Text>
+              </View>
+            </>
+          ) : (
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>Total (excl. VAT)</Text>
+              <Text style={styles.totalValue}>{formatMoney(totals.subtotal, quote.currency)}</Text>
+            </View>
+          )}
         </View>
 
         <Text style={styles.footer} fixed>
