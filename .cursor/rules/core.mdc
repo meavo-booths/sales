@@ -1,0 +1,59 @@
+---
+description: Core stack, layout, and guardrails for meavo-sales
+alwaysApply: true
+---
+
+Environment: Next.js 15 App Router at sales.meavo.app (port 3002 locally). Quotes → deals tool for the MEAVO sales team; part of the meavo-booths ecosystem sharing one Neon Postgres DB with gateway/assembly/hols/mrp.
+
+## Stack
+
+- Next.js 15 App Router, TypeScript strict, React 19, Tailwind CSS 3
+- Prisma 6 via `@meavo/db` (schema owned by meavo-db repo) → shared Neon Postgres
+- NextAuth v5 JWT sessions, Google SSO only (invite-only), `ToolCardAccess` gating
+- `@meavo/navigation` shared nav; Vercel hosting; Vercel Blob for product images
+- Integrations: Google Sheets (Ops File), Xero Custom Connection, Frankfurter FX, VIES VAT, `@react-pdf/renderer`
+
+## Do NOT
+
+- Edit the Prisma schema here — it lives in meavo-db; bump the `@meavo/db` git ref instead
+- Run `prisma db push` (disabled) — shared DB; use idempotent `prisma/sql/*.sql` + `prisma db execute`
+- Block quote → deal conversion on Ops File / Xero failures — export functions never throw; persist error on `Deal`, offer retry
+- Look up the tool card by `linkedAppKey` at runtime — use `SALES_TOOL_CARD_ID` (`seed-sales-tool`)
+- Add shadcn / Radix / MUI — use the in-house kit in `src/components/ui.tsx`
+- Let Xero import overwrite Sales-owned product fields (kind, families, images, availability, restrictions)
+- Create a separate Quote model — quotes are `Deal` rows with `stage = QUOTE`
+- Commit secrets or `.env`
+
+## Code layout
+
+| Area | Path |
+|------|------|
+| Pages (authenticated route group) | `src/app/(app)/` — deals, clients, products, quotes, settings/xero |
+| Public login | `src/app/login/` |
+| Server Actions (all mutations) | `src/app/actions/` |
+| API routes (NextAuth + quote PDF only) | `src/app/api/` |
+| Domain logic + validation | `src/lib/` (Zod in `src/lib/*-input.ts`) |
+| Integrations | `src/lib/ops-sheet-export.ts`, `src/lib/sheets-client.ts`, `src/lib/xero/` |
+| Auth | `src/lib/meavo-auth.ts`, `src/lib/auth.ts`, `src/lib/auth.config.ts`, `src/middleware.ts` |
+| UI kit + components | `src/components/` (`ui.tsx`, `nav.tsx`) |
+| Smoke scripts (no test suite) | `scripts/` — run via `npx tsx --env-file=.env scripts/<name>.ts` |
+
+## Data flow
+
+```
+Browser → src/middleware.ts (session redirect, pages only)
+        → page (requireSalesAccess / requireSalesAdmin)
+        → Server Action (Zod validate → Prisma → revalidatePath)
+        → on win: BoothUnit rows + non-blocking side effects
+            ├─ Ops File append (googleapis, src/lib/ops-sheet-export.ts)
+            └─ Xero draft invoice (src/lib/xero/export-deal.ts)
+```
+
+Every mutation that must reach the Ops File or Xero goes through `exportDealToOpsSheet()` / `exportDealToXero()`. These functions never throw: failures are stored on the `Deal` (`sheetSyncError`, `xeroSyncError`) and retried via actions in `src/app/actions/deals.ts` / `xero.ts` — external failures must never fail the user-facing write.
+
+## Docs for agents
+
+- `AGENTS.md` — quick orientation
+- `docs/architecture.md` — stack, siblings, data flow
+- `docs/domain.md` — business rules, mutation map
+- `docs/data-model.md` — database tables

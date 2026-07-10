@@ -1,0 +1,26 @@
+---
+description: Domain layer patterns for meavo-sales
+globs:
+  - src/lib/**
+---
+
+# Domain module rules
+
+Business logic lives in `src/lib/` — **not** in route handlers, React components, or API route files.
+
+## Patterns
+
+1. Validate all mutation input at the boundary with the Zod schemas in `src/lib/quote-input.ts` / `src/lib/client-input.ts`; add new schemas beside them, not inline in actions.
+2. External syncs after a won deal go through `exportDealToOpsSheet()` (`src/lib/ops-sheet-export.ts`) and `exportDealToXero()` (`src/lib/xero/export-deal.ts`) — they never throw; errors are persisted on the `Deal` for retry and must never fail the conversion.
+3. Money: line items store both quote-currency and EUR amounts (`src/lib/line-item-eur.ts`, `src/lib/exchange-rates.ts`); VAT is display-time by market (`src/lib/vat.ts`) — never persist VAT-inclusive totals.
+4. Quote numbers come only from `nextQuoteNumber()` (`src/lib/quote-number.ts`, Postgres sequence `"SalesQuoteNumberSeq"`) — never compute them from existing rows.
+5. Xero calls go through `xeroFetch()` in `src/lib/xero/client.ts` (cached client-credentials token); per-market mappings resolve via `src/lib/xero/settings.ts`.
+6. Reuse existing modules — search `src/lib/` before adding new files.
+
+## File naming
+
+Kebab-case noun or noun-verb, one concern per file (`quote-number.ts`, `ops-sheet-export.ts`, `client-hierarchy.ts`). Xero-specific modules live under `src/lib/xero/`.
+
+## Mutation map
+
+See `docs/domain.md` for persona permissions and status transitions.

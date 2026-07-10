@@ -88,6 +88,16 @@ Test against the free Xero Demo Company before pointing the credentials at the p
 4. Apply `prisma/sql/sales_tool.sql` once against the shared DB, then `npm run db:seed`
 5. In gateway Admin, create the Sales tool card (`seed-sales-tool`) and grant users access
 
+## Documentation
+
+| Doc | Contents |
+|-----|----------|
+| [AGENTS.md](AGENTS.md) | Quick orientation for AI agents — task → file map, hard rules, commands |
+| [docs/architecture.md](docs/architecture.md) | Stack, sibling repos, repository layout, data flow, env vars, deploy |
+| [docs/domain.md](docs/domain.md) | Business rules, glossary, roles, mutation map |
+| [docs/data-model.md](docs/data-model.md) | Sales-owned Prisma models, sync state, schema-change workflow |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | PR process, code placement, cross-repo dependency bumps |
+
 ## Related apps
 
 | App | Domain | Repo |
