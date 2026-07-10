@@ -1,10 +1,16 @@
 import { MeavoNavBar } from "@meavo/navigation";
 import {
   getAccessibleTools,
+  getNotifications,
   resolveCurrentToolId,
   type MeavoAppKey,
 } from "@meavo/navigation/server";
 import { signOutAction } from "@/app/actions/auth";
+import {
+  markAllNotificationsReadAction,
+  markNotificationReadAction,
+  refreshNotificationsAction,
+} from "@/app/actions/notifications";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -31,11 +37,14 @@ export async function Nav() {
   });
   const admin = user?.systemRole === "ADMIN";
 
-  const toolOptions = await getAccessibleTools(prisma, {
-    userId: session.user.id,
-    isAdmin: admin,
-    gatewayUrl: GATEWAY_URL,
-  });
+  const [toolOptions, notificationFeed] = await Promise.all([
+    getAccessibleTools(prisma, {
+      userId: session.user.id,
+      isAdmin: admin,
+      gatewayUrl: GATEWAY_URL,
+    }),
+    getNotifications(prisma, { userId: session.user.id }),
+  ]);
 
   const navLinks = admin ? [...links, { href: "/settings/xero", label: "Xero" }] : links;
 
@@ -51,6 +60,12 @@ export async function Nav() {
       userEmail={session.user.email}
       userImage={session.user.image}
       signOutAction={signOutAction}
+      notifications={{
+        initial: notificationFeed,
+        refresh: refreshNotificationsAction,
+        markRead: markNotificationReadAction,
+        markAllRead: markAllNotificationsReadAction,
+      }}
     />
   );
 }
