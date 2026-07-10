@@ -17,6 +17,7 @@ import {
 import { exportDealToXero } from "@/lib/xero/export-deal";
 import { importItemsFromXero, type XeroItemsImportResult } from "@/lib/xero/import-items";
 import { getXeroSettings, upsertXeroSettings } from "@/lib/xero/settings";
+import { firstZodError } from "@/lib/zod-errors";
 
 export type XeroSetupData = {
   configured: boolean;
@@ -100,7 +101,7 @@ export async function saveXeroMappingsAction(rawInput: unknown): Promise<XeroAct
   await requireSalesAdmin();
 
   const parsed = mappingsInputSchema.safeParse(rawInput);
-  if (!parsed.success) return { ok: false, error: "Invalid mapping input" };
+  if (!parsed.success) return { ok: false, error: firstZodError(parsed.error) };
   const input = parsed.data;
 
   const themeRows = input.themeMappings.filter((m) => m.brandingThemeId);
@@ -172,7 +173,7 @@ export type XeroProductSyncResult =
   | { ok: false; error: string };
 
 export async function syncProductsFromXeroAction(): Promise<XeroProductSyncResult> {
-  await requireSalesAccess();
+  await requireSalesAdmin();
 
   if (!isXeroConfigured()) return { ok: false, error: "Xero is not configured" };
 

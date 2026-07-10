@@ -1,7 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireSalesAccess } from "@/lib/meavo-auth";
-import { mapClientsForQuotePicker } from "@/lib/client-hierarchy";
 import { parseProductCurrency } from "@/lib/exchange-rates";
 import { PageHeader } from "@/components/ui";
 import { QuoteForm, type QuoteFormValues } from "@/components/quote-form";
@@ -28,21 +27,13 @@ export default async function EditQuotePage({ params }: { params: Promise<{ id: 
   if (!quote) notFound();
   if (quote.stage !== "QUOTE") redirect(`/quotes/${quote.id}`);
 
-  const [products, clients] = await Promise.all([
-    prisma.product.findMany({
-      where: { isActive: true },
-      orderBy: [{ kind: "asc" }, { name: "asc" }],
-      include: productInclude,
-    }),
-    prisma.client.findMany({
-      orderBy: [{ isVip: "desc" }, { name: "asc" }],
-      include: {
-        parent: { select: { name: true, isVip: true } },
-        contacts: { orderBy: { sortOrder: "asc" } },
-        _count: { select: { subsidiaries: true } },
-      },
-    }),
-  ]);
+  // Clients are searched on demand from the form (searchClientsAction) — the
+  // full directory is never loaded here.
+  const products = await prisma.product.findMany({
+    where: { isActive: true },
+    orderBy: [{ kind: "asc" }, { name: "asc" }],
+    include: productInclude,
+  });
 
   const boothLines = quote.lineItems.filter((li) => li.product?.kind === "BOOTH");
   const addOnLines = quote.lineItems.filter((li) => li.product?.kind === "ADDON");
@@ -148,7 +139,6 @@ export default async function EditQuotePage({ params }: { params: Promise<{ id: 
       <QuoteForm
         quoteId={quote.id}
         products={allProducts.map(mapProduct)}
-        clients={mapClientsForQuotePicker(clients)}
         initialValues={initialValues}
       />
     </>

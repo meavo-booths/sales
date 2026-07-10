@@ -48,8 +48,9 @@ export const MARKET_OPTIONS = [
   "Portugal",
 ] as const;
 
-export const QUOTE_CURRENCIES = ["EUR", "GBP", "CZK", "USD"] as const;
-export type QuoteCurrency = (typeof QUOTE_CURRENCIES)[number];
+// Single source of truth lives in exchange-rates.ts (next to the FX logic);
+// re-exported here for components that import their option lists from this module.
+export { QUOTE_CURRENCIES, type QuoteCurrency } from "@/lib/exchange-rates";
 
 export const BOOTH_FAMILY_LABELS: Record<BoothProductFamily, string> = {
   SOHO: "Soho",

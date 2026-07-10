@@ -51,60 +51,74 @@ export function hierarchyWhere(view: ClientHierarchyView): Prisma.ClientWhereInp
   }
 }
 
-export async function subsidiaryIds(parentId: string): Promise<string[]> {
-  const rows = await prisma.client.findMany({
-    where: { parentClientId: parentId },
-    select: { id: true },
-    orderBy: { name: "asc" },
-  });
-  return rows.map((row) => row.id);
-}
-
-/** Parent id plus all subsidiary ids — for rollup stats on a group head. */
-export async function rollupClientIds(parentId: string): Promise<string[]> {
-  const ids = await subsidiaryIds(parentId);
-  return [parentId, ...ids];
-}
-
-export async function rollupRevenueForClientIds(clientIds: string[]): Promise<number> {
-  if (clientIds.length === 0) return 0;
-  const rows = await prisma.$queryRaw<{ revenue: number }[]>`
-    SELECT COALESCE(SUM(li.quantity * COALESCE(li."unitPriceEur", li."unitPrice")), 0)::float AS revenue
-    FROM "QuoteLineItem" li
-    JOIN "Deal" d ON d.id = li."dealId"
-    WHERE d."clientId" = ANY(${clientIds}) AND d.stage = 'WON'
-  `;
-  return rows[0]?.revenue ?? 0;
-}
-
-export async function dealCountsForClientIds(
-  clientIds: string[],
-): Promise<{ won: number; openQuotes: number }> {
-  if (clientIds.length === 0) return { won: 0, openQuotes: 0 };
-  const rows = await prisma.deal.groupBy({
-    by: ["stage"],
-    where: { clientId: { in: clientIds } },
-    _count: { _all: true },
-  });
-  let won = 0;
-  let openQuotes = 0;
-  for (const row of rows) {
-    if (row.stage === "WON") won = row._count._all;
-    if (row.stage === "QUOTE") openQuotes = row._count._all;
-  }
-  return { won, openQuotes };
-}
-
-export async function loadClientStats(clientIds: string[]): Promise<{
+export type ClientStats = {
   revenue: number;
   won: number;
   openQuotes: number;
-}> {
-  const [revenue, counts] = await Promise.all([
-    rollupRevenueForClientIds(clientIds),
-    dealCountsForClientIds(clientIds),
+};
+
+const EMPTY_STATS: ClientStats = { revenue: 0, won: 0, openQuotes: 0 };
+
+/**
+ * Per-client stats for any number of clients in two queries total (one
+ * revenue aggregate, one deal count groupBy) — never one query per client.
+ */
+export async function loadClientStatsByClient(
+  clientIds: string[],
+): Promise<Map<string, ClientStats>> {
+  const stats = new Map<string, ClientStats>();
+  if (clientIds.length === 0) return stats;
+  for (const id of clientIds) stats.set(id, { ...EMPTY_STATS });
+
+  const [revenueRows, countRows] = await Promise.all([
+    // Legacy rows without a stored EUR price only count when the deal is in
+    // EUR; other currencies would inflate revenue with unconverted amounts
+    // (NULL rows are skipped by SUM). Mirrors lineItemUnitPriceEur().
+    prisma.$queryRaw<{ clientId: string; revenue: number }[]>`
+      SELECT d."clientId" AS "clientId",
+             COALESCE(SUM(li.quantity * COALESCE(
+               li."unitPriceEur",
+               CASE WHEN d.currency = 'EUR' THEN li."unitPrice" END
+             )), 0)::float AS revenue
+      FROM "QuoteLineItem" li
+      JOIN "Deal" d ON d.id = li."dealId"
+      WHERE d."clientId" = ANY(${clientIds}) AND d.stage = 'WON'
+      GROUP BY d."clientId"
+    `,
+    prisma.deal.groupBy({
+      by: ["clientId", "stage"],
+      where: { clientId: { in: clientIds } },
+      _count: { _all: true },
+    }),
   ]);
-  return { revenue, ...counts };
+
+  for (const row of revenueRows) {
+    const entry = stats.get(row.clientId);
+    if (entry) entry.revenue = row.revenue;
+  }
+  for (const row of countRows) {
+    const entry = row.clientId ? stats.get(row.clientId) : undefined;
+    if (!entry) continue;
+    if (row.stage === "WON") entry.won = row._count._all;
+    if (row.stage === "QUOTE") entry.openQuotes = row._count._all;
+  }
+  return stats;
+}
+
+/** Combined stats for a group head: its own record plus all subsidiaries. */
+export function sumClientStats(
+  statsByClient: Map<string, ClientStats>,
+  clientIds: string[],
+): ClientStats {
+  const total: ClientStats = { ...EMPTY_STATS };
+  for (const id of clientIds) {
+    const entry = statsByClient.get(id);
+    if (!entry) continue;
+    total.revenue += entry.revenue;
+    total.won += entry.won;
+    total.openQuotes += entry.openQuotes;
+  }
+  return total;
 }
 
 type QuotePickerClientRow = {

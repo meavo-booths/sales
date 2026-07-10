@@ -14,8 +14,9 @@ import {
   clientHierarchyRole,
   hierarchyWhere,
   isClientVip,
-  loadClientStats,
-  rollupClientIds,
+  loadClientStatsByClient,
+  sumClientStats,
+  type ClientStats,
 } from "@/lib/client-hierarchy";
 import { AddClientButton } from "@/components/add-client-button";
 import { ClientListFilters } from "@/components/client-list-filters";
@@ -176,21 +177,47 @@ export default async function ClientsPage({
     ...nestedSubsidiaries.map((c) => c.id),
   ];
 
-  const statsByClient = new Map<string, { revenue: number; won: number; openQuotes: number }>();
+  // Parent rollups need every subsidiary id in any view; the "top" view
+  // already loaded them all, other views only need the id links.
+  const subsidiaryLinks: { id: string; parentClientId: string | null }[] =
+    hierarchyView === "top"
+      ? nestedSubsidiaries.map((sub) => ({ id: sub.id, parentClientId: sub.parentClientId }))
+      : parentIdsOnPage.length > 0
+        ? await prisma.client.findMany({
+            where: { parentClientId: { in: parentIdsOnPage } },
+            select: { id: true, parentClientId: true },
+          })
+        : [];
 
-  await Promise.all(
-    clients.map(async (client) => {
-      const isParent = client._count.subsidiaries > 0;
-      const ids = isParent ? await rollupClientIds(client.id) : [client.id];
-      statsByClient.set(client.id, await loadClientStats(ids));
-    }),
-  );
+  const subsidiaryIdsByParent = new Map<string, string[]>();
+  for (const link of subsidiaryLinks) {
+    if (!link.parentClientId) continue;
+    const list = subsidiaryIdsByParent.get(link.parentClientId) ?? [];
+    list.push(link.id);
+    subsidiaryIdsByParent.set(link.parentClientId, list);
+  }
 
-  await Promise.all(
-    nestedSubsidiaries.map(async (client) => {
-      statsByClient.set(client.id, await loadClientStats([client.id]));
-    }),
-  );
+  // Two aggregate queries for the whole page instead of several per client.
+  const statsById = await loadClientStatsByClient([
+    ...new Set([...clients.map((c) => c.id), ...subsidiaryLinks.map((l) => l.id)]),
+  ]);
+
+  const statsByClient = new Map<string, ClientStats>();
+  for (const client of clients) {
+    const isParent = client._count.subsidiaries > 0;
+    statsByClient.set(
+      client.id,
+      isParent
+        ? sumClientStats(statsById, [
+            client.id,
+            ...(subsidiaryIdsByParent.get(client.id) ?? []),
+          ])
+        : (statsById.get(client.id) ?? { revenue: 0, won: 0, openQuotes: 0 }),
+    );
+  }
+  for (const sub of nestedSubsidiaries) {
+    statsByClient.set(sub.id, statsById.get(sub.id) ?? { revenue: 0, won: 0, openQuotes: 0 });
+  }
 
   const pageHref = (target: number) => {
     const query = new URLSearchParams();

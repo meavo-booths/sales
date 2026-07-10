@@ -128,7 +128,9 @@ export default async function QuotesPage({
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="font-semibold text-slate-900">{formatMoney(total)}</p>
+                      <p className="font-semibold text-slate-900">
+                        {total == null ? "—" : formatMoney(total)}
+                      </p>
                       <p className="text-sm text-slate-500">
                         {booths} booth{booths === 1 ? "" : "s"} · {formatDate(quote.dealDate)}
                         {quote.salesRep && ` · ${quote.salesRep}`}

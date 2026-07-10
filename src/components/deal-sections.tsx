@@ -8,16 +8,12 @@ import {
   formatDate,
   formatMoney,
 } from "@/lib/deal-values";
-import { dealTotals, formatVatRate } from "@/lib/vat";
+import { dealSubtotal, dealTotals, formatVatRate } from "@/lib/vat";
 import { Card } from "@/components/ui";
 
 type DealWithRelations = Prisma.DealGetPayload<{
   include: { contacts: true; lineItems: { include: { product: true } } };
 }>;
-
-export function dealTotal(deal: DealWithRelations): number {
-  return deal.lineItems.reduce((sum, li) => sum + li.quantity * Number(li.unitPrice), 0);
-}
 
 function Field({ label, value }: { label: string; value: string }) {
   return (
@@ -217,7 +213,7 @@ export function LineItemsCard({ deal }: { deal: DealWithRelations }) {
             ))}
           </tbody>
           <TotalsFooter
-            subtotal={dealTotal(deal)}
+            subtotal={dealSubtotal(deal)}
             market={deal.market}
             currency={deal.currency}
           />

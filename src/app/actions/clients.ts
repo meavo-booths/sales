@@ -4,20 +4,14 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireSalesAccess } from "@/lib/meavo-auth";
 import { clientInputSchema } from "@/lib/client-input";
+import { mapClientsForQuotePicker } from "@/lib/client-hierarchy";
+import { firstZodError } from "@/lib/zod-errors";
 
 export type ClientActionResult =
   | { ok: true; id: string }
   | { ok: false; error: string };
 
 export type ParentCompanyOption = { id: string; name: string };
-
-function firstZodError(error: unknown): string {
-  if (error && typeof error === "object" && "issues" in error) {
-    const issues = (error as { issues: { message: string }[] }).issues;
-    if (issues.length > 0) return issues[0].message;
-  }
-  return "Invalid input";
-}
 
 function contactsCreate(contacts: ReturnType<typeof clientInputSchema.parse>["contacts"]) {
   return contacts.map((contact, index) => ({
@@ -104,6 +98,27 @@ export async function listParentCompanyOptions(
     select: { id: true, name: true },
   });
   return rows;
+}
+
+/**
+ * Server-backed search for the quote form's client picker — the full
+ * directory (with contacts) is never shipped to the browser.
+ */
+export async function searchClientsAction(rawQuery: string) {
+  await requireSalesAccess();
+
+  const query = String(rawQuery ?? "").trim().slice(0, 200);
+  const clients = await prisma.client.findMany({
+    where: query ? { name: { contains: query, mode: "insensitive" } } : {},
+    orderBy: [{ isVip: "desc" }, { name: "asc" }],
+    take: 20,
+    include: {
+      parent: { select: { name: true, isVip: true } },
+      contacts: { orderBy: { sortOrder: "asc" } },
+      _count: { select: { subsidiaries: true } },
+    },
+  });
+  return mapClientsForQuotePicker(clients);
 }
 
 export async function createClientAction(rawInput: unknown): Promise<ClientActionResult> {

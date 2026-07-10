@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { waitUntil } from "@vercel/functions";
 import { BoothUnitStatus, PaymentStatus, Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
@@ -12,6 +13,7 @@ import { syncClientContacts } from "@/lib/client-contacts";
 import { isClientVip } from "@/lib/client-hierarchy";
 import { fetchExchangeRateToEur, isQuoteCurrency } from "@/lib/exchange-rates";
 import { enqueueNotification } from "@/lib/notifications/enqueue";
+import { firstZodError } from "@/lib/zod-errors";
 
 const paymentInputSchema = z.object({
   paymentStatus: z.nativeEnum(PaymentStatus),
@@ -158,37 +160,49 @@ export async function convertQuoteAction(
     );
 
   const currency = isQuoteCurrency(deal.currency) ? deal.currency : "EUR";
-  const exchangeRateToEur = await fetchExchangeRateToEur(currency);
 
-  await prisma.$transaction([
-    prisma.deal.update({
-      where: { id },
-      data: {
-        stage: "WON",
-        dealId,
-        wonAt: new Date(),
-        paymentPoDate: paymentPoDate ?? undefined,
-        exchangeRateToEur: new Prisma.Decimal(exchangeRateToEur.toFixed(8)),
-      },
-    }),
-    prisma.boothUnit.createMany({ data: boothUnits }),
-    ...deal.lineItems.map((lineItem) =>
-      prisma.quoteLineItem.update({
-        where: { id: lineItem.id },
+  let exchangeRateToEur: number;
+  try {
+    exchangeRateToEur = await fetchExchangeRateToEur(currency);
+  } catch {
+    return { ok: false, error: `Could not fetch the ${currency} exchange rate — try again` };
+  }
+
+  try {
+    await prisma.$transaction([
+      prisma.deal.update({
+        where: { id },
         data: {
-          unitPriceEur: new Prisma.Decimal(
-            (Number(lineItem.unitPrice) * exchangeRateToEur).toFixed(2),
-          ),
+          stage: "WON",
+          dealId,
+          wonAt: new Date(),
+          paymentPoDate: paymentPoDate ?? undefined,
+          exchangeRateToEur: new Prisma.Decimal(exchangeRateToEur.toFixed(8)),
         },
       }),
-    ),
-  ]);
+      prisma.boothUnit.createMany({ data: boothUnits }),
+      // Backfill EUR prices for all line items in one statement.
+      prisma.$executeRaw`
+        UPDATE "QuoteLineItem"
+        SET "unitPriceEur" = ROUND("unitPrice" * ${exchangeRateToEur}::numeric, 2)
+        WHERE "dealId" = ${id}
+      `,
+    ]);
+  } catch (error) {
+    // Another conversion may have claimed this DealID between the check above
+    // and the write (unique index on Deal.dealId).
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      return { ok: false, error: `DealID ${dealId} is already in use` };
+    }
+    console.error("Quote conversion failed:", error);
+    return { ok: false, error: "Could not convert the quote — try again" };
+  }
 
-  void notifyIfVipDealWon(id, dealId, deal.clientId, deal.clientName, deal.quoteNumber);
+  waitUntil(notifyIfVipDealWon(id, dealId, deal.clientId, deal.clientName, deal.quoteNumber));
 
-  // Append to the Ops File and create the Xero draft invoice; failures are
-  // recorded on the deal, never thrown.
-  await Promise.all([exportDealToOpsSheet(id), exportDealToXero(id)]);
+  // Append to the Ops File and create the Xero draft invoice in the background;
+  // failures are recorded on the deal, never thrown, and retriable from the UI.
+  waitUntil(Promise.all([exportDealToOpsSheet(id), exportDealToXero(id)]));
 
   revalidatePath("/");
   revalidatePath("/deals");
@@ -220,8 +234,9 @@ export async function updatePaymentAction(
   if (!parsed.success) return { ok: false, error: "Invalid payment details" };
   const input = parsed.data;
 
-  const deal = await prisma.deal.findUnique({ where: { id }, select: { id: true } });
+  const deal = await prisma.deal.findUnique({ where: { id }, select: { stage: true } });
   if (!deal) return { ok: false, error: "Deal not found" };
+  if (deal.stage !== "WON") return { ok: false, error: "Only won deals have payment details" };
 
   const paymentPoDate =
     input.paymentPoDate === undefined
@@ -257,7 +272,7 @@ export async function updateDealDetailsAction(
 
   const parsed = dealDetailsInputSchema.safeParse(rawInput);
   if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid deal details" };
+    return { ok: false, error: firstZodError(parsed.error) };
   }
   const input = parsed.data;
 
@@ -296,7 +311,7 @@ export async function updateDealAssemblyAndNotesAction(
 
   const parsed = dealAssemblyNotesInputSchema.safeParse(rawInput);
   if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+    return { ok: false, error: firstZodError(parsed.error) };
   }
   const input = parsed.data;
 
@@ -353,7 +368,7 @@ export async function updateDealContactsAction(
 
   const parsed = dealContactsInputSchema.safeParse(rawInput);
   if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid contacts" };
+    return { ok: false, error: firstZodError(parsed.error) };
   }
   const { contacts } = parsed.data;
 
@@ -395,13 +410,22 @@ export async function updateBoothUnitAction(
   if (!parsed.success) return { ok: false, error: "Invalid booth unit details" };
   const input = parsed.data;
 
+  const existing = await prisma.boothUnit.findUnique({
+    where: { id: unitId },
+    select: { deal: { select: { id: true, stage: true } } },
+  });
+  if (!existing) return { ok: false, error: "Booth unit not found" };
+  if (existing.deal.stage !== "WON") {
+    return { ok: false, error: "Booth units can only be edited on won deals" };
+  }
+
   const unit = await prisma.boothUnit.update({
     where: { id: unitId },
     data: { status: input.status, location: input.location.trim() },
-    select: { id: true, deal: { select: { id: true } } },
+    select: { id: true },
   });
 
-  revalidatePath(`/deals/${unit.deal.id}`);
+  revalidatePath(`/deals/${existing.deal.id}`);
   return { ok: true, id: unit.id };
 }
 

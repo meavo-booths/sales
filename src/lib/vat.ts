@@ -30,6 +30,13 @@ export function dealTotals(subtotal: number, market: string): DealTotals {
   return { subtotal, vatRate, vatAmount, totalInclVat: subtotal + vatAmount };
 }
 
+/** Sum of line items in the quote currency, excl. VAT — the single subtotal implementation. */
+export function dealSubtotal(deal: {
+  lineItems: { quantity: number; unitPrice: { toString(): string } | number | string }[];
+}): number {
+  return deal.lineItems.reduce((sum, li) => sum + li.quantity * Number(li.unitPrice), 0);
+}
+
 export function formatVatRate(rate: number): string {
   return `${(rate * 100).toFixed(rate * 100 % 1 === 0 ? 0 : 1)}%`;
 }

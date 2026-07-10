@@ -9,20 +9,14 @@ import { quoteInputSchema, type QuoteInput } from "@/lib/quote-input";
 import { syncClientContacts } from "@/lib/client-contacts";
 import { fetchExchangeRateToEur, isQuoteCurrency } from "@/lib/exchange-rates";
 import { productMatchesAvailability } from "@/lib/product-availability";
+import { addOnCompatibleWithBoothFamily } from "@/lib/addon-compatibility";
+import { firstZodError } from "@/lib/zod-errors";
 
 export type QuoteActionResult =
   | { ok: true; id: string }
   | { ok: false; error: string };
 
 type Tx = Prisma.TransactionClient;
-
-function firstZodError(error: unknown): string {
-  if (error && typeof error === "object" && "issues" in error) {
-    const issues = (error as { issues: { message: string }[] }).issues;
-    if (issues.length > 0) return issues[0].message;
-  }
-  return "Invalid input";
-}
 
 function contactsCreate(input: QuoteInput) {
   return input.contacts.map((contact, index) => ({
@@ -35,7 +29,12 @@ function contactsCreate(input: QuoteInput) {
   }));
 }
 
-/** Booth lines must use booth products; add-on lines must use add-on products. */
+/**
+ * Booth lines must use booth products; add-on lines must use add-on products;
+ * add-ons attached to a booth must be compatible with that booth's family
+ * (the same rule the form uses to filter options — enforced here so nothing
+ * bypassing the form can persist incompatible add-ons).
+ */
 async function validateProductKinds(input: QuoteInput): Promise<string | null> {
   const boothIds = input.lineItems.map((item) => item.productId);
   const addOnIds = [
@@ -45,7 +44,13 @@ async function validateProductKinds(input: QuoteInput): Promise<string | null> {
 
   const products = await prisma.product.findMany({
     where: { id: { in: [...new Set([...boothIds, ...addOnIds])] } },
-    select: { id: true, kind: true, name: true },
+    select: {
+      id: true,
+      kind: true,
+      name: true,
+      boothFamily: true,
+      familyRestrictions: { select: { boothFamily: true } },
+    },
   });
   const byId = new Map(products.map((p) => [p.id, p]));
 
@@ -58,6 +63,17 @@ async function validateProductKinds(input: QuoteInput): Promise<string | null> {
     const product = byId.get(id);
     if (!product) return "A selected add-on no longer exists";
     if (product.kind !== "ADDON") return `${product.name} is not an add-on`;
+  }
+
+  for (const item of input.lineItems) {
+    const booth = byId.get(item.productId);
+    for (const addOn of item.addOns) {
+      const addOnProduct = byId.get(addOn.productId)!;
+      const restricted = addOnProduct.familyRestrictions.map((r) => r.boothFamily);
+      if (!addOnCompatibleWithBoothFamily(restricted, booth?.boothFamily)) {
+        return `${addOnProduct.name} is not compatible with ${booth?.name ?? "this booth"}`;
+      }
+    }
   }
   return null;
 }

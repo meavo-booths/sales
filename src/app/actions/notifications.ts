@@ -6,12 +6,12 @@ import {
   markAllNotificationsRead,
   markNotificationRead,
 } from "@meavo/navigation/server";
-import { auth } from "@/lib/auth";
+import { requireSalesAccess } from "@/lib/meavo-auth";
 import { prisma } from "@/lib/prisma";
 
+/** Session + fresh ToolCardAccess check, so gateway revocation applies here too. */
 async function requireUserId(): Promise<string> {
-  const session = await auth();
-  if (!session?.user?.id) throw new Error("Unauthorized");
+  const session = await requireSalesAccess();
   return session.user.id;
 }
 

@@ -89,10 +89,23 @@ export function buildExportGroups(deal: DealForExport): ExportGroup[] {
   // Booth-group key per booth line id, so attached add-ons can find their row.
   const groupKeyByLineId = new Map<string, string>();
 
+  // A null EUR amount (legacy non-EUR row without a stored EUR price) must
+  // fail the export — recorded on the deal for retry — rather than write a
+  // wrong revenue figure into the Ops File.
+  const requireAmountEur = (item: DealForExport["lineItems"][number]): number => {
+    const amount = lineItemAmountEur(item, deal.currency);
+    if (amount == null) {
+      throw new Error(
+        `Line item ${item.product?.name ?? item.customName} has no EUR amount — edit and re-save the deal before syncing`,
+      );
+    }
+    return amount;
+  };
+
   for (const item of booths) {
     const key = `${item.productId}::${item.finish}`;
     groupKeyByLineId.set(item.id, key);
-    const amount = lineItemAmountEur(item);
+    const amount = requireAmountEur(item);
     const existing = groups.get(key);
     if (existing) {
       existing.quantity = (existing.quantity ?? 0) + item.quantity;
@@ -117,7 +130,7 @@ export function buildExportGroups(deal: DealForExport): ExportGroup[] {
   };
 
   for (const item of addOns) {
-    const amount = lineItemAmountEur(item);
+    const amount = requireAmountEur(item);
     const parentKey = item.parentLineItemId
       ? groupKeyByLineId.get(item.parentLineItemId)
       : undefined;

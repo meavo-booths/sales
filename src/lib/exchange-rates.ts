@@ -18,7 +18,7 @@ export async function fetchExchangeRateToEur(currency: QuoteCurrency): Promise<n
 
   const response = await fetch(
     `https://api.frankfurter.app/latest?from=${currency}&to=EUR`,
-    { next: { revalidate: 3600 } },
+    { next: { revalidate: 3600 }, signal: AbortSignal.timeout(8000) },
   );
   if (!response.ok) {
     throw new Error(`Could not fetch FX rate for ${currency}`);
@@ -32,32 +32,22 @@ export async function fetchExchangeRateToEur(currency: QuoteCurrency): Promise<n
   return rate;
 }
 
-/** Convert between quote currencies using rates-to-EUR (EUR = 1). */
+/**
+ * Convert between quote currencies using rates-to-EUR (EUR = 1).
+ * Returns null when a needed rate is missing — never a silently
+ * unconverted amount.
+ */
 export function convertBetweenQuoteCurrencies(
   amount: number,
   from: QuoteCurrency,
   to: QuoteCurrency,
   rateToEur: Partial<Record<QuoteCurrency, number>>,
-): number {
+): number | null {
   if (from === to) return amount;
 
   const fromRate = from === "EUR" ? 1 : rateToEur[from];
   const toRate = to === "EUR" ? 1 : rateToEur[to];
-  if (!fromRate || !toRate || fromRate <= 0 || toRate <= 0) return amount;
+  if (!fromRate || !toRate || fromRate <= 0 || toRate <= 0) return null;
 
   return Number(((amount * fromRate) / toRate).toFixed(2));
-}
-
-/** Convert a EUR catalog list price into the selected quote currency. */
-export function convertEurToQuoteCurrency(
-  eurAmount: number,
-  currency: QuoteCurrency,
-  exchangeRateToEur: number,
-): number {
-  return convertBetweenQuoteCurrencies(
-    eurAmount,
-    "EUR",
-    currency,
-    { [currency]: exchangeRateToEur },
-  );
 }

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { dealTotalEur } from "@/lib/line-item-eur";
+import { dealSubtotal } from "@/lib/vat";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireSalesAccess } from "@/lib/meavo-auth";
@@ -13,8 +14,8 @@ import {
 import {
   clientHierarchyRole,
   isClientVip,
-  loadClientStats,
-  rollupClientIds,
+  loadClientStatsByClient,
+  sumClientStats,
 } from "@/lib/client-hierarchy";
 import { Badge, Card, EmptyState, PageHeader, VipBadge } from "@/components/ui";
 import { ClientForm } from "@/components/client-form";
@@ -53,21 +54,27 @@ export default async function ClientPage({
   const isParent = role === "parent";
   const showVip = isClientVip(client, client.parent);
 
-  const statsIds = isParent ? await rollupClientIds(client.id) : [client.id];
-  const rollupStats = await loadClientStats(statsIds);
+  // Two aggregate queries cover this record plus every subsidiary.
+  const subsidiaryIds = client.subsidiaries.map((sub) => sub.id);
+  const [statsById, parentOptions] = await Promise.all([
+    loadClientStatsByClient([client.id, ...subsidiaryIds]),
+    listParentCompanyOptions(client.id),
+  ]);
 
-  const subsidiaryStats = await Promise.all(
-    client.subsidiaries.map(async (sub) => ({
-      sub,
-      stats: await loadClientStats([sub.id]),
-    })),
-  );
+  const rollupStats = isParent
+    ? sumClientStats(statsById, [client.id, ...subsidiaryIds])
+    : (statsById.get(client.id) ?? { revenue: 0, won: 0, openQuotes: 0 });
 
-  const [parentOptions] = await Promise.all([listParentCompanyOptions(client.id)]);
+  const subsidiaryStats = client.subsidiaries.map((sub) => ({
+    sub,
+    stats: statsById.get(sub.id) ?? { revenue: 0, won: 0, openQuotes: 0 },
+  }));
 
   const wonDeals = client.deals.filter((d) => d.stage === "WON");
   const openQuotes = client.deals.filter((d) => d.stage === "QUOTE");
-  const localRevenue = wonDeals.reduce((sum, deal) => sum + dealTotalEur(deal), 0);
+  // Deals with an unknown EUR total (legacy non-EUR rows) contribute 0 here,
+  // matching the SQL rollup in client-hierarchy.ts.
+  const localRevenue = wonDeals.reduce((sum, deal) => sum + (dealTotalEur(deal) ?? 0), 0);
 
   return (
     <>
@@ -198,14 +205,13 @@ export default async function ClientPage({
             </EmptyState>
           ) : (
             client.deals.map((deal) => {
-              const quoteTotal = deal.lineItems.reduce(
-                (sum, li) => sum + li.quantity * Number(li.unitPrice),
-                0,
-              );
+              const totalEur = dealTotalEur(deal);
               const displayTotal =
                 deal.stage === "WON"
-                  ? formatMoney(dealTotalEur(deal))
-                  : formatMoney(quoteTotal, deal.currency);
+                  ? totalEur == null
+                    ? "—"
+                    : formatMoney(totalEur)
+                  : formatMoney(dealSubtotal(deal), deal.currency);
               const href = deal.stage === "WON" ? `/deals/${deal.id}` : `/quotes/${deal.id}`;
               return (
                 <Link key={deal.id} href={href} className="block">

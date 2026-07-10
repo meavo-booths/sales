@@ -18,7 +18,7 @@ import {
   formatDate,
   formatMoney,
 } from "@/lib/deal-values";
-import { dealTotals, formatVatRate } from "@/lib/vat";
+import { dealSubtotal, dealTotals, formatVatRate } from "@/lib/vat";
 
 type QuoteForPdf = Prisma.DealGetPayload<{
   include: { contacts: true; lineItems: { include: { product: true } } };
@@ -156,11 +156,7 @@ function LineItemRow({
 
 export function QuotePdfDocument({ quote }: { quote: QuoteForPdf }) {
   const logoPath = path.join(process.cwd(), "public", "meavo-logo.png");
-  const subtotal = quote.lineItems.reduce(
-    (sum, item) => sum + item.quantity * Number(item.unitPrice),
-    0,
-  );
-  const totals = dealTotals(subtotal, quote.market);
+  const totals = dealTotals(dealSubtotal(quote), quote.market);
   const mainContacts = quote.contacts.filter((c) => c.kind === "MAIN");
 
   // Attached add-ons render indented under their booth; everything else is a top-level row.

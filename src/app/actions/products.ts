@@ -22,11 +22,27 @@ const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const BOOTH_FAMILIES = new Set<string>(BOOTH_FAMILY_OPTIONS);
 const ADDON_FAMILIES = new Set<string>(ADDON_FAMILY_OPTIONS);
 
+/** Allowed image types: validate MIME and extension (both client-controlled,
+ * so they must agree), and never trust the client filename for the blob path. */
+const IMAGE_EXTENSIONS_BY_MIME: Record<string, string[]> = {
+  "image/jpeg": [".jpg", ".jpeg"],
+  "image/png": [".png"],
+  "image/webp": [".webp"],
+  "image/gif": [".gif"],
+};
+
 async function uploadImage(file: File): Promise<string> {
   if (file.size > MAX_IMAGE_BYTES) throw new Error("Image must be under 5MB");
-  if (!file.type.startsWith("image/")) throw new Error("File must be an image");
 
-  const blob = await put(`products/${file.name}`, file, {
+  const allowedExtensions = IMAGE_EXTENSIONS_BY_MIME[file.type];
+  if (!allowedExtensions) throw new Error("Image must be a JPEG, PNG, WebP, or GIF");
+
+  const extension = allowedExtensions.find((ext) =>
+    file.name.toLowerCase().endsWith(ext),
+  );
+  if (!extension) throw new Error("Image file extension does not match its type");
+
+  const blob = await put(`products/image${extension}`, file, {
     access: "public",
     addRandomSuffix: true,
   });

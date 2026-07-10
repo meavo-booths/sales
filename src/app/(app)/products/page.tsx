@@ -50,7 +50,13 @@ function CreateCard({
 }
 
 export default async function ProductsPage() {
-  await requireSalesAccess();
+  const session = await requireSalesAccess();
+
+  const user = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { systemRole: true },
+  });
+  const isAdmin = user?.systemRole === "ADMIN";
 
   const products = await prisma.product.findMany({
     orderBy: [{ isActive: "desc" }, { name: "asc" }],
@@ -89,7 +95,7 @@ export default async function ProductsPage() {
         title="Products"
         description="Localized catalog entries for booth families and add-ons."
       >
-        <SyncXeroProductsButton />
+        {isAdmin && <SyncXeroProductsButton />}
       </PageHeader>
 
       <div className="space-y-8">

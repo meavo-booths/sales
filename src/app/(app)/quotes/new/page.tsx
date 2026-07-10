@@ -1,6 +1,5 @@
 import { prisma } from "@/lib/prisma";
 import { requireSalesAccess } from "@/lib/meavo-auth";
-import { mapClientsForQuotePicker } from "@/lib/client-hierarchy";
 import { parseProductCurrency } from "@/lib/exchange-rates";
 import { PageHeader } from "@/components/ui";
 import { QuoteForm } from "@/components/quote-form";
@@ -15,21 +14,13 @@ const productInclude = {
 export default async function NewQuotePage() {
   const session = await requireSalesAccess();
 
-  const [products, clients] = await Promise.all([
-    prisma.product.findMany({
-      where: { isActive: true },
-      orderBy: [{ kind: "asc" }, { name: "asc" }],
-      include: productInclude,
-    }),
-    prisma.client.findMany({
-      orderBy: [{ isVip: "desc" }, { name: "asc" }],
-      include: {
-        parent: { select: { name: true, isVip: true } },
-        contacts: { orderBy: { sortOrder: "asc" } },
-        _count: { select: { subsidiaries: true } },
-      },
-    }),
-  ]);
+  // Clients are searched on demand from the form (searchClientsAction) — the
+  // full directory is never loaded here.
+  const products = await prisma.product.findMany({
+    where: { isActive: true },
+    orderBy: [{ kind: "asc" }, { name: "asc" }],
+    include: productInclude,
+  });
 
   return (
     <>
@@ -53,7 +44,6 @@ export default async function NewQuotePage() {
             clientType: row.clientType,
           })),
         }))}
-        clients={mapClientsForQuotePicker(clients)}
         defaultSalesRep={session.user.name ?? ""}
       />
     </>

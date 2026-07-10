@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { AddOnProductFamily, BoothProductFamily, DealContactKind } from "@prisma/client";
 import { createQuoteAction, updateQuoteAction } from "@/app/actions/quotes";
+import { searchClientsAction } from "@/app/actions/clients";
 import { getFxRateToEurAction } from "@/app/actions/fx";
 import {
   CLIENT_TYPE_LABELS,
@@ -17,9 +18,10 @@ import {
   type QuoteCurrency,
 } from "@/lib/deal-values";
 import { convertBetweenQuoteCurrencies } from "@/lib/exchange-rates";
-import { dealTotals, formatVatRate } from "@/lib/vat";
+import { dealSubtotal, dealTotals, formatVatRate } from "@/lib/vat";
 import { isClientVip, isQuoteSelectableClient } from "@/lib/client-hierarchy";
 import { productMatchesAvailability } from "@/lib/product-availability";
+import { addOnCompatibleWithBoothFamily } from "@/lib/addon-compatibility";
 import { Button, Card, Input, Select, Textarea } from "@/components/ui";
 import { ClientNameAutocomplete } from "@/components/client-name-autocomplete";
 import { VatNumberField } from "@/components/vat-check";
@@ -156,13 +158,11 @@ function today(): string {
 
 export function QuoteForm({
   products,
-  clients,
   quoteId,
   initialValues,
   defaultSalesRep,
 }: {
   products: ProductOption[];
-  clients: ClientOption[];
   quoteId?: string;
   initialValues?: QuoteFormValues;
   defaultSalesRep?: string;
@@ -174,9 +174,13 @@ export function QuoteForm({
   const boothProducts = useMemo(() => products.filter((p) => p.kind === "BOOTH"), [products]);
   const addOnProducts = useMemo(() => products.filter((p) => p.kind === "ADDON"), [products]);
 
+  // Client picker options come from a debounced server search (top 20 by
+  // name) instead of shipping the whole directory to the browser.
+  const [clientOptions, setClientOptions] = useState<ClientOption[]>([]);
+
   const selectableClients = useMemo(
-    () => clients.filter((c) => isQuoteSelectableClient(c.subsidiaryCount)),
-    [clients],
+    () => clientOptions.filter((c) => isQuoteSelectableClient(c.subsidiaryCount)),
+    [clientOptions],
   );
 
   const [values, setValues] = useState<QuoteFormValues>(
@@ -206,6 +210,21 @@ export function QuoteForm({
       customLines: [],
     },
   );
+
+  const clientSearchSeq = useRef(0);
+  useEffect(() => {
+    const seq = ++clientSearchSeq.current;
+    const timer = setTimeout(async () => {
+      try {
+        const results = await searchClientsAction(values.clientName);
+        // Drop out-of-order responses so fast typing can't show stale matches.
+        if (clientSearchSeq.current === seq) setClientOptions(results);
+      } catch {
+        // Keep the previous options; the rep can still type a new client name.
+      }
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [values.clientName]);
 
   const [fxRatesToEur, setFxRatesToEur] = useState<Partial<Record<QuoteCurrency, number>>>({
     EUR: 1,
@@ -248,12 +267,18 @@ export function QuoteForm({
     return rates;
   };
 
+  /**
+   * Catalog list price converted into the quote currency. 0 when the FX rate
+   * is not loaded yet — an obviously-wrong prefill the rep must correct,
+   * rather than a silently unconverted amount.
+   */
   const catalogUnitPrice = (
     product: ProductOption,
     quoteCurrency: QuoteCurrency = values.currency,
     rates: Partial<Record<QuoteCurrency, number>> = fxRatesToEur,
   ) =>
-    convertBetweenQuoteCurrencies(product.listPrice, product.currency, quoteCurrency, rates);
+    convertBetweenQuoteCurrencies(product.listPrice, product.currency, quoteCurrency, rates) ??
+    0;
 
   const selectedProductIds = useMemo(() => {
     const ids = new Set<string>();
@@ -343,7 +368,7 @@ export function QuoteForm({
   };
 
   const pickClient = (clientId: string) => {
-    const client = clients.find((c) => c.id === clientId);
+    const client = clientOptions.find((c) => c.id === clientId);
     if (!client || !isQuoteSelectableClient(client.subsidiaryCount)) return;
     const effectiveVip = isClientVip(
       client,
@@ -408,8 +433,7 @@ export function QuoteForm({
     const boothFamily = boothProduct?.boothFamily;
     return availableAddOnProducts.filter(
       (p) =>
-        p.restrictedToBoothFamilies.length === 0 ||
-        (boothFamily != null && p.restrictedToBoothFamilies.includes(boothFamily)) ||
+        addOnCompatibleWithBoothFamily(p.restrictedToBoothFamilies, boothFamily) ||
         p.id === currentAddOnId,
     );
   };
@@ -452,16 +476,16 @@ export function QuoteForm({
       customLines: prev.customLines.map((c, i) => (i === index ? { ...c, ...patch } : c)),
     }));
 
-  const total =
-    values.lineItems.reduce(
-      (sum, li) =>
-        sum +
-        li.quantity * li.unitPrice +
-        li.addOns.reduce((s, a) => s + a.quantity * a.unitPrice, 0),
-      0,
-    ) +
-    values.standaloneAddOns.reduce((sum, a) => sum + a.quantity * a.unitPrice, 0) +
-    values.customLines.reduce((sum, c) => sum + c.quantity * c.unitPrice, 0);
+  // Flatten the nested drafts so the preview uses the same subtotal
+  // implementation as the saved quote (deal-sections, PDF, client history).
+  const total = dealSubtotal({
+    lineItems: [
+      ...values.lineItems,
+      ...values.lineItems.flatMap((li) => li.addOns),
+      ...values.standaloneAddOns,
+      ...values.customLines,
+    ],
+  });
 
   const submit = () => {
     setError(null);

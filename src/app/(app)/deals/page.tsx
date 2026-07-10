@@ -131,7 +131,9 @@ export default async function DealsPage({
                           .join(" · ") || "No booth units"}
                       </p>
                     </div>
-                    <p className="font-semibold text-slate-900">{formatMoney(total)}</p>
+                    <p className="font-semibold text-slate-900">
+                      {total == null ? "—" : formatMoney(total)}
+                    </p>
                   </div>
                 </Card>
               </Link>
