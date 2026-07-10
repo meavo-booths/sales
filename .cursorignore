@@ -1,0 +1,12 @@
+# Build artifacts — slow down search/indexing
+.next/
+out/
+dist/
+build/
+.vercel/
+node_modules/
+.turbo/
+coverage/
+.prisma-schema/
+tsconfig.tsbuildinfo
+next-env.d.ts

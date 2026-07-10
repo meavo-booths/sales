@@ -1,0 +1,37 @@
+---
+description: API routes, Server Actions, and HTTP handlers for meavo-sales
+globs:
+  - src/app/api/**
+  - src/app/actions/**
+---
+
+# API & Server Action rules
+
+Keep handlers **thin** — validate input, call `src/lib/` modules, map errors to action responses.
+
+## Auth
+
+- Every Server Action starts with `requireSalesAccess()` (or `requireSalesAdmin()` for Xero settings) from `src/lib/meavo-auth.ts`.
+- API routes are NOT protected by middleware — `src/app/api/quotes/[id]/pdf/route.ts` does its own session + `ToolCardAccess` check; copy that pattern for any new route handler.
+- If a cron route is ever added, require `CRON_SECRET` Bearer auth.
+- Never import Prisma-backed auth in `src/middleware.ts` (edge) — it uses `src/lib/auth.config.ts` only.
+
+## Validation
+
+- Zod at the boundary: `quoteInputSchema` / `convertInputSchema` (`src/lib/quote-input.ts`), `clientInputSchema` (`src/lib/client-input.ts`). Env vars are read directly from `process.env` (documented in `.env.example`).
+
+## Responses
+
+- Actions return `{ ok: true, id } | { ok: false, error }` (products use `{ error?, success? }` for `useActionState`); user-facing failures are messages, never thrown stack traces.
+- Call `revalidatePath()` for every page a write affects (list page + detail page).
+- New REST endpoints only for streaming/binary (like the PDF) or auth — mutations stay Server Actions.
+
+## Side effects
+
+- Ops File and Xero exports after conversion never throw — they persist errors on the `Deal` (`sheetSyncError` / `xeroSyncError`); retries via `retryOpsSheetSyncAction` / `retryXeroInvoiceAction`.
+
+## Do NOT
+
+- Put business rules inline in route handlers or actions — they belong in `src/lib/`
+- Skip auth on routes exposed to the internet
+- Return stack traces to clients in production

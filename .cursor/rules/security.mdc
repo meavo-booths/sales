@@ -1,0 +1,44 @@
+---
+description: Meavo security standards for meavo-sales
+alwaysApply: true
+---
+
+# Security rules — Meavo org standard
+
+Org standard (see STANDARDS.md §4 in meavo-agent-templates). Deviations for this repo are listed at the bottom.
+
+## Auth at every layer
+
+- Verify auth independently in: middleware (pages), section layouts, Server Actions, and API routes.
+- Middleware passes `/api/*` through — never assume an API route is protected.
+- This repo's auth gate: `requireSalesAccess()` (admin: `requireSalesAdmin()`) in `src/lib/meavo-auth.ts`.
+- Tool card gating: check `ToolCardAccess` for `SALES_TOOL_CARD_ID` (`seed-sales-tool`, resolved in `src/lib/constants.ts`) at login AND on every authenticated request, so revocation in gateway Admin takes effect immediately. Never look up the card by `linkedAppKey` at runtime.
+- The PDF route (`src/app/api/quotes/[id]/pdf/route.ts`) performs its own session + `ToolCardAccess` check — keep that pattern for any new API route.
+
+## Sessions & credentials
+
+- NextAuth v5 JWT sessions; session augmentation in `src/types/next-auth.d.ts` (`user.id`).
+- Google OAuth is invite-only — the user must already exist in the DB (`src/lib/google-auth.ts`).
+- Admin = `User.systemRole === "ADMIN"`, checked fresh from the DB in `requireSalesAdmin()`.
+
+## Routes & rendering
+
+- `export const dynamic = "force-dynamic"` on authenticated layouts and DB-touching pages.
+- Never return stack traces to clients in production.
+
+## Headers & content
+
+- `next.config.ts` sets: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, `Strict-Transport-Security`.
+- Uploads: Vercel Blob (product images via `src/app/actions/products.ts`), 10 MB Server Action body limit, validate MIME + extension.
+
+## Secrets
+
+- No secrets in client code, comments, or committed files.
+- Document env var names in `.env.example` only — never values.
+
+## Repo-specific deviations
+
+- **No credentials login** — Google SSO only, so the org bcrypt / min-8-chars / `LoginThrottle` rules do not apply here. Do not add a password provider without applying them.
+- **`X-Frame-Options: DENY`** (stricter than the org's `SAMEORIGIN`) — nothing here needs framing.
+- **No cron routes and no `/api/health`** — the `CRON_SECRET` rule applies only if a cron route is added.
+- **Session carries only `user.id`** (no `systemRole` / `hrAccess` in the JWT); role checks hit the DB per request instead.

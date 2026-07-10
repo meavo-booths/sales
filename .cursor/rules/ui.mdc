@@ -1,0 +1,43 @@
+---
+description: Meavo UI standards (desktop + mobile) for meavo-sales
+globs:
+  - src/app/**
+  - src/components/**
+---
+
+# UI rules — Meavo design system
+
+Org standard (see STANDARDS.md §5 in meavo-agent-templates). Deviations for this repo are listed at the bottom.
+
+## Components
+
+- Use the in-house kit in `src/components/ui.tsx`: `Card`, `Button` (primary/secondary/danger/ghost), `Input`, `Textarea`, `Select`, `Badge`, `VipBadge`, `PageHeader`, `EmptyState`.
+- Do NOT add shadcn, Radix, MUI, or any external component library.
+- Top nav and tool switcher come from `@meavo/navigation` (`src/components/nav.tsx`) — do not build a custom header.
+- Modals: use `src/components/modal.tsx`.
+
+## Palette & visual language
+
+- Primary actions: brand green `bg-brand-600 hover:bg-brand-700` (#30A46C / #0C8F61) — defined in `tailwind.config.ts`.
+- Neutrals: Tailwind `slate` scale. Errors: `text-sm text-red-600`.
+- Cards: `rounded-xl border border-slate-200 bg-white shadow-sm`. Inputs/buttons: `rounded-lg`.
+- Page titles: `text-xl sm:text-2xl font-semibold text-slate-900`. Body: `text-sm text-slate-600`.
+- Focus: `focus:ring-brand-100 focus:border-brand-500`.
+
+## Responsive (required on every page)
+
+- Mobile-first: style for narrow viewport, add `sm:` / `lg:` overrides upward.
+- Main container: `mx-auto max-w-6xl px-3 py-4 sm:px-4 sm:py-8` (set in `src/app/(app)/layout.tsx`).
+- Grids: `grid gap-6 sm:grid-cols-2 lg:grid-cols-3`.
+- Wide tables must degrade on mobile — stacked cards or `overflow-x-auto`, never clipped columns.
+- Touch targets ≥ 44px; no hover-only affordances for critical actions.
+- Check new pages at 375px and 1280px before opening a PR.
+
+## Rendering
+
+- Server Components by default; `"use client"` only for interactive leaves (forms, modals, autocomplete, editors).
+- Modals: accessible custom pattern — focus trap, Escape closes, `role="dialog"`.
+
+## Repo-specific deviations
+
+- Feature routes currently have no `loading.tsx` skeletons — add them (`animate-pulse` slate blocks) when touching a route rather than treating their absence as the pattern.
