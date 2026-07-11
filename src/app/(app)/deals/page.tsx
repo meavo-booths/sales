@@ -28,20 +28,46 @@ const FILTERS = [
   { key: "PAID", label: "Paid" },
 ] as const;
 
+const SCOPES = [
+  { key: "mine", label: "My deals" },
+  { key: "all", label: "See all" },
+] as const;
+
+type ScopeKey = (typeof SCOPES)[number]["key"];
+
+function buildQueryParams(
+  payment: string,
+  scope: ScopeKey,
+  page?: number,
+): URLSearchParams {
+  const query = new URLSearchParams();
+  if (scope === "all") query.set("scope", "all");
+  if (payment !== "all") query.set("payment", payment);
+  if (page && page > 1) query.set("page", String(page));
+  return query;
+}
+
+function listHref(payment: string, scope: ScopeKey): string {
+  const qs = buildQueryParams(payment, scope).toString();
+  return qs ? `/deals?${qs}` : "/deals";
+}
+
 export default async function DealsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ payment?: string; page?: string }>;
+  searchParams: Promise<{ payment?: string; scope?: string; page?: string }>;
 }) {
-  await requireSalesAccess();
+  const session = await requireSalesAccess();
 
   const params = await searchParams;
   const paymentParam = params.payment ?? "all";
   const payment = FILTERS.some((f) => f.key === paymentParam) ? paymentParam : "all";
+  const scope: ScopeKey = params.scope === "all" ? "all" : "mine";
 
   const where: Prisma.DealWhereInput = {
     stage: "WON",
     ...(payment !== "all" ? { paymentStatus: payment as PaymentStatus } : {}),
+    ...(scope === "mine" ? { createdByUserId: session.user.id } : {}),
   };
 
   const totalDeals = await prisma.deal.count({ where });
@@ -57,17 +83,12 @@ export default async function DealsPage({
   });
 
   const pageHref = (target: number) => {
-    const query = new URLSearchParams();
-    if (payment !== "all") query.set("payment", payment);
-    if (target > 1) query.set("page", String(target));
-    const qs = query.toString();
+    const qs = buildQueryParams(payment, scope, target).toString();
     return qs ? `/deals?${qs}` : "/deals";
   };
 
-  const filterHref = (key: string) => {
-    if (key === "all") return "/deals";
-    return `/deals?payment=${key}`;
-  };
+  const emptyMessage =
+    scope === "mine" ? "You have no won deals yet." : "No won deals here yet. Go smash that FUCK YEAH button.";
 
   return (
     <>
@@ -76,11 +97,27 @@ export default async function DealsPage({
         description="Won deals, their payment status, and booth production progress."
       />
 
+      <div className="mb-3 flex flex-wrap gap-2">
+        {SCOPES.map((s) => (
+          <Link
+            key={s.key}
+            href={listHref(payment, s.key)}
+            className={`rounded-full px-3 py-1 text-sm font-medium transition ${
+              scope === s.key
+                ? "bg-slate-900 text-white"
+                : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50"
+            }`}
+          >
+            {s.label}
+          </Link>
+        ))}
+      </div>
+
       <div className="mb-4 flex flex-wrap gap-2">
         {FILTERS.map((f) => (
           <Link
             key={f.key}
-            href={filterHref(f.key)}
+            href={listHref(f.key, scope)}
             className={`rounded-full px-3 py-1 text-sm font-medium transition ${
               payment === f.key
                 ? "bg-slate-900 text-white"
@@ -93,7 +130,7 @@ export default async function DealsPage({
       </div>
 
       {deals.length === 0 ? (
-        <EmptyState>No won deals here yet. Go smash that FUCK YEAH button.</EmptyState>
+        <EmptyState>{emptyMessage}</EmptyState>
       ) : (
         <div className="space-y-3">
           {deals.map((deal) => {

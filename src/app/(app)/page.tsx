@@ -24,7 +24,13 @@ const FILTERS = [
   { key: "lost", label: "Lost" },
 ] as const;
 
+const SCOPES = [
+  { key: "mine", label: "My quotes" },
+  { key: "all", label: "See all" },
+] as const;
+
 type FilterKey = (typeof FILTERS)[number]["key"];
+type ScopeKey = (typeof SCOPES)[number]["key"];
 
 function stageWhere(filter: FilterKey): Prisma.DealWhereInput {
   if (filter === "open") return { stage: "QUOTE" };
@@ -33,19 +39,36 @@ function stageWhere(filter: FilterKey): Prisma.DealWhereInput {
   return {};
 }
 
+function buildQueryParams(filter: FilterKey, scope: ScopeKey, page?: number): URLSearchParams {
+  const query = new URLSearchParams();
+  if (scope === "all") query.set("scope", "all");
+  if (filter !== "open") query.set("filter", filter);
+  if (page && page > 1) query.set("page", String(page));
+  return query;
+}
+
+function listHref(filter: FilterKey, scope: ScopeKey): string {
+  const qs = buildQueryParams(filter, scope).toString();
+  return qs ? `/?${qs}` : "/";
+}
+
 export default async function QuotesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ filter?: string; page?: string }>;
+  searchParams: Promise<{ filter?: string; scope?: string; page?: string }>;
 }) {
-  await requireSalesAccess();
+  const session = await requireSalesAccess();
 
   const params = await searchParams;
   const filter: FilterKey = FILTERS.some((f) => f.key === params.filter)
     ? (params.filter as FilterKey)
     : "open";
+  const scope: ScopeKey = params.scope === "all" ? "all" : "mine";
 
-  const where = stageWhere(filter);
+  const where: Prisma.DealWhereInput = {
+    ...stageWhere(filter),
+    ...(scope === "mine" ? { createdByUserId: session.user.id } : {}),
+  };
   const totalQuotes = await prisma.deal.count({ where });
   const totalPages = Math.max(1, Math.ceil(totalQuotes / LIST_PAGE_SIZE));
   const page = parseListPage(params.page, totalPages);
@@ -62,12 +85,16 @@ export default async function QuotesPage({
   });
 
   const pageHref = (target: number) => {
-    const query = new URLSearchParams();
-    if (filter !== "open") query.set("filter", filter);
-    if (target > 1) query.set("page", String(target));
-    const qs = query.toString();
+    const qs = buildQueryParams(filter, scope, target).toString();
     return qs ? `/?${qs}` : "/";
   };
+
+  const emptyMessage =
+    filter === "open"
+      ? scope === "mine"
+        ? "You have no open quotes."
+        : "No open quotes."
+      : "No quotes here yet. Create your first quote.";
 
   return (
     <>
@@ -80,11 +107,27 @@ export default async function QuotesPage({
         </Link>
       </PageHeader>
 
+      <div className="mb-3 flex flex-wrap gap-2">
+        {SCOPES.map((s) => (
+          <Link
+            key={s.key}
+            href={listHref(filter, s.key)}
+            className={`rounded-full px-3 py-1 text-sm font-medium transition ${
+              scope === s.key
+                ? "bg-slate-900 text-white"
+                : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50"
+            }`}
+          >
+            {s.label}
+          </Link>
+        ))}
+      </div>
+
       <div className="mb-4 flex flex-wrap gap-2">
         {FILTERS.map((f) => (
           <Link
             key={f.key}
-            href={f.key === "open" ? "/" : `/?filter=${f.key}`}
+            href={listHref(f.key, scope)}
             className={`rounded-full px-3 py-1 text-sm font-medium transition ${
               filter === f.key
                 ? "bg-slate-900 text-white"
@@ -97,7 +140,7 @@ export default async function QuotesPage({
       </div>
 
       {quotes.length === 0 ? (
-        <EmptyState>No quotes here yet. Create your first quote.</EmptyState>
+        <EmptyState>{emptyMessage}</EmptyState>
       ) : (
         <div className="space-y-3">
           {quotes.map((quote) => {

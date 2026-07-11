@@ -522,7 +522,7 @@ export function QuoteForm({
       >
         {options.map((product) => (
           <option key={product.id} value={product.id}>
-            {product.name} ({product.version})
+            {product.version ? `${product.name} (${product.version})` : product.name}
           </option>
         ))}
       </Select>
@@ -890,7 +890,7 @@ export function QuoteForm({
                   >
                     {availableBoothProducts.map((product) => (
                       <option key={product.id} value={product.id}>
-                        {product.name} ({product.version})
+                        {product.version ? `${product.name} (${product.version})` : product.name}
                       </option>
                     ))}
                   </Select>

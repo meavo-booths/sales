@@ -107,9 +107,11 @@ function LineItemRow({
           {indent ? "+ " : ""}
           {item.product?.name ?? item.customName}
         </span>
-        <span className="ml-2 text-xs text-slate-500">
-          {item.product ? item.product.version : "Custom"}
-        </span>
+        {(item.product?.version || isCustom) && (
+          <span className="ml-2 text-xs text-slate-500">
+            {item.product ? item.product.version : "Custom"}
+          </span>
+        )}
         {(item.description || item.product?.description) && (
           <p className="text-xs text-slate-500">
             {item.description || item.product?.description}

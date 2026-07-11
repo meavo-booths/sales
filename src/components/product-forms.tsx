@@ -127,7 +127,6 @@ function ProductFields({
   return (
     <div className="grid gap-3 sm:grid-cols-2">
       <Input label="Name" name="name" defaultValue={product?.name} required />
-      <Input label="Version" name="version" defaultValue={product?.version} required />
       <Select label="Product family" name={familyName} defaultValue={currentFamily ?? ""} required>
         <option value="">Select family…</option>
         {familyOptions.map((family) => (
@@ -316,7 +315,9 @@ export function ProductListItem({ product }: { product: ProductRow }) {
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-medium text-slate-900">{product.name}</span>
-            <span className="text-xs text-slate-500">{product.version}</span>
+            {product.version && (
+              <span className="text-xs text-slate-500">{product.version}</span>
+            )}
             <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
               {familyLabel(product)}
             </span>

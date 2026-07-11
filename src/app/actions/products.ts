@@ -120,10 +120,8 @@ export async function createProductAction(
   await requireSalesAccess();
 
   const name = String(formData.get("name") ?? "").trim();
-  const version = String(formData.get("version") ?? "").trim().toUpperCase();
   const description = String(formData.get("description") ?? "").trim();
   if (!name) return { error: "Name is required" };
-  if (!version) return { error: "Version is required" };
 
   const kind = parseKind(formData.get("kind"));
   const boothFamily = kind === "BOOTH" ? parseBoothFamily(formData) : null;
@@ -143,7 +141,6 @@ export async function createProductAction(
     await prisma.product.create({
       data: {
         name,
-        version,
         kind,
         boothFamily: boothFamily ?? undefined,
         addOnFamily: addOnFamily ?? undefined,
@@ -183,11 +180,9 @@ export async function updateProductAction(
 
   const id = String(formData.get("id") ?? "");
   const name = String(formData.get("name") ?? "").trim();
-  const version = String(formData.get("version") ?? "").trim().toUpperCase();
   const description = String(formData.get("description") ?? "").trim();
   if (!id) return { error: "Missing product" };
   if (!name) return { error: "Name is required" };
-  if (!version) return { error: "Version is required" };
 
   const kind = parseKind(formData.get("kind"));
   const boothFamily = kind === "BOOTH" ? parseBoothFamily(formData) : null;
@@ -209,7 +204,6 @@ export async function updateProductAction(
         where: { id },
         data: {
           name,
-          version,
           kind,
           boothFamily: kind === "BOOTH" ? boothFamily : null,
           addOnFamily: kind === "ADDON" ? addOnFamily : null,
