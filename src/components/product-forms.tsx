@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useActionState, useState, useTransition } from "react";
+import { useActionState, useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { AddOnProductFamily, BoothProductFamily } from "@prisma/client";
 import {
@@ -255,11 +255,24 @@ function familyLabel(product: ProductRow): string {
   return "—";
 }
 
-export function BoothCreateForm() {
+export function BoothCreateForm({
+  onCreated,
+  inModal = false,
+}: {
+  onCreated?: () => void;
+  inModal?: boolean;
+}) {
+  const router = useRouter();
   const [state, formAction, pending] = useActionState(createProductAction, initialState);
 
+  useEffect(() => {
+    if (!state.success) return;
+    router.refresh();
+    onCreated?.();
+  }, [state.success, onCreated, router]);
+
   return (
-    <form action={formAction} className="mt-4 space-y-4">
+    <form action={formAction} className={inModal ? "space-y-4" : "mt-4 space-y-4"}>
       <input type="hidden" name="kind" value="BOOTH" />
       <ProductFields kind="BOOTH" />
       <AvailabilityPicker />
@@ -272,11 +285,24 @@ export function BoothCreateForm() {
   );
 }
 
-export function AddOnCreateForm() {
+export function AddOnCreateForm({
+  onCreated,
+  inModal = false,
+}: {
+  onCreated?: () => void;
+  inModal?: boolean;
+}) {
+  const router = useRouter();
   const [state, formAction, pending] = useActionState(createProductAction, initialState);
 
+  useEffect(() => {
+    if (!state.success) return;
+    router.refresh();
+    onCreated?.();
+  }, [state.success, onCreated, router]);
+
   return (
-    <form action={formAction} className="mt-4 space-y-4">
+    <form action={formAction} className={inModal ? "space-y-4" : "mt-4 space-y-4"}>
       <input type="hidden" name="kind" value="ADDON" />
       <ProductFields kind="ADDON" />
       <AvailabilityPicker />

@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { AddOnProductFamily, BoothProductFamily, DealClientType } from "@prisma/client";
 import {
@@ -12,49 +12,6 @@ import {
   MARKET_OPTIONS,
 } from "@/lib/deal-values";
 import { appendProductFilterParams } from "@/lib/product-filters";
-import { Card } from "@/components/ui";
-
-function FilterChip({
-  active,
-  label,
-  onClick,
-}: {
-  active: boolean;
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={`rounded-full border px-3 py-1 text-sm font-medium transition ${
-        active
-          ? "border-brand-500 bg-brand-50 text-brand-800"
-          : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
-      }`}
-    >
-      {label}
-    </button>
-  );
-}
-
-function FilterGroup({
-  label,
-  children,
-  className = "",
-}: {
-  label: string;
-  children: ReactNode;
-  className?: string;
-}) {
-  return (
-    <div className={className}>
-      <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500">{label}</p>
-      <div className="flex flex-wrap gap-2">{children}</div>
-    </div>
-  );
-}
 
 type FilterState = {
   search: string;
@@ -63,6 +20,103 @@ type FilterState = {
   boothFamilies: BoothProductFamily[];
   addOnFamilies: AddOnProductFamily[];
 };
+
+type FilterOption = {
+  value: string;
+  label: string;
+};
+
+function MultiSelectDropdown({
+  label,
+  options,
+  selected,
+  onChange,
+}: {
+  label: string;
+  options: FilterOption[];
+  selected: string[];
+  onChange: (next: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const selectedSet = new Set(selected);
+
+  useEffect(() => {
+    if (!open) return;
+    function onPointerDown(event: MouseEvent) {
+      if (!rootRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onPointerDown);
+    return () => document.removeEventListener("mousedown", onPointerDown);
+  }, [open]);
+
+  const buttonLabel =
+    selected.length === 0 ? label : `${label} (${selected.length})`;
+
+  return (
+    <div ref={rootRef} className="relative shrink-0">
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        aria-expanded={open}
+        aria-haspopup="listbox"
+        className={`inline-flex min-w-[7.5rem] items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm transition ${
+          selected.length > 0
+            ? "border-brand-500 bg-brand-50 text-brand-800"
+            : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+        }`}
+      >
+        <span className="truncate">{buttonLabel}</span>
+        <svg
+          className={`h-4 w-4 shrink-0 text-slate-400 transition ${open ? "rotate-180" : ""}`}
+          viewBox="0 0 20 20"
+          fill="currentColor"
+          aria-hidden
+        >
+          <path
+            fillRule="evenodd"
+            d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.25a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z"
+            clipRule="evenodd"
+          />
+        </svg>
+      </button>
+
+      {open && (
+        <div
+          role="listbox"
+          aria-label={label}
+          className="absolute left-0 top-full z-20 mt-1 max-h-64 min-w-full overflow-y-auto rounded-lg border border-slate-200 bg-white py-1 shadow-lg"
+        >
+          {options.map((option) => {
+            const checked = selectedSet.has(option.value);
+            return (
+              <label
+                key={option.value}
+                className="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+              >
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={() => {
+                    onChange(
+                      checked
+                        ? selected.filter((value) => value !== option.value)
+                        : [...selected, option.value],
+                    );
+                  }}
+                  className="h-4 w-4 rounded border-slate-300"
+                />
+                <span>{option.label}</span>
+              </label>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function ProductListFilters({
   search,
@@ -78,10 +132,6 @@ export function ProductListFilters({
   selectedAddOnFamilies: AddOnProductFamily[];
 }) {
   const router = useRouter();
-  const selectedMarketSet = new Set(selectedMarkets.map((market) => market.toLowerCase()));
-  const selectedTypeSet = new Set(selectedTypes);
-  const selectedBoothFamilySet = new Set(selectedBoothFamilies);
-  const selectedAddOnFamilySet = new Set(selectedAddOnFamilies);
 
   const navigate = (next: FilterState) => {
     const params = new URLSearchParams();
@@ -90,56 +140,14 @@ export function ProductListFilters({
     router.push(qs ? `/products?${qs}` : "/products");
   };
 
-  const toggleMarket = (market: string) => {
-    const key = market.toLowerCase();
-    const nextMarkets = selectedMarketSet.has(key)
-      ? selectedMarkets.filter((value) => value.toLowerCase() !== key)
-      : [...selectedMarkets, market];
-    navigate({
-      search,
-      markets: nextMarkets,
-      clientTypes: selectedTypes,
-      boothFamilies: selectedBoothFamilies,
-      addOnFamilies: selectedAddOnFamilies,
-    });
-  };
-
-  const toggleType = (type: DealClientType) => {
-    const nextTypes = selectedTypeSet.has(type)
-      ? selectedTypes.filter((value) => value !== type)
-      : [...selectedTypes, type];
-    navigate({
-      search,
-      markets: selectedMarkets,
-      clientTypes: nextTypes,
-      boothFamilies: selectedBoothFamilies,
-      addOnFamilies: selectedAddOnFamilies,
-    });
-  };
-
-  const toggleBoothFamily = (family: BoothProductFamily) => {
-    const nextFamilies = selectedBoothFamilySet.has(family)
-      ? selectedBoothFamilies.filter((value) => value !== family)
-      : [...selectedBoothFamilies, family];
-    navigate({
-      search,
-      markets: selectedMarkets,
-      clientTypes: selectedTypes,
-      boothFamilies: nextFamilies,
-      addOnFamilies: selectedAddOnFamilies,
-    });
-  };
-
-  const toggleAddOnFamily = (family: AddOnProductFamily) => {
-    const nextFamilies = selectedAddOnFamilySet.has(family)
-      ? selectedAddOnFamilies.filter((value) => value !== family)
-      : [...selectedAddOnFamilies, family];
+  const applyFilters = (patch: Partial<FilterState>) => {
     navigate({
       search,
       markets: selectedMarkets,
       clientTypes: selectedTypes,
       boothFamilies: selectedBoothFamilies,
-      addOnFamilies: nextFamilies,
+      addOnFamilies: selectedAddOnFamilies,
+      ...patch,
     });
   };
 
@@ -159,92 +167,87 @@ export function ProductListFilters({
     selectedBoothFamilies.length > 0 ||
     selectedAddOnFamilies.length > 0;
 
+  const familyOptions: FilterOption[] = [
+    ...BOOTH_FAMILY_OPTIONS.map((family) => ({
+      value: family,
+      label: BOOTH_FAMILY_LABELS[family],
+    })),
+    ...ADDON_FAMILY_OPTIONS.map((family) => ({
+      value: family,
+      label: ADDON_FAMILY_LABELS[family],
+    })),
+  ];
+  const selectedFamilies = [...selectedBoothFamilies, ...selectedAddOnFamilies];
+
   return (
-    <Card className="p-4">
-      <form
-        className="flex w-full flex-col gap-3 sm:flex-row"
-        onSubmit={(event) => {
-          event.preventDefault();
-          const formData = new FormData(event.currentTarget);
-          navigate({
-            search: String(formData.get("q") ?? ""),
-            markets: selectedMarkets,
-            clientTypes: selectedTypes,
-            boothFamilies: selectedBoothFamilies,
-            addOnFamilies: selectedAddOnFamilies,
+    <form
+      className="flex flex-wrap items-center gap-2"
+      onSubmit={(event) => {
+        event.preventDefault();
+        const formData = new FormData(event.currentTarget);
+        applyFilters({ search: String(formData.get("q") ?? "") });
+      }}
+    >
+      <input
+        type="search"
+        name="q"
+        defaultValue={search}
+        placeholder="Search products…"
+        className="min-w-[12rem] flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100"
+      />
+
+      <MultiSelectDropdown
+        label="Market"
+        options={MARKET_OPTIONS.map((market) => ({ value: market, label: market }))}
+        selected={selectedMarkets}
+        onChange={(markets) => applyFilters({ markets })}
+      />
+
+      <MultiSelectDropdown
+        label="Client type"
+        options={(Object.entries(CLIENT_TYPE_LABELS) as [DealClientType, string][]).map(
+          ([value, label]) => ({ value, label }),
+        )}
+        selected={selectedTypes}
+        onChange={(clientTypes) =>
+          applyFilters({ clientTypes: clientTypes as DealClientType[] })
+        }
+      />
+
+      <MultiSelectDropdown
+        label="Family"
+        options={familyOptions}
+        selected={selectedFamilies}
+        onChange={(families) => {
+          const boothSet = new Set(BOOTH_FAMILY_OPTIONS);
+          const addOnSet = new Set(ADDON_FAMILY_OPTIONS);
+          applyFilters({
+            boothFamilies: families.filter((value): value is BoothProductFamily =>
+              boothSet.has(value as BoothProductFamily),
+            ),
+            addOnFamilies: families.filter((value): value is AddOnProductFamily =>
+              addOnSet.has(value as AddOnProductFamily),
+            ),
           });
         }}
+      />
+
+      <button
+        type="submit"
+        className="shrink-0 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
       >
-        <input
-          type="search"
-          name="q"
-          defaultValue={search}
-          placeholder="Search products…"
-          className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100"
-        />
-        <div className="flex shrink-0 gap-2">
-          <button
-            type="submit"
-            className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-          >
-            Search
-          </button>
-          {hasFilters && (
-            <button
-              type="button"
-              onClick={clearFilters}
-              className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-500 transition hover:bg-slate-50 hover:text-slate-700"
-            >
-              Clear filters
-            </button>
-          )}
-        </div>
-      </form>
+        Search
+      </button>
 
-      <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        <FilterGroup label="Market">
-          {MARKET_OPTIONS.map((market) => (
-            <FilterChip
-              key={market}
-              active={selectedMarketSet.has(market.toLowerCase())}
-              label={market}
-              onClick={() => toggleMarket(market)}
-            />
-          ))}
-        </FilterGroup>
-
-        <FilterGroup label="Client type">
-          {(Object.entries(CLIENT_TYPE_LABELS) as [DealClientType, string][]).map(
-            ([type, label]) => (
-              <FilterChip
-                key={type}
-                active={selectedTypeSet.has(type)}
-                label={label}
-                onClick={() => toggleType(type)}
-              />
-            ),
-          )}
-        </FilterGroup>
-
-        <FilterGroup label="Model family" className="md:col-span-2 xl:col-span-3">
-          {BOOTH_FAMILY_OPTIONS.map((family) => (
-            <FilterChip
-              key={family}
-              active={selectedBoothFamilySet.has(family)}
-              label={BOOTH_FAMILY_LABELS[family]}
-              onClick={() => toggleBoothFamily(family)}
-            />
-          ))}
-          {ADDON_FAMILY_OPTIONS.map((family) => (
-            <FilterChip
-              key={family}
-              active={selectedAddOnFamilySet.has(family)}
-              label={ADDON_FAMILY_LABELS[family]}
-              onClick={() => toggleAddOnFamily(family)}
-            />
-          ))}
-        </FilterGroup>
-      </div>
-    </Card>
+      {hasFilters && (
+        <button
+          type="button"
+          onClick={clearFilters}
+          className="shrink-0 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-500 transition hover:bg-slate-50 hover:text-slate-700"
+        >
+          Clear
+        </button>
+      )}
+    </form>
   );
 }
