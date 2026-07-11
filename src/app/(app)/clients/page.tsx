@@ -236,7 +236,7 @@ export default async function ClientsPage({
         <AddClientButton parentOptions={parentOptions} />
       </PageHeader>
 
-      <div className="space-y-4">
+      <div className="mb-6">
         <ClientListFilters
           search={search}
           selectedTypes={selectedTypes}
@@ -244,10 +244,15 @@ export default async function ClientsPage({
           countries={countries}
           hierarchyView={hierarchyView}
         />
+      </div>
 
+      <div className="space-y-4">
         {clients.length === 0 ? (
           <EmptyState>
-            {search || selectedTypes.length > 0 || selectedCountries.length > 0
+            {search ||
+            selectedTypes.length > 0 ||
+            selectedCountries.length > 0 ||
+            hierarchyView !== "top"
               ? "No clients match these filters."
               : "No clients yet. Add your first client."}
           </EmptyState>
