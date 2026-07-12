@@ -11,6 +11,8 @@ import { fetchExchangeRateToEur, isQuoteCurrency } from "@/lib/exchange-rates";
 import { productMatchesAvailability } from "@/lib/product-availability";
 import { addOnCompatibleWithBoothFamily } from "@/lib/addon-compatibility";
 import { firstZodError } from "@/lib/zod-errors";
+import { resolveUsTaxForQuoteInput } from "@/lib/zamp/calculate-tax";
+import { isUsMarket } from "@/lib/zamp/constants";
 
 export type QuoteActionResult =
   | { ok: true; id: string }
@@ -237,6 +239,9 @@ export async function createQuoteAction(rawInput: unknown): Promise<QuoteActionR
   try {
     const exchangeRateToEur = await fetchExchangeRateToEur(currency);
     const quoteNumber = await nextQuoteNumber();
+    const usTax = isUsMarket(input.market)
+      ? await resolveUsTaxForQuoteInput(input, { quoteNumber })
+      : { usTaxAmount: new Prisma.Decimal(0), usTaxDetail: null };
 
     const dealId = await prisma.$transaction(async (tx) => {
       const clientId = await resolveClientId(tx, input);
@@ -248,6 +253,12 @@ export async function createQuoteAction(rawInput: unknown): Promise<QuoteActionR
           salesRep: input.salesRep || (session.user.name ?? ""),
           market: input.market,
           usState: input.usState,
+          shipToLine1: input.shipToLine1,
+          shipToLine2: input.shipToLine2,
+          shipToCity: input.shipToCity,
+          shipToZip: input.shipToZip,
+          usTaxAmount: usTax.usTaxAmount,
+          usTaxDetail: usTax.usTaxDetail ?? undefined,
           socketType: input.socketType,
           targetDeliveryDate: input.targetDeliveryDate,
           clientName: input.clientName,
@@ -304,6 +315,9 @@ export async function updateQuoteAction(
 
   try {
     const exchangeRateToEur = await fetchExchangeRateToEur(currency);
+    const usTax = isUsMarket(input.market)
+      ? await resolveUsTaxForQuoteInput(input, { id })
+      : { usTaxAmount: new Prisma.Decimal(0), usTaxDetail: null };
 
     await prisma.$transaction(async (tx) => {
       const clientId = await resolveClientId(tx, input);
@@ -317,6 +331,12 @@ export async function updateQuoteAction(
           salesRep: input.salesRep,
           market: input.market,
           usState: input.usState,
+          shipToLine1: input.shipToLine1,
+          shipToLine2: input.shipToLine2,
+          shipToCity: input.shipToCity,
+          shipToZip: input.shipToZip,
+          usTaxAmount: usTax.usTaxAmount,
+          usTaxDetail: usTax.usTaxDetail ?? undefined,
           socketType: input.socketType,
           targetDeliveryDate: input.targetDeliveryDate,
           clientName: input.clientName,

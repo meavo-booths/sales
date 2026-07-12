@@ -18,7 +18,9 @@ import {
   ReadyToAssembleToggle,
   RetrySheetSyncButton,
   RetryXeroInvoiceButton,
+  RetryZampSyncButton,
 } from "@/components/deal-editors";
+import { isUsMarket } from "@/lib/zamp/constants";
 
 export const dynamic = "force-dynamic";
 
@@ -112,13 +114,28 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
             </div>
           </Card>
         )}
-        {(deal.sheetSyncedAt || deal.xeroInvoiceId) && (
+        {isUsMarket(deal.market) && deal.zampSyncError && (
+          <Card className="border-amber-300 bg-amber-50">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium text-amber-900">Zamp sync failed</p>
+                <p className="text-sm text-amber-800">{deal.zampSyncError}</p>
+              </div>
+              <RetryZampSyncButton dealId={deal.id} />
+            </div>
+          </Card>
+        )}
+        {(deal.sheetSyncedAt || deal.xeroInvoiceId || deal.zampSyncedAt) && (
           <p className="text-xs text-slate-500">
             {[
               deal.sheetSyncedAt && `Synced to the Ops File on ${formatDate(deal.sheetSyncedAt)}.`,
               deal.xeroInvoiceId &&
                 `Xero draft invoice ${deal.xeroInvoiceNumber || "created"}${
                   deal.xeroSyncedAt ? ` on ${formatDate(deal.xeroSyncedAt)}` : ""
+                }.`,
+              deal.zampSyncedAt &&
+                `Synced to Zamp on ${formatDate(deal.zampSyncedAt)}${
+                  deal.zampTransactionId ? ` (${deal.zampTransactionId})` : ""
                 }.`,
             ]
               .filter(Boolean)
@@ -133,6 +150,10 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
             salesRep: deal.salesRep,
             market: deal.market,
             usState: deal.usState,
+            shipToLine1: deal.shipToLine1,
+            shipToLine2: deal.shipToLine2,
+            shipToCity: deal.shipToCity,
+            shipToZip: deal.shipToZip,
             clientName: deal.clientName,
             clientType: deal.clientType,
             paymentTerms: deal.paymentTerms,

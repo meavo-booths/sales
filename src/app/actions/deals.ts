@@ -9,6 +9,7 @@ import { requireSalesAccess } from "@/lib/meavo-auth";
 import { contactInputSchema, convertInputSchema } from "@/lib/quote-input";
 import { exportDealToOpsSheet } from "@/lib/ops-sheet-export";
 import { exportDealToXero } from "@/lib/xero/export-deal";
+import { exportDealToZamp } from "@/lib/zamp/export-deal";
 import { syncClientContacts } from "@/lib/client-contacts";
 import { isClientVip } from "@/lib/client-hierarchy";
 import { fetchExchangeRateToEur, isQuoteCurrency } from "@/lib/exchange-rates";
@@ -37,6 +38,10 @@ const dealDetailsInputSchema = z.object({
   salesRep: z.string().trim().max(200).default(""),
   market: z.string().trim().max(200).default(""),
   usState: z.string().trim().max(100).default(""),
+  shipToLine1: z.string().trim().max(500).default(""),
+  shipToLine2: z.string().trim().max(500).default(""),
+  shipToCity: z.string().trim().max(200).default(""),
+  shipToZip: z.string().trim().max(20).default(""),
   clientName: z.string().trim().min(1, "Client name is required").max(500),
   clientType: z.enum(["DIRECT", "AGENCY", "COWORKING"]),
   paymentTerms: z.enum(["UPFRONT_100", "SPLIT_50_50", "NET_30"]),
@@ -200,9 +205,9 @@ export async function convertQuoteAction(
 
   waitUntil(notifyIfVipDealWon(id, dealId, deal.clientId, deal.clientName, deal.quoteNumber));
 
-  // Append to the Ops File and create the Xero draft invoice in the background;
-  // failures are recorded on the deal, never thrown, and retriable from the UI.
-  waitUntil(Promise.all([exportDealToOpsSheet(id), exportDealToXero(id)]));
+  // Append to the Ops File, create the Xero draft invoice, and commit US deals
+  // to Zamp in the background; failures are recorded on the deal, never thrown.
+  waitUntil(Promise.all([exportDealToOpsSheet(id), exportDealToXero(id), exportDealToZamp(id)]));
 
   revalidatePath("/");
   revalidatePath("/deals");
@@ -287,6 +292,10 @@ export async function updateDealDetailsAction(
       salesRep: input.salesRep,
       market: input.market,
       usState: input.usState,
+      shipToLine1: input.shipToLine1,
+      shipToLine2: input.shipToLine2,
+      shipToCity: input.shipToCity,
+      shipToZip: input.shipToZip,
       clientName: input.clientName,
       clientType: input.clientType,
       paymentTerms: input.paymentTerms,

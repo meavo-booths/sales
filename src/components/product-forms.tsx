@@ -85,6 +85,8 @@ export type ProductRow = {
   availability: ProductAvailabilityRow[];
   /** Xero item code when the product is linked to a Xero item. */
   xeroItemCode: string | null;
+  /** Zamp product tax code for US sales tax (Sales-owned). */
+  taxCode: string;
 };
 
 function CurrencyPills({ defaultValue = "EUR" }: { defaultValue?: QuoteCurrency }) {
@@ -153,6 +155,14 @@ function ProductFields({
           name="description"
           rows={2}
           defaultValue={product?.description}
+        />
+      </div>
+      <div className="sm:col-span-2">
+        <Input
+          label="Zamp tax code"
+          name="taxCode"
+          defaultValue={product?.taxCode ?? ""}
+          placeholder="e.g. R_TPP — leave blank for default tangible personal property"
         />
       </div>
     </div>

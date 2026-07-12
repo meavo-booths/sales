@@ -18,7 +18,9 @@ import {
   formatDate,
   formatMoney,
 } from "@/lib/deal-values";
-import { dealSubtotal, dealTotals, formatVatRate } from "@/lib/vat";
+import { dealSubtotal, dealTotals, formatTaxLineLabel } from "@/lib/vat";
+import { persistedUsTaxAmount } from "@/lib/zamp/calculate-tax";
+import { isUsMarket } from "@/lib/zamp/constants";
 
 type QuoteForPdf = Prisma.DealGetPayload<{
   include: { contacts: true; lineItems: { include: { product: true } } };
@@ -156,7 +158,10 @@ function LineItemRow({
 
 export function QuotePdfDocument({ quote }: { quote: QuoteForPdf }) {
   const logoPath = path.join(process.cwd(), "public", "meavo-logo.png");
-  const totals = dealTotals(dealSubtotal(quote), quote.market);
+  const totals = dealTotals(dealSubtotal(quote), quote.market, {
+    salesTaxAmount: persistedUsTaxAmount(quote),
+  });
+  const taxLabel = formatTaxLineLabel(quote.market, totals.vatRate);
   const mainContacts = quote.contacts.filter((c) => c.kind === "MAIN");
 
   // Attached add-ons render indented under their booth; everything else is a top-level row.
@@ -211,9 +216,13 @@ export function QuotePdfDocument({ quote }: { quote: QuoteForPdf }) {
             </Text>
             <Text style={styles.line}>Currency: {quote.currency}</Text>
             <Text style={styles.line}>
-              {totals.vatRate > 0
-                ? `Line prices exclude VAT. ${formatVatRate(totals.vatRate)} VAT is added to the total.`
-                : "Prices exclude VAT."}
+              {totals.hasTax
+                ? isUsMarket(quote.market)
+                  ? "Line prices exclude sales tax. US sales tax is added to the total."
+                  : `Line prices exclude VAT. ${formatTaxLineLabel(quote.market, totals.vatRate)} is added to the total.`
+                : isUsMarket(quote.market)
+                  ? "Line prices exclude sales tax."
+                  : "Prices exclude VAT."}
             </Text>
           </View>
         </View>
@@ -234,24 +243,26 @@ export function QuotePdfDocument({ quote }: { quote: QuoteForPdf }) {
               ))}
             </React.Fragment>
           ))}
-          {totals.vatRate > 0 ? (
+          {totals.hasTax ? (
             <>
               <View style={styles.totalRow}>
-                <Text style={styles.subtotalLabel}>Subtotal (excl. VAT)</Text>
+                <Text style={styles.subtotalLabel}>
+                  Subtotal (excl. {totals.taxLabel.toLowerCase()})
+                </Text>
                 <Text style={styles.subtotalValue}>
                   {formatMoney(totals.subtotal, quote.currency)}
                 </Text>
               </View>
               <View style={[styles.totalRow, { paddingVertical: 2 }]}>
-                <Text style={styles.subtotalLabel}>
-                  VAT ({formatVatRate(totals.vatRate)})
-                </Text>
+                <Text style={styles.subtotalLabel}>{taxLabel}</Text>
                 <Text style={styles.subtotalValue}>
                   {formatMoney(totals.vatAmount, quote.currency)}
                 </Text>
               </View>
               <View style={styles.totalRow}>
-                <Text style={styles.totalLabel}>Total (incl. VAT)</Text>
+                <Text style={styles.totalLabel}>
+                  Total (incl. {totals.taxLabel.toLowerCase()})
+                </Text>
                 <Text style={styles.totalValue}>
                   {formatMoney(totals.totalInclVat, quote.currency)}
                 </Text>
@@ -259,7 +270,9 @@ export function QuotePdfDocument({ quote }: { quote: QuoteForPdf }) {
             </>
           ) : (
             <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>Total (excl. VAT)</Text>
+              <Text style={styles.totalLabel}>
+                {isUsMarket(quote.market) ? "Total (excl. sales tax)" : "Total (excl. VAT)"}
+              </Text>
               <Text style={styles.totalValue}>{formatMoney(totals.subtotal, quote.currency)}</Text>
             </View>
           )}

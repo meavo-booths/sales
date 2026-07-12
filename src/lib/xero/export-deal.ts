@@ -1,6 +1,8 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { FINISH_LABELS } from "@/lib/deal-values";
+import { isUsMarket } from "@/lib/zamp/constants";
+import { persistedUsTaxAmount } from "@/lib/zamp/calculate-tax";
 import { isXeroConfigured } from "@/lib/xero/client";
 import { createContact, createDraftInvoice, findContactByName } from "@/lib/xero/resources";
 import {
@@ -139,6 +141,18 @@ export async function exportDealToXero(dealDbId: string): Promise<void> {
       AccountCode: accountCode,
       ...(item.product?.xeroItemCode ? { ItemCode: item.product.xeroItemCode } : {}),
     }));
+
+    const usTaxAmount = isUsMarket(deal.market) ? persistedUsTaxAmount(deal) : 0;
+    if (usTaxAmount > 0) {
+      // Zamp-computed US sales tax as a single exempt line — product lines stay ex-tax.
+      lineItems.push({
+        Description: "US Sales Tax",
+        Quantity: 1,
+        UnitAmount: usTaxAmount,
+        TaxType: taxType,
+        AccountCode: accountCode,
+      });
+    }
 
     const invoiceDate = new Date();
     const invoice = await createDraftInvoice({

@@ -13,6 +13,7 @@ import {
   updatePaymentAction,
 } from "@/app/actions/deals";
 import { retryXeroInvoiceAction } from "@/app/actions/xero";
+import { retryZampSyncAction } from "@/app/actions/zamp";
 import {
   BOOTH_UNIT_STATUS_LABELS,
   CLIENT_TYPE_LABELS,
@@ -25,12 +26,17 @@ import {
 } from "@/lib/deal-values";
 import { Button, Card, Input, Select, Textarea } from "@/components/ui";
 import { VatNumberField } from "@/components/vat-check";
+import { isUsMarket } from "@/lib/zamp/constants";
 
 export type DealDetailsValues = {
   dealDate: string;
   salesRep: string;
   market: string;
   usState: string;
+  shipToLine1: string;
+  shipToLine2: string;
+  shipToCity: string;
+  shipToZip: string;
   clientName: string;
   clientType: "DIRECT" | "AGENCY" | "COWORKING";
   paymentTerms: "UPFRONT_100" | "SPLIT_50_50" | "NET_30";
@@ -127,6 +133,20 @@ export function DealDetailsEditorCard({
           <DetailField label="Client type" value={CLIENT_TYPE_LABELS[details.clientType]} />
           <DetailField label="Payment terms" value={PAYMENT_TERMS_LABELS[details.paymentTerms]} />
           <DetailField label="US State" value={details.usState} />
+          {isUsMarket(details.market) && (
+            <div className="sm:col-span-2 lg:col-span-4">
+              <DetailField
+                label="US ship-to address"
+                value={[
+                  details.shipToLine1,
+                  details.shipToLine2,
+                  [details.shipToCity, details.usState, details.shipToZip].filter(Boolean).join(", "),
+                ]
+                  .filter(Boolean)
+                  .join("\n")}
+              />
+            </div>
+          )}
           <DetailField
             label="Target delivery"
             value={
@@ -175,8 +195,36 @@ export function DealDetailsEditorCard({
               label="US State"
               value={values.usState}
               onChange={(e) => set("usState", e.target.value)}
-              placeholder="US deals only, e.g. California"
+              placeholder="2-letter code, e.g. CA"
             />
+            {isUsMarket(values.market) && (
+              <div className="sm:col-span-2 lg:col-span-4 space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-4">
+                <p className="text-sm font-medium text-slate-900">US ship-to address</p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Input
+                    label="Address line 1"
+                    value={values.shipToLine1}
+                    onChange={(e) => set("shipToLine1", e.target.value)}
+                  />
+                  <Input
+                    label="Address line 2"
+                    value={values.shipToLine2}
+                    onChange={(e) => set("shipToLine2", e.target.value)}
+                    placeholder="Optional"
+                  />
+                  <Input
+                    label="City"
+                    value={values.shipToCity}
+                    onChange={(e) => set("shipToCity", e.target.value)}
+                  />
+                  <Input
+                    label="ZIP code"
+                    value={values.shipToZip}
+                    onChange={(e) => set("shipToZip", e.target.value)}
+                  />
+                </div>
+              </div>
+            )}
             <Select
               label="Client type"
               value={values.clientType}
@@ -645,6 +693,32 @@ export function BoothUnitEditor({
           {error}
         </p>
       )}
+    </div>
+  );
+}
+
+export function RetryZampSyncButton({ dealId }: { dealId: string }) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  return (
+    <div className="flex items-center gap-2">
+      <Button
+        variant="secondary"
+        disabled={pending}
+        onClick={() => {
+          setError(null);
+          startTransition(async () => {
+            const result = await retryZampSyncAction(dealId);
+            if (!result.ok) setError(result.error);
+            router.refresh();
+          });
+        }}
+      >
+        {pending ? "Syncing…" : "Retry Zamp sync"}
+      </Button>
+      {error && <p className="text-sm text-red-600">{error}</p>}
     </div>
   );
 }

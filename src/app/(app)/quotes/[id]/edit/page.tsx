@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireSalesAccess } from "@/lib/meavo-auth";
 import { parseProductCurrency } from "@/lib/exchange-rates";
+import { persistedUsTaxAmount } from "@/lib/zamp/calculate-tax";
 import { PageHeader } from "@/components/ui";
 import { QuoteForm, type QuoteFormValues } from "@/components/quote-form";
 
@@ -45,6 +46,10 @@ export default async function EditQuotePage({ params }: { params: Promise<{ id: 
     salesRep: quote.salesRep,
     market: quote.market,
     usState: quote.usState,
+    shipToLine1: quote.shipToLine1,
+    shipToLine2: quote.shipToLine2,
+    shipToCity: quote.shipToCity,
+    shipToZip: quote.shipToZip,
     clientName: quote.clientName,
     registeredAddress: quote.registeredAddress,
     website: quote.website,
@@ -140,6 +145,7 @@ export default async function EditQuotePage({ params }: { params: Promise<{ id: 
         quoteId={quote.id}
         products={allProducts.map(mapProduct)}
         initialValues={initialValues}
+        initialUsTaxAmount={persistedUsTaxAmount(quote)}
       />
     </>
   );

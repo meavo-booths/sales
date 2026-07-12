@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { AddOnProductFamily, BoothProductFamily, DealContactKind } from "@prisma/client";
 import { createQuoteAction, updateQuoteAction } from "@/app/actions/quotes";
+import { calculateUsTaxAction } from "@/app/actions/zamp";
 import { searchClientsAction } from "@/app/actions/clients";
 import { getFxRateToEurAction } from "@/app/actions/fx";
 import {
@@ -18,7 +19,8 @@ import {
   type QuoteCurrency,
 } from "@/lib/deal-values";
 import { convertBetweenQuoteCurrencies } from "@/lib/exchange-rates";
-import { dealSubtotal, dealTotals, formatVatRate } from "@/lib/vat";
+import { dealSubtotal, dealTotals, formatTaxLineLabel } from "@/lib/vat";
+import { isUsMarket } from "@/lib/zamp/constants";
 import { isClientVip, isQuoteSelectableClient } from "@/lib/client-hierarchy";
 import { productMatchesAvailability } from "@/lib/product-availability";
 import { addOnCompatibleWithBoothFamily } from "@/lib/addon-compatibility";
@@ -35,30 +37,89 @@ function QuoteTotals({
   subtotal,
   market,
   currency,
+  estimatedUsTax,
+  onEstimateTax,
+  estimatingTax,
+  estimateError,
 }: {
   subtotal: number;
   market: string;
   currency: string;
+  estimatedUsTax?: number | null;
+  onEstimateTax?: () => void;
+  estimatingTax?: boolean;
+  estimateError?: string | null;
 }) {
-  const totals = dealTotals(subtotal, market);
-  if (totals.vatRate === 0) {
+  const isUs = isUsMarket(market);
+  const salesTaxAmount = isUs && estimatedUsTax != null ? estimatedUsTax : undefined;
+  const totals = dealTotals(subtotal, market, { salesTaxAmount });
+  const taxLabel = formatTaxLineLabel(market, totals.vatRate);
+
+  if (!totals.hasTax && !isUs) {
     return (
       <p className="text-right text-base font-semibold text-slate-900">
         Total (excl. VAT): {formatMoney(totals.subtotal, currency)}
       </p>
     );
   }
+
+  if (isUs && estimatedUsTax == null) {
+    return (
+      <div className="space-y-2 text-right">
+        <p className="text-sm text-slate-600">
+          Subtotal (excl. sales tax): {formatMoney(totals.subtotal, currency)}
+        </p>
+        {onEstimateTax && (
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={estimatingTax}
+              onClick={onEstimateTax}
+            >
+              {estimatingTax ? "Calculating…" : "Estimate sales tax"}
+            </Button>
+          </div>
+        )}
+        <p className="text-xs text-slate-500">
+          Final US sales tax is calculated via Zamp when you save the quote.
+        </p>
+        {estimateError && <p className="text-sm text-red-600">{estimateError}</p>}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-1 text-right">
       <p className="text-sm text-slate-600">
-        Subtotal (excl. VAT): {formatMoney(totals.subtotal, currency)}
+        Subtotal (excl. {totals.taxLabel.toLowerCase()}): {formatMoney(totals.subtotal, currency)}
       </p>
-      <p className="text-sm text-slate-600">
-        VAT ({formatVatRate(totals.vatRate)}): {formatMoney(totals.vatAmount, currency)}
-      </p>
+      {totals.hasTax && (
+        <p className="text-sm text-slate-600">
+          {taxLabel}: {formatMoney(totals.vatAmount, currency)}
+        </p>
+      )}
       <p className="text-base font-semibold text-slate-900">
-        Total (incl. VAT): {formatMoney(totals.totalInclVat, currency)}
+        Total (incl. {totals.taxLabel.toLowerCase()}): {formatMoney(totals.totalInclVat, currency)}
       </p>
+      {isUs && onEstimateTax && (
+        <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
+          <Button
+            type="button"
+            variant="ghost"
+            disabled={estimatingTax}
+            onClick={onEstimateTax}
+          >
+            {estimatingTax ? "Recalculating…" : "Re-estimate sales tax"}
+          </Button>
+        </div>
+      )}
+      {isUs && (
+        <p className="text-xs text-slate-500">
+          Final US sales tax is recalculated via Zamp when you save the quote.
+        </p>
+      )}
+      {estimateError && <p className="text-sm text-red-600">{estimateError}</p>}
     </div>
   );
 }
@@ -130,6 +191,10 @@ export type QuoteFormValues = {
   salesRep: string;
   market: string;
   usState: string;
+  shipToLine1: string;
+  shipToLine2: string;
+  shipToCity: string;
+  shipToZip: string;
   clientName: string;
   registeredAddress: string;
   website: string;
@@ -160,16 +225,24 @@ export function QuoteForm({
   products,
   quoteId,
   initialValues,
+  initialUsTaxAmount,
   defaultSalesRep,
 }: {
   products: ProductOption[];
   quoteId?: string;
   initialValues?: QuoteFormValues;
+  /** Persisted Zamp tax from a saved US quote (edit mode). */
+  initialUsTaxAmount?: number;
   defaultSalesRep?: string;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [estimatedUsTax, setEstimatedUsTax] = useState<number | null>(
+    initialUsTaxAmount != null && initialUsTaxAmount > 0 ? initialUsTaxAmount : null,
+  );
+  const [estimatingTax, setEstimatingTax] = useState(false);
+  const [estimateError, setEstimateError] = useState<string | null>(null);
 
   const boothProducts = useMemo(() => products.filter((p) => p.kind === "BOOTH"), [products]);
   const addOnProducts = useMemo(() => products.filter((p) => p.kind === "ADDON"), [products]);
@@ -190,6 +263,10 @@ export function QuoteForm({
       salesRep: defaultSalesRep ?? "",
       market: "",
       usState: "",
+      shipToLine1: "",
+      shipToLine2: "",
+      shipToCity: "",
+      shipToZip: "",
       clientName: "",
       registeredAddress: "",
       website: "",
@@ -502,6 +579,20 @@ export function QuoteForm({
     });
   };
 
+  const estimateUsTax = () => {
+    setEstimateError(null);
+    setEstimatingTax(true);
+    void calculateUsTaxAction(values).then((result) => {
+      setEstimatingTax(false);
+      if (!result.ok) {
+        setEstimateError(result.error);
+        setEstimatedUsTax(null);
+        return;
+      }
+      setEstimatedUsTax(result.taxDue);
+    });
+  };
+
   const addOnFields = (
     addOn: AddOnDraft,
     update: (patch: Partial<AddOnDraft>) => void,
@@ -581,7 +672,11 @@ export function QuoteForm({
           <Select
             label="Market"
             value={values.market}
-            onChange={(e) => set("market", e.target.value)}
+            onChange={(e) => {
+              set("market", e.target.value);
+              setEstimatedUsTax(null);
+              setEstimateError(null);
+            }}
           >
             <option value="">Select market…</option>
             {/* Legacy markets outside the fixed list stay selectable. */}
@@ -635,8 +730,11 @@ export function QuoteForm({
           <Input
             label="US State"
             value={values.usState}
-            onChange={(e) => set("usState", e.target.value)}
-            placeholder="US deals only, e.g. California"
+            onChange={(e) => {
+              set("usState", e.target.value);
+              setEstimatedUsTax(null);
+            }}
+            placeholder="2-letter code, e.g. CA"
           />
           <Input
             label="Target delivery"
@@ -653,6 +751,49 @@ export function QuoteForm({
               placeholder="Internal notes, delivery expectations, special requests…"
             />
           </div>
+          {isUsMarket(values.market) && (
+            <div className="sm:col-span-2 lg:col-span-4 space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-4">
+              <p className="text-sm font-medium text-slate-900">US ship-to address</p>
+              <p className="text-xs text-slate-600">
+                Required for Zamp sales tax calculation (rooftop-accurate rates).
+              </p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Input
+                  label="Address line 1"
+                  value={values.shipToLine1}
+                  onChange={(e) => {
+                    set("shipToLine1", e.target.value);
+                    setEstimatedUsTax(null);
+                  }}
+                  required
+                />
+                <Input
+                  label="Address line 2"
+                  value={values.shipToLine2}
+                  onChange={(e) => set("shipToLine2", e.target.value)}
+                  placeholder="Optional"
+                />
+                <Input
+                  label="City"
+                  value={values.shipToCity}
+                  onChange={(e) => {
+                    set("shipToCity", e.target.value);
+                    setEstimatedUsTax(null);
+                  }}
+                  required
+                />
+                <Input
+                  label="ZIP code"
+                  value={values.shipToZip}
+                  onChange={(e) => {
+                    set("shipToZip", e.target.value);
+                    setEstimatedUsTax(null);
+                  }}
+                  required
+                />
+              </div>
+            </div>
+          )}
           <Textarea
             label="Assembly address"
             rows={4}
@@ -1078,7 +1219,15 @@ export function QuoteForm({
               </div>
             ))}
 
-            <QuoteTotals subtotal={total} market={values.market} currency={values.currency} />
+            <QuoteTotals
+              subtotal={total}
+              market={values.market}
+              currency={values.currency}
+              estimatedUsTax={estimatedUsTax}
+              onEstimateTax={isUsMarket(values.market) ? estimateUsTax : undefined}
+              estimatingTax={estimatingTax}
+              estimateError={estimateError}
+            />
           </div>
         )}
 

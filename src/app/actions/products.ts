@@ -113,6 +113,10 @@ function parseAddOnFamily(formData: FormData): AddOnProductFamily | null {
   return ADDON_FAMILIES.has(raw) ? (raw as AddOnProductFamily) : null;
 }
 
+function parseTaxCode(formData: FormData): string {
+  return String(formData.get("taxCode") ?? "").trim();
+}
+
 export async function createProductAction(
   _prev: ProductActionState,
   formData: FormData,
@@ -148,6 +152,7 @@ export async function createProductAction(
         listPrice: parsePrice(formData.get("listPrice")),
         currency,
         imageUrl,
+        taxCode: parseTaxCode(formData),
         ...(boothFamilies.length > 0
           ? {
               familyRestrictions: {
@@ -211,6 +216,7 @@ export async function updateProductAction(
           listPrice: parsePrice(formData.get("listPrice")),
           currency,
           isActive: formData.get("isActive") === "on",
+          taxCode: parseTaxCode(formData),
           ...(imageUrl ? { imageUrl } : {}),
         },
       }),

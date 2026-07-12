@@ -71,6 +71,7 @@ export default async function ProductsPage({
       clientType: row.clientType,
     })),
     xeroItemCode: product.xeroItemCode,
+    taxCode: product.taxCode,
   });
 
   const booths = products.filter((p) => p.kind === "BOOTH");

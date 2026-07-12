@@ -8,7 +8,9 @@ import {
   formatDate,
   formatMoney,
 } from "@/lib/deal-values";
-import { dealSubtotal, dealTotals, formatVatRate } from "@/lib/vat";
+import { dealSubtotal, dealTotals, formatTaxLineLabel } from "@/lib/vat";
+import { persistedUsTaxAmount } from "@/lib/zamp/calculate-tax";
+import { isUsMarket } from "@/lib/zamp/constants";
 import { Card } from "@/components/ui";
 
 type DealWithRelations = Prisma.DealGetPayload<{
@@ -36,6 +38,20 @@ export function DealDetailsCard({ deal }: { deal: DealWithRelations }) {
         <Field label="Client type" value={CLIENT_TYPE_LABELS[deal.clientType]} />
         <Field label="Payment terms" value={PAYMENT_TERMS_LABELS[deal.paymentTerms]} />
         <Field label="US State" value={deal.usState} />
+        {isUsMarket(deal.market) && (
+          <div className="sm:col-span-2 lg:col-span-4">
+            <Field
+              label="US ship-to address"
+              value={[
+                deal.shipToLine1,
+                deal.shipToLine2,
+                [deal.shipToCity, deal.usState, deal.shipToZip].filter(Boolean).join(", "),
+              ]
+                .filter(Boolean)
+                .join("\n")}
+            />
+          </div>
+        )}
         <Field label="Target delivery" value={formatDate(deal.targetDeliveryDate)} />
         <Field label="VAT number" value={deal.vatNumber} />
         <Field label="URL" value={deal.website} />
@@ -144,27 +160,34 @@ export function TotalsFooter({
   subtotal,
   market,
   currency,
+  salesTaxAmount,
 }: {
   subtotal: number;
   market: string;
   currency: string;
+  salesTaxAmount?: number;
 }) {
-  const totals = dealTotals(subtotal, market);
+  const totals = dealTotals(subtotal, market, { salesTaxAmount });
+  const taxLabel = formatTaxLineLabel(market, totals.vatRate);
   return (
     <tfoot>
       <tr>
         <td colSpan={4} className="py-3 pr-4 text-right font-semibold text-slate-900">
-          {totals.vatRate > 0 ? "Subtotal (excl. VAT)" : "Total (excl. VAT)"}
+          {totals.hasTax
+            ? `Subtotal (excl. ${totals.taxLabel})`
+            : isUsMarket(market)
+              ? "Subtotal (excl. sales tax)"
+              : "Total (excl. VAT)"}
         </td>
         <td className="py-3 text-right text-base font-semibold text-slate-900">
           {formatMoney(totals.subtotal, currency)}
         </td>
       </tr>
-      {totals.vatRate > 0 && (
+      {totals.hasTax && (
         <>
           <tr>
             <td colSpan={4} className="py-1 pr-4 text-right text-sm text-slate-600">
-              VAT ({formatVatRate(totals.vatRate)})
+              {taxLabel}
             </td>
             <td className="py-1 text-right text-sm text-slate-600">
               {formatMoney(totals.vatAmount, currency)}
@@ -172,7 +195,7 @@ export function TotalsFooter({
           </tr>
           <tr className="border-t border-slate-200">
             <td colSpan={4} className="py-3 pr-4 text-right font-semibold text-slate-900">
-              Total (incl. VAT)
+              Total (incl. {totals.taxLabel.toLowerCase()})
             </td>
             <td className="py-3 text-right text-base font-semibold text-slate-900">
               {formatMoney(totals.totalInclVat, currency)}
@@ -218,6 +241,7 @@ export function LineItemsCard({ deal }: { deal: DealWithRelations }) {
             subtotal={dealSubtotal(deal)}
             market={deal.market}
             currency={deal.currency}
+            salesTaxAmount={persistedUsTaxAmount(deal)}
           />
         </table>
       </div>

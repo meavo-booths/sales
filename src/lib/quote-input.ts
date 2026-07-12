@@ -59,6 +59,10 @@ export const quoteInputSchema = z
     salesRep: z.string().trim().default(""),
     market: z.string().trim().default(""),
     usState: z.string().trim().max(100).default(""),
+    shipToLine1: z.string().trim().max(500).default(""),
+    shipToLine2: z.string().trim().max(500).default(""),
+    shipToCity: z.string().trim().max(200).default(""),
+    shipToZip: z.string().trim().max(20).default(""),
     socketType: z.string().trim().max(100).default(""),
     targetDeliveryDate: optionalDateString,
     clientName: z.string().trim().min(1, "Client name is required"),
@@ -82,6 +86,20 @@ export const quoteInputSchema = z
     (input) =>
       input.lineItems.length + input.standaloneAddOns.length + input.customLines.length > 0,
     { message: "Add at least one line item" },
+  )
+  .refine(
+    (input) => {
+      if (input.market.trim().toUpperCase() !== "US") return true;
+      return (
+        input.shipToLine1.trim().length > 0 &&
+        input.shipToCity.trim().length > 0 &&
+        input.usState.trim().length > 0 &&
+        input.shipToZip.trim().length > 0
+      );
+    },
+    {
+      message: "US ship-to address (line 1, city, state, ZIP) is required for US market quotes",
+    },
   );
 
 export type QuoteInput = z.infer<typeof quoteInputSchema>;
