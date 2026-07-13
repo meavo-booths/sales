@@ -37,7 +37,6 @@ export function DealDetailsCard({ deal }: { deal: DealWithRelations }) {
         <Field label="Socket type" value={deal.socketType} />
         <Field label="Client type" value={CLIENT_TYPE_LABELS[deal.clientType]} />
         <Field label="Payment terms" value={PAYMENT_TERMS_LABELS[deal.paymentTerms]} />
-        <Field label="US State" value={deal.usState} />
         {isUsMarket(deal.market) && (
           <div className="sm:col-span-2 lg:col-span-4">
             <Field

@@ -46,7 +46,13 @@ export async function Nav() {
     getNotifications(prisma, { userId: session.user.id }),
   ]);
 
-  const navLinks = admin ? [...links, { href: "/settings/xero", label: "Xero" }] : links;
+  const navLinks = admin
+    ? [
+        ...links,
+        { href: "/settings/xero", label: "Xero" },
+        { href: "/settings/xero/us", label: "Xero US" },
+      ]
+    : links;
 
   return (
     <MeavoNavBar

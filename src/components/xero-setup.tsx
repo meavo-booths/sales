@@ -13,6 +13,9 @@ import {
 } from "@/app/actions/xero";
 import { Badge, Button, Card, Select } from "@/components/ui";
 
+/** International markets — US is configured per-state on /settings/xero/us. */
+const INTERNATIONAL_MARKET_OPTIONS = MARKET_OPTIONS.filter((market) => market !== "US");
+
 type ThemeMapping = { market: string; brandingThemeId: string; brandingThemeName: string };
 type TaxMapping = { market: string; taxType: string; taxName: string; taxRate: number | null };
 type AccountMapping = { market: string; accountCode: string; accountName: string };
@@ -132,21 +135,21 @@ export function XeroSetupForm({
       // reviews and saves explicitly.
       setThemeByMarket((prev) => {
         const next = { ...prev };
-        for (const market of MARKET_OPTIONS) {
+        for (const market of INTERNATIONAL_MARKET_OPTIONS) {
           if (!next[market]) next[market] = suggestThemeId(market, result.themes);
         }
         return next;
       });
       setTaxByMarket((prev) => {
         const next = { ...prev };
-        for (const market of MARKET_OPTIONS) {
+        for (const market of INTERNATIONAL_MARKET_OPTIONS) {
           if (!next[market]) next[market] = suggestTaxType(market, result.taxRates);
         }
         return next;
       });
       setAccountByMarket((prev) => {
         const next = { ...prev };
-        for (const market of MARKET_OPTIONS) {
+        for (const market of INTERNATIONAL_MARKET_OPTIONS) {
           if (!next[market]) next[market] = suggestAccountCode(market, result.accounts);
         }
         return next;
@@ -163,18 +166,18 @@ export function XeroSetupForm({
       const accountName = (code: string) => accounts.find((a) => a.Code === code)?.Name ?? "";
 
       const result = await saveXeroMappingsAction({
-        themeMappings: MARKET_OPTIONS.filter((market) => themeByMarket[market]).map((market) => ({
+        themeMappings: INTERNATIONAL_MARKET_OPTIONS.filter((market) => themeByMarket[market]).map((market) => ({
           market,
           brandingThemeId: themeByMarket[market],
           brandingThemeName: themeName(themeByMarket[market]),
         })),
-        taxMappings: MARKET_OPTIONS.filter((market) => taxByMarket[market]).map((market) => ({
+        taxMappings: INTERNATIONAL_MARKET_OPTIONS.filter((market) => taxByMarket[market]).map((market) => ({
           market,
           taxType: taxByMarket[market],
           taxName: taxInfo(taxByMarket[market])?.Name ?? "",
           taxRate: taxInfo(taxByMarket[market])?.EffectiveRate ?? null,
         })),
-        accountMappings: MARKET_OPTIONS.filter((market) => accountByMarket[market]).map(
+        accountMappings: INTERNATIONAL_MARKET_OPTIONS.filter((market) => accountByMarket[market]).map(
           (market) => ({
             market,
             accountCode: accountByMarket[market],
@@ -259,11 +262,13 @@ export function XeroSetupForm({
       </Card>
 
       <Card>
-        <h2 className="mb-1 text-base font-semibold text-slate-900">Market mappings</h2>
+        <h2 className="mb-1 text-base font-semibold text-slate-900">International market mappings</h2>
         <p className="mb-4 text-sm text-slate-500">
-          {loaded
-            ? "Suggestions are pre-filled where names or VAT rates match — review every row before saving."
-            : "Load themes and tax rates from Xero to edit the mappings."}
+          VAT is posted via Xero Tax Type on product lines. US deals are configured per state on{" "}
+          <a href="/settings/xero/us" className="text-blue-700 underline">
+            Settings → Xero US
+          </a>
+          .
         </p>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
@@ -277,7 +282,7 @@ export function XeroSetupForm({
               </tr>
             </thead>
             <tbody>
-              {MARKET_OPTIONS.map((market) => {
+              {INTERNATIONAL_MARKET_OPTIONS.map((market) => {
                 const mapped = Boolean(
                   themeByMarket[market] && taxByMarket[market] && accountByMarket[market],
                 );

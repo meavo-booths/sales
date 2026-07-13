@@ -13,6 +13,7 @@ import { exportDealToZamp } from "@/lib/zamp/export-deal";
 import { syncClientContacts } from "@/lib/client-contacts";
 import { isClientVip } from "@/lib/client-hierarchy";
 import { fetchExchangeRateToEur, isQuoteCurrency } from "@/lib/exchange-rates";
+import { normalizeUsState } from "@/lib/us-state";
 import { enqueueNotification } from "@/lib/notifications/enqueue";
 import { firstZodError } from "@/lib/zod-errors";
 
@@ -37,7 +38,12 @@ const dealDetailsInputSchema = z.object({
     .transform((value) => new Date(`${value}T00:00:00.000Z`)),
   salesRep: z.string().trim().max(200).default(""),
   market: z.string().trim().max(200).default(""),
-  usState: z.string().trim().max(100).default(""),
+  usState: z
+    .string()
+    .trim()
+    .max(100)
+    .default("")
+    .transform((value) => normalizeUsState(value)),
   shipToLine1: z.string().trim().max(500).default(""),
   shipToLine2: z.string().trim().max(500).default(""),
   shipToCity: z.string().trim().max(200).default(""),

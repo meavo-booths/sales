@@ -21,6 +21,7 @@ import {
 import { convertBetweenQuoteCurrencies } from "@/lib/exchange-rates";
 import { dealSubtotal, dealTotals, formatTaxLineLabel } from "@/lib/vat";
 import { isUsMarket } from "@/lib/zamp/constants";
+import { stateFromZip, US_STATES } from "@/lib/us-state";
 import { isClientVip, isQuoteSelectableClient } from "@/lib/client-hierarchy";
 import { productMatchesAvailability } from "@/lib/product-availability";
 import { addOnCompatibleWithBoothFamily } from "@/lib/addon-compatibility";
@@ -728,15 +729,6 @@ export function QuoteForm({
             ))}
           </Select>
           <Input
-            label="US State"
-            value={values.usState}
-            onChange={(e) => {
-              set("usState", e.target.value);
-              setEstimatedUsTax(null);
-            }}
-            placeholder="2-letter code, e.g. CA"
-          />
-          <Input
             label="Target delivery"
             type="date"
             value={values.targetDeliveryDate}
@@ -786,11 +778,34 @@ export function QuoteForm({
                   label="ZIP code"
                   value={values.shipToZip}
                   onChange={(e) => {
-                    set("shipToZip", e.target.value);
+                    const zip = e.target.value;
+                    set("shipToZip", zip);
                     setEstimatedUsTax(null);
+                    const inferred = stateFromZip(zip);
+                    if (inferred) set("usState", inferred);
                   }}
                   required
                 />
+                <Select
+                  label="State"
+                  value={values.usState}
+                  onChange={(e) => {
+                    set("usState", e.target.value);
+                    setEstimatedUsTax(null);
+                  }}
+                  required
+                >
+                  <option value="">Select state…</option>
+                  {values.usState &&
+                    !US_STATES.some((state) => state.code === values.usState) && (
+                      <option value={values.usState}>{values.usState}</option>
+                    )}
+                  {US_STATES.map((state) => (
+                    <option key={state.code} value={state.code}>
+                      {state.code} — {state.name}
+                    </option>
+                  ))}
+                </Select>
               </div>
             </div>
           )}

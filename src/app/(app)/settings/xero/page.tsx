@@ -21,7 +21,7 @@ export default async function XeroSettingsPage() {
     <div className="mx-auto max-w-5xl">
       <PageHeader
         title="Xero integration"
-        description="Map each sales market to the Xero invoice template (branding theme), VAT rate and revenue account used when won deals are exported as draft invoices."
+        description="Map international sales markets to Xero invoice templates, VAT rates and revenue accounts. US deals are configured per state on Xero US."
       />
       <XeroSetupForm
         configured={isXeroConfigured()}

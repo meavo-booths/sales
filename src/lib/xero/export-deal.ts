@@ -8,9 +8,14 @@ import { createContact, createDraftInvoice, findContactByName } from "@/lib/xero
 import {
   isXeroSetupConfirmed,
   resolveAccountCodeForMarket,
+  resolveAccountCodeForUsState,
   resolveBrandingThemeForMarket,
+  resolveBrandingThemeForUsState,
+  resolveTaxAccountCodeForUsState,
   resolveTaxTypeForMarket,
+  resolveTaxTypeForUsState,
 } from "@/lib/xero/settings";
+import { normalizeUsState } from "@/lib/us-state";
 
 type DealForXero = Prisma.DealGetPayload<{
   include: {
@@ -102,29 +107,47 @@ export async function exportDealToXero(dealDbId: string): Promise<void> {
   if (!isXeroConfigured()) return;
 
   if (!(await isXeroSetupConfirmed())) {
-    await fail("Xero setup is not confirmed — complete the mapping review in Settings → Xero");
+    await fail(
+      "Xero setup is not confirmed — complete mapping review in Settings → Xero and Settings → Xero US",
+    );
     return;
   }
 
   try {
-    const [theme, taxType, accountCode] = await Promise.all([
-      resolveBrandingThemeForMarket(deal.market),
-      resolveTaxTypeForMarket(deal.market),
-      resolveAccountCodeForMarket(deal.market),
+    const usDeal = isUsMarket(deal.market);
+    const usStateCode = usDeal ? normalizeUsState(deal.usState) : "";
+
+    const [theme, taxType, accountCode, taxAccountCode] = await Promise.all([
+      usDeal
+        ? resolveBrandingThemeForUsState(usStateCode)
+        : resolveBrandingThemeForMarket(deal.market),
+      usDeal ? resolveTaxTypeForUsState(usStateCode) : resolveTaxTypeForMarket(deal.market),
+      usDeal ? resolveAccountCodeForUsState(usStateCode) : resolveAccountCodeForMarket(deal.market),
+      usDeal ? resolveTaxAccountCodeForUsState(usStateCode) : Promise.resolve(null),
     ]);
+
+    if (usDeal && !usStateCode) {
+      throw new Error("US deal is missing a valid ship-to state — set state on the deal before exporting to Xero");
+    }
     if (!theme) {
       throw new Error(
-        `No Xero branding theme mapped for market "${deal.market || "(none)"}" and no default set`,
+        usDeal
+          ? `No Xero branding theme mapped for US state "${usStateCode}" and no US default set`
+          : `No Xero branding theme mapped for market "${deal.market || "(none)"}" and no default set`,
       );
     }
     if (!taxType) {
       throw new Error(
-        `No Xero tax type mapped for market "${deal.market || "(none)"}" and no default set`,
+        usDeal
+          ? `No Xero tax type mapped for US state "${usStateCode}" and no US default set`
+          : `No Xero tax type mapped for market "${deal.market || "(none)"}" and no default set`,
       );
     }
     if (!accountCode) {
       throw new Error(
-        `No Xero revenue account mapped for market "${deal.market || "(none)"}" and no default set`,
+        usDeal
+          ? `No Xero revenue account mapped for US state "${usStateCode}" and no US default set`
+          : `No Xero revenue account mapped for market "${deal.market || "(none)"}" and no default set`,
       );
     }
 
@@ -142,15 +165,20 @@ export async function exportDealToXero(dealDbId: string): Promise<void> {
       ...(item.product?.xeroItemCode ? { ItemCode: item.product.xeroItemCode } : {}),
     }));
 
-    const usTaxAmount = isUsMarket(deal.market) ? persistedUsTaxAmount(deal) : 0;
+    const usTaxAmount = usDeal ? persistedUsTaxAmount(deal) : 0;
     if (usTaxAmount > 0) {
-      // Zamp-computed US sales tax as a single exempt line — product lines stay ex-tax.
+      if (!taxAccountCode) {
+        throw new Error(
+          `No Xero tax liability account mapped for US state "${usStateCode}" and no US default set`,
+        );
+      }
+      // Zamp-computed US sales tax posts to the state tax liability account.
       lineItems.push({
         Description: "US Sales Tax",
         Quantity: 1,
         UnitAmount: usTaxAmount,
         TaxType: taxType,
-        AccountCode: accountCode,
+        AccountCode: taxAccountCode,
       });
     }
 

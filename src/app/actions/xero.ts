@@ -10,6 +10,7 @@ import {
   listBrandingThemes,
   listRevenueAccounts,
   listRevenueTaxRates,
+  listTaxLiabilityAccounts,
   type XeroAccount,
   type XeroBrandingTheme,
   type XeroTaxRate,
@@ -24,6 +25,7 @@ export type XeroSetupData = {
   themes: XeroBrandingTheme[];
   taxRates: XeroTaxRate[];
   accounts: XeroAccount[];
+  taxLiabilityAccounts: XeroAccount[];
   error?: string;
 };
 
@@ -37,23 +39,26 @@ export async function loadXeroSetupDataAction(): Promise<XeroSetupData> {
       themes: [],
       taxRates: [],
       accounts: [],
+      taxLiabilityAccounts: [],
       error: "XERO_CLIENT_ID / XERO_CLIENT_SECRET are not set",
     };
   }
 
   try {
-    const [themes, taxRates, accounts] = await Promise.all([
+    const [themes, taxRates, accounts, taxLiabilityAccounts] = await Promise.all([
       listBrandingThemes(),
       listRevenueTaxRates(),
       listRevenueAccounts(),
+      listTaxLiabilityAccounts(),
     ]);
-    return { configured: true, themes, taxRates, accounts };
+    return { configured: true, themes, taxRates, accounts, taxLiabilityAccounts };
   } catch (error) {
     return {
       configured: true,
       themes: [],
       taxRates: [],
       accounts: [],
+      taxLiabilityAccounts: [],
       error: error instanceof Error ? error.message : "Could not reach Xero",
     };
   }
@@ -165,6 +170,106 @@ export async function confirmXeroSetupAction(): Promise<XeroActionResult> {
 
   await upsertXeroSettings({ setupConfirmedAt: new Date() });
   revalidatePath("/settings/xero");
+  return { ok: true };
+}
+
+const usMappingsInputSchema = z.object({
+  stateMappings: z.array(
+    z.object({
+      state: z.string().min(2).max(2),
+      brandingThemeId: z.string(),
+      brandingThemeName: z.string(),
+      accountCode: z.string(),
+      accountName: z.string(),
+      taxType: z.string(),
+      taxName: z.string(),
+      taxRate: z.number().nullable(),
+      taxAccountCode: z.string(),
+      taxAccountName: z.string(),
+    }),
+  ),
+  defaultUsBrandingThemeId: z.string().nullable(),
+  defaultUsBrandingThemeName: z.string().nullable(),
+  defaultUsAccountCode: z.string().nullable(),
+  defaultUsAccountName: z.string().nullable(),
+  defaultUsTaxType: z.string().nullable(),
+  defaultUsTaxAccountCode: z.string().nullable(),
+  defaultUsTaxAccountName: z.string().nullable(),
+});
+
+export type XeroUsMappingsInput = z.infer<typeof usMappingsInputSchema>;
+
+export async function saveXeroUsMappingsAction(rawInput: unknown): Promise<XeroActionResult> {
+  await requireSalesAdmin();
+
+  const parsed = usMappingsInputSchema.safeParse(rawInput);
+  if (!parsed.success) return { ok: false, error: firstZodError(parsed.error) };
+  const input = parsed.data;
+
+  const rows = input.stateMappings.filter(
+    (m) => m.brandingThemeId || m.accountCode || m.taxType || m.taxAccountCode,
+  );
+
+  await prisma.$transaction([
+    prisma.xeroUsStateMapping.deleteMany({}),
+    ...(rows.length > 0
+      ? [
+          prisma.xeroUsStateMapping.createMany({
+            data: rows.map((m) => ({
+              state: m.state,
+              brandingThemeId: m.brandingThemeId,
+              brandingThemeName: m.brandingThemeName,
+              accountCode: m.accountCode,
+              accountName: m.accountName,
+              taxType: m.taxType,
+              taxName: m.taxName,
+              taxRate: m.taxRate === null ? null : new Prisma.Decimal(m.taxRate.toFixed(3)),
+              taxAccountCode: m.taxAccountCode,
+              taxAccountName: m.taxAccountName,
+            })),
+          }),
+        ]
+      : []),
+  ]);
+
+  await upsertXeroSettings({
+    defaultUsBrandingThemeId: input.defaultUsBrandingThemeId,
+    defaultUsBrandingThemeName: input.defaultUsBrandingThemeName,
+    defaultUsAccountCode: input.defaultUsAccountCode,
+    defaultUsAccountName: input.defaultUsAccountName,
+    defaultUsTaxType: input.defaultUsTaxType,
+    defaultUsTaxAccountCode: input.defaultUsTaxAccountCode,
+    defaultUsTaxAccountName: input.defaultUsTaxAccountName,
+    usSetupConfirmedAt: null,
+  });
+
+  revalidatePath("/settings/xero/us");
+  return { ok: true };
+}
+
+export async function confirmXeroUsSetupAction(): Promise<XeroActionResult> {
+  await requireSalesAdmin();
+
+  const settings = await getXeroSettings();
+  const stateCount = await prisma.xeroUsStateMapping.count();
+
+  const hasDefaults = Boolean(
+    settings?.defaultUsBrandingThemeId &&
+      settings?.defaultUsAccountCode &&
+      settings?.defaultUsTaxType &&
+      settings?.defaultUsTaxAccountCode,
+  );
+
+  if (stateCount === 0 && !hasDefaults) {
+    return {
+      ok: false,
+      error:
+        "Map at least one US state or set all US defaults (theme, revenue account, tax type, tax liability account)",
+    };
+  }
+
+  await upsertXeroSettings({ usSetupConfirmedAt: new Date() });
+  revalidatePath("/settings/xero/us");
   return { ok: true };
 }
 

@@ -58,6 +58,14 @@ export async function listRevenueAccounts(): Promise<XeroAccount[]> {
   );
 }
 
+/** Active liability accounts with a code — candidates for US sales tax lines. */
+export async function listTaxLiabilityAccounts(): Promise<XeroAccount[]> {
+  const data = await xeroFetch<{ Accounts: XeroAccount[] }>("/Accounts");
+  return (data.Accounts ?? []).filter(
+    (account) => account.Status === "ACTIVE" && account.Class === "LIABILITY" && account.Code,
+  );
+}
+
 export async function listItems(): Promise<XeroItem[]> {
   const data = await xeroFetch<{ Items: XeroItem[] }>("/Items");
   return data.Items ?? [];

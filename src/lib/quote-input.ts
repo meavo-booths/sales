@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { QUOTE_CURRENCIES } from "@/lib/exchange-rates";
+import { normalizeUsState } from "@/lib/us-state";
 
 const dateString = z
   .string()
@@ -58,7 +59,12 @@ export const quoteInputSchema = z
     dealDate: dateString,
     salesRep: z.string().trim().default(""),
     market: z.string().trim().default(""),
-    usState: z.string().trim().max(100).default(""),
+    usState: z
+      .string()
+      .trim()
+      .max(100)
+      .default("")
+      .transform((value) => normalizeUsState(value)),
     shipToLine1: z.string().trim().max(500).default(""),
     shipToLine2: z.string().trim().max(500).default(""),
     shipToCity: z.string().trim().max(200).default(""),
