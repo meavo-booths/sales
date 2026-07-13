@@ -15,6 +15,8 @@ export async function upsertXeroSettings(data: {
   defaultTaxType?: string | null;
   defaultAccountCode?: string | null;
   defaultAccountName?: string | null;
+  defaultTaxAccountCode?: string | null;
+  defaultTaxAccountName?: string | null;
   defaultUsBrandingThemeId?: string | null;
   defaultUsBrandingThemeName?: string | null;
   defaultUsAccountCode?: string | null;

@@ -9,6 +9,7 @@ import {
   type XeroSetupData,
 } from "@/app/actions/xero";
 import { US_STATES } from "@/lib/us-state";
+import { suggestTaxLiabilityAccount } from "@/lib/xero/suggestions";
 import { Badge, Button, Card, Input, Select } from "@/components/ui";
 
 type StateMapping = {
@@ -61,13 +62,6 @@ function suggestUsRevenueAccount(accounts: XeroSetupData["accounts"]): string {
     return tokens.includes("us") || tokens.includes("usa");
   });
   return match?.Code ?? "";
-}
-
-function suggestTaxLiabilityAccount(accounts: XeroSetupData["taxLiabilityAccounts"]): string {
-  const match = accounts.find((account) =>
-    /sales tax|tax payable|tax liability/i.test(account.Name),
-  );
-  return match?.Code ?? accounts[0]?.Code ?? "";
 }
 
 export function XeroUsSetupForm({

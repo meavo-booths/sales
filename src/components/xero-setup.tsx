@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { MARKET_OPTIONS } from "@/lib/deal-values";
 import { vatRateForMarket } from "@/lib/vat";
+import { suggestTaxLiabilityAccount } from "@/lib/xero/suggestions";
 import {
   confirmXeroSetupAction,
   loadXeroSetupDataAction,
@@ -19,6 +20,7 @@ const INTERNATIONAL_MARKET_OPTIONS = MARKET_OPTIONS.filter((market) => market !=
 type ThemeMapping = { market: string; brandingThemeId: string; brandingThemeName: string };
 type TaxMapping = { market: string; taxType: string; taxName: string; taxRate: number | null };
 type AccountMapping = { market: string; accountCode: string; accountName: string };
+type TaxAccountMapping = { market: string; taxAccountCode: string; taxAccountName: string };
 
 type Props = {
   configured: boolean;
@@ -26,12 +28,15 @@ type Props = {
   initialThemeMappings: ThemeMapping[];
   initialTaxMappings: TaxMapping[];
   initialAccountMappings: AccountMapping[];
+  initialTaxAccountMappings: TaxAccountMapping[];
   initialDefaults: {
     brandingThemeId: string | null;
     brandingThemeName: string | null;
     taxType: string | null;
     accountCode: string | null;
     accountName: string | null;
+    taxAccountCode: string | null;
+    taxAccountName: string | null;
   };
 };
 
@@ -92,6 +97,7 @@ export function XeroSetupForm({
   initialThemeMappings,
   initialTaxMappings,
   initialAccountMappings,
+  initialTaxAccountMappings,
   initialDefaults,
 }: Props) {
   const router = useRouter();
@@ -109,13 +115,18 @@ export function XeroSetupForm({
   const [accountByMarket, setAccountByMarket] = useState<Record<string, string>>(
     Object.fromEntries(initialAccountMappings.map((m) => [m.market, m.accountCode])),
   );
+  const [taxAccountByMarket, setTaxAccountByMarket] = useState<Record<string, string>>(
+    Object.fromEntries(initialTaxAccountMappings.map((m) => [m.market, m.taxAccountCode])),
+  );
   const [defaultTheme, setDefaultTheme] = useState(initialDefaults.brandingThemeId ?? "");
   const [defaultTax, setDefaultTax] = useState(initialDefaults.taxType ?? "");
   const [defaultAccount, setDefaultAccount] = useState(initialDefaults.accountCode ?? "");
+  const [defaultTaxAccount, setDefaultTaxAccount] = useState(initialDefaults.taxAccountCode ?? "");
 
   const themes = data?.themes ?? [];
   const taxRates = data?.taxRates ?? [];
   const accounts = data?.accounts ?? [];
+  const taxLiabilityAccounts = data?.taxLiabilityAccounts ?? [];
   const loaded = themes.length > 0;
 
   const load = () =>
@@ -129,7 +140,8 @@ export function XeroSetupForm({
         return;
       }
       setMessage(
-        `Connected. Loaded ${result.themes.length} branding themes, ${result.taxRates.length} revenue tax rates and ${result.accounts.length} revenue accounts from Xero.`,
+        `Connected. Loaded ${result.themes.length} branding themes, ${result.taxRates.length} revenue tax rates, ` +
+          `${result.accounts.length} revenue accounts and ${result.taxLiabilityAccounts.length} liability accounts from Xero.`,
       );
       // Pre-fill empty dropdowns with name/rate suggestions; the admin still
       // reviews and saves explicitly.
@@ -154,6 +166,15 @@ export function XeroSetupForm({
         }
         return next;
       });
+      const taxAccountSuggestion = suggestTaxLiabilityAccount(result.taxLiabilityAccounts);
+      setTaxAccountByMarket((prev) => {
+        const next = { ...prev };
+        for (const market of INTERNATIONAL_MARKET_OPTIONS) {
+          if (!next[market]) next[market] = taxAccountSuggestion;
+        }
+        return next;
+      });
+      if (!defaultTaxAccount) setDefaultTaxAccount(taxAccountSuggestion);
     });
 
   const save = () =>
@@ -164,6 +185,8 @@ export function XeroSetupForm({
         themes.find((t) => t.BrandingThemeID === id)?.Name ?? "";
       const taxInfo = (type: string) => taxRates.find((t) => t.TaxType === type);
       const accountName = (code: string) => accounts.find((a) => a.Code === code)?.Name ?? "";
+      const taxAccountName = (code: string) =>
+        taxLiabilityAccounts.find((a) => a.Code === code)?.Name ?? "";
 
       const result = await saveXeroMappingsAction({
         themeMappings: INTERNATIONAL_MARKET_OPTIONS.filter((market) => themeByMarket[market]).map((market) => ({
@@ -184,11 +207,20 @@ export function XeroSetupForm({
             accountName: accountName(accountByMarket[market]),
           }),
         ),
+        taxAccountMappings: INTERNATIONAL_MARKET_OPTIONS.filter(
+          (market) => taxAccountByMarket[market],
+        ).map((market) => ({
+          market,
+          taxAccountCode: taxAccountByMarket[market],
+          taxAccountName: taxAccountName(taxAccountByMarket[market]),
+        })),
         defaultBrandingThemeId: defaultTheme || null,
         defaultBrandingThemeName: defaultTheme ? themeName(defaultTheme) : null,
         defaultTaxType: defaultTax || null,
         defaultAccountCode: defaultAccount || null,
         defaultAccountName: defaultAccount ? accountName(defaultAccount) : null,
+        defaultTaxAccountCode: defaultTaxAccount || null,
+        defaultTaxAccountName: defaultTaxAccount ? taxAccountName(defaultTaxAccount) : null,
       });
       if (!result.ok) {
         setError(result.error);
@@ -264,7 +296,8 @@ export function XeroSetupForm({
       <Card>
         <h2 className="mb-1 text-base font-semibold text-slate-900">International market mappings</h2>
         <p className="mb-4 text-sm text-slate-500">
-          VAT is posted via Xero Tax Type on product lines. US deals are configured per state on{" "}
+          VAT posts via Xero Tax Type on product lines. Tax liability account is recorded here for
+          reference — it does not affect invoice export yet. US deals are configured per state on{" "}
           <a href="/settings/xero/us" className="text-blue-700 underline">
             Settings → Xero US
           </a>
@@ -278,6 +311,7 @@ export function XeroSetupForm({
                 <th className="py-2 pr-4">Invoice template (branding theme)</th>
                 <th className="py-2 pr-4">VAT / tax rate</th>
                 <th className="py-2 pr-4">Revenue account</th>
+                <th className="py-2 pr-4">Tax liability account</th>
                 <th className="py-2">Status</th>
               </tr>
             </thead>
@@ -338,6 +372,22 @@ export function XeroSetupForm({
                         ))}
                       </Select>
                     </td>
+                    <td className="py-2 pr-4">
+                      <Select
+                        value={taxAccountByMarket[market] ?? ""}
+                        disabled={!loaded}
+                        onChange={(e) =>
+                          setTaxAccountByMarket((prev) => ({ ...prev, [market]: e.target.value }))
+                        }
+                      >
+                        <option value="">— use default —</option>
+                        {taxLiabilityAccounts.map((account) => (
+                          <option key={account.AccountID} value={account.Code}>
+                            {account.Code} · {account.Name}
+                          </option>
+                        ))}
+                      </Select>
+                    </td>
                     <td className="py-2">
                       {mapped ? (
                         <Badge tone="green">Mapped</Badge>
@@ -352,7 +402,7 @@ export function XeroSetupForm({
           </table>
         </div>
 
-        <div className="mt-6 grid gap-4 sm:grid-cols-3">
+        <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Select
             label="Default branding theme (fallback for unmapped markets)"
             value={defaultTheme}
@@ -388,6 +438,19 @@ export function XeroSetupForm({
           >
             <option value="">— none (unmapped markets fail with an error) —</option>
             {accounts.map((account) => (
+              <option key={account.AccountID} value={account.Code}>
+                {account.Code} · {account.Name}
+              </option>
+            ))}
+          </Select>
+          <Select
+            label="Default tax liability account (reference only)"
+            value={defaultTaxAccount}
+            disabled={!loaded}
+            onChange={(e) => setDefaultTaxAccount(e.target.value)}
+          >
+            <option value="">— none —</option>
+            {taxLiabilityAccounts.map((account) => (
               <option key={account.AccountID} value={account.Code}>
                 {account.Code} · {account.Name}
               </option>

@@ -87,11 +87,20 @@ const mappingsInputSchema = z.object({
       accountName: z.string(),
     }),
   ),
+  taxAccountMappings: z.array(
+    z.object({
+      market: z.string().min(1),
+      taxAccountCode: z.string(),
+      taxAccountName: z.string(),
+    }),
+  ),
   defaultBrandingThemeId: z.string().nullable(),
   defaultBrandingThemeName: z.string().nullable(),
   defaultTaxType: z.string().nullable(),
   defaultAccountCode: z.string().nullable(),
   defaultAccountName: z.string().nullable(),
+  defaultTaxAccountCode: z.string().nullable(),
+  defaultTaxAccountName: z.string().nullable(),
 });
 
 export type XeroMappingsInput = z.infer<typeof mappingsInputSchema>;
@@ -112,6 +121,7 @@ export async function saveXeroMappingsAction(rawInput: unknown): Promise<XeroAct
   const themeRows = input.themeMappings.filter((m) => m.brandingThemeId);
   const taxRows = input.taxMappings.filter((m) => m.taxType);
   const accountRows = input.accountMappings.filter((m) => m.accountCode);
+  const taxAccountRows = input.taxAccountMappings.filter((m) => m.taxAccountCode);
 
   await prisma.$transaction([
     prisma.xeroMarketThemeMapping.deleteMany({}),
@@ -135,6 +145,10 @@ export async function saveXeroMappingsAction(rawInput: unknown): Promise<XeroAct
     ...(accountRows.length > 0
       ? [prisma.xeroMarketAccountMapping.createMany({ data: accountRows })]
       : []),
+    prisma.xeroMarketTaxAccountMapping.deleteMany({}),
+    ...(taxAccountRows.length > 0
+      ? [prisma.xeroMarketTaxAccountMapping.createMany({ data: taxAccountRows })]
+      : []),
   ]);
 
   await upsertXeroSettings({
@@ -143,6 +157,8 @@ export async function saveXeroMappingsAction(rawInput: unknown): Promise<XeroAct
     defaultTaxType: input.defaultTaxType,
     defaultAccountCode: input.defaultAccountCode,
     defaultAccountName: input.defaultAccountName,
+    defaultTaxAccountCode: input.defaultTaxAccountCode,
+    defaultTaxAccountName: input.defaultTaxAccountName,
     setupConfirmedAt: null,
   });
 

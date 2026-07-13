@@ -16,7 +16,7 @@
     "schema": "node_modules/@meavo/db/prisma/schema.prisma"
   },
   "dependencies": {
-    "@meavo/db": "github:meavo-booths/meavo-db#57b450b96c042ab7eaaf2f59827032090549d309",
+    "@meavo/db": "github:meavo-booths/meavo-db#350e18f79a42f9b373fa17029bdd50fb2e7a1156",
     "@meavo/navigation": "github:meavo-booths/meavo-navigation#v0.2.1",
     "@prisma/client": "^6.19.3",
     "@react-pdf/renderer": "^4.3.1",

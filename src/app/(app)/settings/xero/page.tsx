@@ -10,11 +10,13 @@ export const dynamic = "force-dynamic";
 export default async function XeroSettingsPage() {
   await requireSalesAdmin();
 
-  const [settings, themeMappings, taxMappings, accountMappings] = await Promise.all([
+  const [settings, themeMappings, taxMappings, accountMappings, taxAccountMappings] =
+    await Promise.all([
     getXeroSettings(),
     prisma.xeroMarketThemeMapping.findMany(),
     prisma.xeroMarketTaxMapping.findMany(),
     prisma.xeroMarketAccountMapping.findMany(),
+    prisma.xeroMarketTaxAccountMapping.findMany(),
   ]);
 
   return (
@@ -42,12 +44,19 @@ export default async function XeroSettingsPage() {
           accountCode: m.accountCode,
           accountName: m.accountName,
         }))}
+        initialTaxAccountMappings={taxAccountMappings.map((m) => ({
+          market: m.market,
+          taxAccountCode: m.taxAccountCode,
+          taxAccountName: m.taxAccountName,
+        }))}
         initialDefaults={{
           brandingThemeId: settings?.defaultBrandingThemeId ?? null,
           brandingThemeName: settings?.defaultBrandingThemeName ?? null,
           taxType: settings?.defaultTaxType ?? null,
           accountCode: settings?.defaultAccountCode ?? null,
           accountName: settings?.defaultAccountName ?? null,
+          taxAccountCode: settings?.defaultTaxAccountCode ?? null,
+          taxAccountName: settings?.defaultTaxAccountName ?? null,
         }}
       />
     </div>
