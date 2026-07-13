@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireSalesAccess } from "@/lib/meavo-auth";
+import { requireSalesAccess, hasTasksAccess } from "@/lib/meavo-auth";
+import { AddTaskLink } from "@/components/add-task-link";
 import { DEAL_STAGE_LABELS } from "@/lib/deal-values";
 import { Badge, PageHeader, VipBadge } from "@/components/ui";
 import {
@@ -17,7 +18,7 @@ import { QuoteSecondaryActions } from "@/components/quote-actions";
 export const dynamic = "force-dynamic";
 
 export default async function QuotePage({ params }: { params: Promise<{ id: string }> }) {
-  await requireSalesAccess();
+  const session = await requireSalesAccess();
 
   const { id } = await params;
   const quote = await prisma.deal.findUnique({
@@ -32,6 +33,7 @@ export default async function QuotePage({ params }: { params: Promise<{ id: stri
   if (quote.stage === "WON") redirect(`/deals/${quote.id}`);
 
   const isOpen = quote.stage === "QUOTE";
+  const showAddTask = await hasTasksAccess(session.user!.id);
 
   return (
     <>
@@ -48,6 +50,12 @@ export default async function QuotePage({ params }: { params: Promise<{ id: stri
           >
             Download PDF
           </a>
+          {showAddTask && (
+            <AddTaskLink
+              entityId={quote.id}
+              title={`Follow up: ${quote.quoteNumber} — ${quote.clientName}`}
+            />
+          )}
           {isOpen && (
             <>
               <Link

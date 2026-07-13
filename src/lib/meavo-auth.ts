@@ -3,6 +3,21 @@ import { SALES_TOOL_CARD_ID } from "@/lib/constants";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
+const TASKS_TOOL_CARD_ID = process.env.TASKS_TOOL_CARD_ID ?? "seed-tasks-tool";
+
+export async function hasTasksAccess(userId: string): Promise<boolean> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { systemRole: true },
+  });
+  if (user?.systemRole === "ADMIN") return true;
+
+  const access = await prisma.toolCardAccess.findFirst({
+    where: { userId, cardId: TASKS_TOOL_CARD_ID },
+  });
+  return Boolean(access);
+}
+
 export async function requireSalesAccess() {
   const session = await auth();
   if (!session?.user?.id) redirect("/login");

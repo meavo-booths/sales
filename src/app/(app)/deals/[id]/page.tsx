@@ -1,7 +1,8 @@
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireSalesAccess } from "@/lib/meavo-auth";
+import { requireSalesAccess, hasTasksAccess } from "@/lib/meavo-auth";
 import { ASSEMBLY_URL } from "@/lib/constants";
+import { AddTaskLink } from "@/components/add-task-link";
 import {
   FINISH_LABELS,
   PAYMENT_STATUS_LABELS,
@@ -35,7 +36,7 @@ const ASSEMBLY_EVENT_LABELS: Record<string, string> = {
 };
 
 export default async function DealPage({ params }: { params: Promise<{ id: string }> }) {
-  await requireSalesAccess();
+  const session = await requireSalesAccess();
 
   const { id } = await params;
   const deal = await prisma.deal.findUnique({
@@ -58,6 +59,8 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
     orderBy: { createdAt: "asc" },
   });
 
+  const showAddTask = await hasTasksAccess(session.user!.id);
+
   return (
     <>
       <PageHeader title={`Deal ${deal.dealId}`} description={deal.clientName}>
@@ -75,6 +78,12 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
           >
             Quote PDF
           </a>
+          {showAddTask && (
+            <AddTaskLink
+              entityId={deal.id}
+              title={`Follow up: ${deal.dealId} — ${deal.clientName}`}
+            />
+          )}
           {assemblies.map((assembly) => (
             <a
               key={assembly.dealId}
