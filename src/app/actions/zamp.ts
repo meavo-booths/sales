@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireSalesAccess } from "@/lib/meavo-auth";
-import { quoteInputSchema } from "@/lib/quote-input";
+import { usTaxEstimateInputSchema } from "@/lib/quote-input";
 import { isZampConfigured } from "@/lib/zamp/client";
 import {
   calculateUsTaxForDeal,
@@ -42,7 +42,7 @@ export async function calculateUsTaxAction(rawInput: unknown): Promise<UsTaxEsti
     return { ok: false, error: "Zamp is not configured (ZAMP_API_KEY missing)" };
   }
 
-  const parsed = quoteInputSchema.safeParse(rawInput);
+  const parsed = usTaxEstimateInputSchema.safeParse(rawInput);
   if (!parsed.success) return { ok: false, error: firstZodError(parsed.error) };
   const input = parsed.data;
 

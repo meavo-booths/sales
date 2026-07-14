@@ -1,6 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import type { QuoteInput } from "@/lib/quote-input";
+import type { QuoteInput, UsTaxEstimateInput } from "@/lib/quote-input";
 import { dealSubtotal } from "@/lib/vat";
 import { zampCalculate } from "@/lib/zamp/client";
 import { DEFAULT_ZAMP_TAX_CODE, isUsMarket } from "@/lib/zamp/constants";
@@ -175,7 +175,7 @@ type ProductTaxMeta = {
 
 /** Flatten nested quote input into Zamp line items (with product tax metadata). */
 export function flattenQuoteInputLines(
-  input: QuoteInput,
+  input: UsTaxEstimateInput,
   productsById: Map<string, ProductTaxMeta>,
 ): LineForZamp[] {
   const productLine = (productId: string, quantity: number, unitPrice: number, customName?: string) => {
@@ -217,7 +217,7 @@ export function flattenQuoteInputLines(
 }
 
 export function dealForZampFromQuoteInput(
-  input: QuoteInput,
+  input: UsTaxEstimateInput,
   productsById: Map<string, ProductTaxMeta>,
   options?: { id?: string; quoteNumber?: string; dealId?: string | null; dealDate?: Date },
 ): DealForZampCalc {
@@ -260,7 +260,7 @@ export async function loadProductTaxMeta(
   );
 }
 
-function collectProductIds(input: QuoteInput): string[] {
+function collectProductIds(input: UsTaxEstimateInput): string[] {
   return [
     ...new Set([
       ...input.lineItems.map((item) => item.productId),

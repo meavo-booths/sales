@@ -52,7 +52,8 @@ function QuoteTotals({
   estimateError?: string | null;
 }) {
   const isUs = isUsMarket(market);
-  const salesTaxAmount = isUs && estimatedUsTax != null ? estimatedUsTax : undefined;
+  const hasUsEstimate = estimatedUsTax !== null && estimatedUsTax !== undefined;
+  const salesTaxAmount = isUs && hasUsEstimate ? estimatedUsTax : undefined;
   const totals = dealTotals(subtotal, market, { salesTaxAmount });
   const taxLabel = formatTaxLineLabel(market, totals.vatRate);
 
@@ -64,60 +65,45 @@ function QuoteTotals({
     );
   }
 
-  if (isUs && estimatedUsTax == null) {
-    return (
-      <div className="space-y-2 text-right">
-        <p className="text-sm text-slate-600">
-          Subtotal (excl. sales tax): {formatMoney(totals.subtotal, currency)}
-        </p>
-        {onEstimateTax && (
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <Button
-              type="button"
-              variant="secondary"
-              disabled={estimatingTax}
-              onClick={onEstimateTax}
-            >
-              {estimatingTax ? "Calculating…" : "Estimate sales tax"}
-            </Button>
-          </div>
-        )}
-        <p className="text-xs text-slate-500">
-          Final US sales tax is calculated via Zamp when you save the quote.
-        </p>
-        {estimateError && <p className="text-sm text-red-600">{estimateError}</p>}
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-1 text-right">
+    <div className="space-y-2 text-right">
       <p className="text-sm text-slate-600">
-        Subtotal (excl. {totals.taxLabel.toLowerCase()}): {formatMoney(totals.subtotal, currency)}
+        Subtotal (excl. {isUs ? "sales tax" : totals.taxLabel.toLowerCase()}):{" "}
+        {formatMoney(totals.subtotal, currency)}
       </p>
       {totals.hasTax && (
         <p className="text-sm text-slate-600">
           {taxLabel}: {formatMoney(totals.vatAmount, currency)}
         </p>
       )}
-      <p className="text-base font-semibold text-slate-900">
-        Total (incl. {totals.taxLabel.toLowerCase()}): {formatMoney(totals.totalInclVat, currency)}
-      </p>
+      {(isUs ? hasUsEstimate : totals.hasTax) && (
+        <p className="text-base font-semibold text-slate-900">
+          Total (incl. {totals.taxLabel.toLowerCase()}): {formatMoney(totals.totalInclVat, currency)}
+        </p>
+      )}
       {isUs && onEstimateTax && (
         <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
           <Button
             type="button"
-            variant="ghost"
+            variant={hasUsEstimate ? "ghost" : "secondary"}
             disabled={estimatingTax}
             onClick={onEstimateTax}
           >
-            {estimatingTax ? "Recalculating…" : "Re-estimate sales tax"}
+            {estimatingTax
+              ? hasUsEstimate
+                ? "Recalculating…"
+                : "Calculating…"
+              : hasUsEstimate
+                ? "Re-estimate sales tax"
+                : "Estimate sales tax"}
           </Button>
         </div>
       )}
       {isUs && (
         <p className="text-xs text-slate-500">
-          Final US sales tax is recalculated via Zamp when you save the quote.
+          {hasUsEstimate
+            ? "Final US sales tax is recalculated via Zamp when you save the quote."
+            : "Final US sales tax is calculated via Zamp when you save the quote."}
         </p>
       )}
       {estimateError && <p className="text-sm text-red-600">{estimateError}</p>}
@@ -401,8 +387,23 @@ export function QuoteForm({
     [selectableClients],
   );
 
-  const set = <K extends keyof QuoteFormValues>(key: K, value: QuoteFormValues[K]) =>
+  const set = <K extends keyof QuoteFormValues>(key: K, value: QuoteFormValues[K]) => {
     setValues((prev) => ({ ...prev, [key]: value }));
+    if (
+      key === "clientName" ||
+      key === "shipToLine1" ||
+      key === "shipToLine2" ||
+      key === "shipToCity" ||
+      key === "shipToZip" ||
+      key === "usState" ||
+      key === "market" ||
+      key === "lineItems" ||
+      key === "standaloneAddOns" ||
+      key === "customLines"
+    ) {
+      setEstimateError(null);
+    }
+  };
 
   const changeCurrency = async (currency: QuoteCurrency) => {
     const productIds = new Set<string>();
@@ -583,15 +584,19 @@ export function QuoteForm({
   const estimateUsTax = () => {
     setEstimateError(null);
     setEstimatingTax(true);
-    void calculateUsTaxAction(values).then((result) => {
-      setEstimatingTax(false);
-      if (!result.ok) {
-        setEstimateError(result.error);
-        setEstimatedUsTax(null);
-        return;
-      }
-      setEstimatedUsTax(result.taxDue);
-    });
+    void calculateUsTaxAction(values)
+      .then((result) => {
+        setEstimatingTax(false);
+        if (!result.ok) {
+          setEstimateError(result.error);
+          return;
+        }
+        setEstimatedUsTax(result.taxDue);
+      })
+      .catch(() => {
+        setEstimatingTax(false);
+        setEstimateError("Sales tax estimate failed — try again");
+      });
   };
 
   const addOnFields = (

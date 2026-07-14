@@ -118,7 +118,57 @@ export const quoteInputSchema = z
     },
   );
 
+/** Fields required for a live Zamp US tax estimate — not the full quote form. */
+export const usTaxEstimateInputSchema = z
+  .object({
+    dealDate: dateString,
+    market: z.string().trim().default(""),
+    usState: z
+      .string()
+      .trim()
+      .max(100)
+      .default("")
+      .transform((value) => normalizeUsState(value)),
+    shipToLine1: z.string().trim().max(500).default(""),
+    shipToLine2: z.string().trim().max(500).default(""),
+    shipToCity: z.string().trim().max(200).default(""),
+    shipToZip: z.string().trim().max(20).default(""),
+    currency: z.enum(QUOTE_CURRENCIES).default("EUR"),
+    lineItems: z.array(lineItemInputSchema).default([]),
+    standaloneAddOns: z.array(addOnInputSchema).default([]),
+    customLines: z.array(customLineInputSchema).default([]),
+  })
+  .refine(
+    (input) =>
+      input.lineItems.length + input.standaloneAddOns.length + input.customLines.length > 0,
+    { message: "Add at least one line item" },
+  )
+  .refine(
+    (input) => {
+      if (input.market.trim().toUpperCase() !== "US") return true;
+      return (
+        input.shipToLine1.trim().length > 0 &&
+        input.shipToCity.trim().length > 0 &&
+        input.usState.trim().length > 0 &&
+        input.shipToZip.trim().length > 0
+      );
+    },
+    {
+      message: "US ship-to address (line 1, city, state, ZIP) is required for US market quotes",
+    },
+  )
+  .refine(
+    (input) => {
+      if (input.market.trim().toUpperCase() !== "US") return true;
+      return normalizeZampZip(input.shipToZip) !== null;
+    },
+    {
+      message: "US ship-to ZIP must be 5 digits (or ZIP+4, e.g. 90210 or 90210-1234)",
+    },
+  );
+
 export type QuoteInput = z.infer<typeof quoteInputSchema>;
+export type UsTaxEstimateInput = z.infer<typeof usTaxEstimateInputSchema>;
 
 export const convertInputSchema = z.object({
   dealId: z
