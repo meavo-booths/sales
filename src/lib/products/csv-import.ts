@@ -225,6 +225,10 @@ function parseFamily(
   kind: ProductKind,
   raw: string,
 ): { boothFamily: BoothProductFamily | null; addOnFamily: AddOnProductFamily | null; error?: string } {
+  if (kind === "ADDON" && !raw.trim()) {
+    return { boothFamily: null, addOnFamily: null };
+  }
+
   const key = normalizeKey(raw);
   if (kind === "BOOTH") {
     const boothFamily = BOOTH_FAMILY_BY_LABEL.get(key);
@@ -282,13 +286,29 @@ function parseRow(cells: string[], index: Record<keyof typeof CSV_COLUMNS, numbe
   if (!itemCode) errors.push("Item Code is required");
   if (!itemName) errors.push("Item Name is required");
   if (!typeRaw) errors.push("Type is required");
-  if (!familyRaw) errors.push("Product Family is required");
   if (!currencyRaw) errors.push("Currency is required");
   if (!market) errors.push("Market is required");
   if (!clientTypeInput) errors.push("Client Type is required");
 
   const kind = typeRaw ? parseKind(typeRaw) : null;
   if (typeRaw && !kind) errors.push(`Unknown type: ${typeRaw}`);
+
+  let boothFamily: BoothProductFamily | null = null;
+  let addOnFamily: AddOnProductFamily | null = null;
+  if (kind === "BOOTH") {
+    if (!familyRaw) {
+      errors.push("Product Family is required for booths");
+    } else {
+      const parsed = parseFamily(kind, familyRaw);
+      if (parsed.error) errors.push(parsed.error);
+      boothFamily = parsed.boothFamily;
+    }
+  } else if (kind === "ADDON" && familyRaw) {
+    // Optional — most add-on rows leave Product Family empty.
+    const parsed = parseFamily(kind, familyRaw);
+    if (parsed.error) errors.push(parsed.error);
+    addOnFamily = parsed.addOnFamily;
+  }
 
   if (currencyRaw && !isQuoteCurrency(currencyRaw)) {
     errors.push(`Unknown currency: ${currencyRaw}`);
@@ -301,15 +321,6 @@ function parseRow(cells: string[], index: Record<keyof typeof CSV_COLUMNS, numbe
   const clientTypes = clientTypeInput ? expandClientTypes(clientTypeInput) : [];
   if (clientTypeInput && clientTypes.length === 0) {
     errors.push(`Unknown client type: ${clientTypeInput}`);
-  }
-
-  let boothFamily: BoothProductFamily | null = null;
-  let addOnFamily: AddOnProductFamily | null = null;
-  if (kind && familyRaw) {
-    const parsed = parseFamily(kind, familyRaw);
-    if (parsed.error) errors.push(parsed.error);
-    boothFamily = parsed.boothFamily;
-    addOnFamily = parsed.addOnFamily;
   }
 
   if (errors.length > 0) return { row: null, errors };

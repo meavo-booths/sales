@@ -86,8 +86,8 @@ Admin-only **Import from CSV** on the Products page bulk-updates Sales-owned met
 products that already exist (match key: Xero **Item Code**). Run **Sync from Xero** first so
 item codes are present.
 
-Required columns: `Item Code`, `Item Name`, `Zamp Tax Code`, `Type`, `Product Family`,
-`Currency`, `Market`, `Client Type`. One row per Item Code. Item Name is verified against the
+Required columns: `Item Code`, `Item Name`, `Zamp Tax Code`, `Type`, `Product Family`
+(required for booths only; leave empty for add-ons), `Currency`, `Market`, `Client Type`. One row per Item Code. Item Name is verified against the
 existing product but not overwritten.
 
 Availability expansion rules:

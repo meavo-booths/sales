@@ -104,8 +104,8 @@ export function ProductCsvImportButton() {
       >
         <p className="text-sm text-slate-600">
           Match existing products by Xero Item Code. Sync from Xero first if codes are missing.
-          Required columns: Item Code, Item Name, Zamp Tax Code, Type, Product Family, Currency,
-          Market, Client Type.
+          Required columns: Item Code, Item Name, Zamp Tax Code, Type, Product Family (booths
+          only), Currency, Market, Client Type.
         </p>
 
         <div className="flex flex-wrap items-center gap-3">
