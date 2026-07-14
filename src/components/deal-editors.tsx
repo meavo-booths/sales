@@ -604,11 +604,9 @@ export function DealPeopleBillingCard({
   return (
     <Card>
       <h2 className="mb-4 text-base font-semibold text-slate-900">Contacts & billing</h2>
-      <div className="grid gap-6 lg:grid-cols-2 lg:gap-0 lg:divide-x lg:divide-slate-100">
-        <div className="lg:pr-6">
-          <DealContactsEditorBody dealId={dealId} contacts={contacts} />
-        </div>
-        <div className="lg:pl-6">
+      <div className="space-y-6">
+        <DealContactsEditorBody dealId={dealId} contacts={contacts} />
+        <div className="border-t border-slate-100 pt-6">
           <h3 className="mb-3 text-sm font-semibold text-slate-800">Payment</h3>
           <PaymentEditor
             dealId={dealId}

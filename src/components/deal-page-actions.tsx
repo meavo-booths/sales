@@ -35,39 +35,32 @@ export function DealPageActions({
   isAdmin: boolean;
 }) {
   return (
-    <div className="flex flex-col items-end gap-2">
-      <div className="flex flex-wrap items-center justify-end gap-2">
+    <div className="flex flex-wrap items-center justify-end gap-2">
+      <a
+        href={`/api/quotes/${dealDbId}/pdf`}
+        className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+      >
+        Quote PDF
+      </a>
+      <ReadyToAssembleToggle dealId={dealDbId} ready={readyToAssemble} />
+      {assemblies.map((assembly) => (
         <a
-          href={`/api/quotes/${dealDbId}/pdf`}
-          className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+          key={assembly.dealId}
+          href={`${ASSEMBLY_URL}/assemblies/${encodeURIComponent(assembly.dealId)}`}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
         >
-          Quote PDF
+          {ASSEMBLY_EVENT_LABELS[assembly.eventType] ?? assembly.eventType}: {assembly.dealId} ↗
         </a>
-        <ReadyToAssembleToggle dealId={dealDbId} ready={readyToAssemble} />
-      </div>
-      {(assemblies.length > 0 || showAddTask || isAdmin) && (
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          {assemblies.map((assembly) => (
-            <a
-              key={assembly.dealId}
-              href={`${ASSEMBLY_URL}/assemblies/${encodeURIComponent(assembly.dealId)}`}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-100"
-            >
-              {ASSEMBLY_EVENT_LABELS[assembly.eventType] ?? assembly.eventType}: {assembly.dealId}{" "}
-              ↗
-            </a>
-          ))}
-          {showAddTask && (
-            <AddTaskLink
-              entityId={dealDbId}
-              title={`Follow up: ${dealBusinessId} — ${clientName}`}
-            />
-          )}
-          {isAdmin && <DealDeleteButton dealId={dealDbId} />}
-        </div>
+      ))}
+      {showAddTask && (
+        <AddTaskLink
+          entityId={dealDbId}
+          title={`Follow up: ${dealBusinessId} — ${clientName}`}
+        />
       )}
+      {isAdmin && <DealDeleteButton dealId={dealDbId} />}
     </div>
   );
 }
