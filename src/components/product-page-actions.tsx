@@ -6,6 +6,7 @@ import {
   BoothCreateForm,
   SyncXeroProductsButton,
 } from "@/components/product-forms";
+import { ProductCsvImportButton } from "@/components/product-csv-import";
 import { Modal } from "@/components/modal";
 import { Button } from "@/components/ui";
 
@@ -22,7 +23,12 @@ export function ProductPageActions({ isAdmin }: { isAdmin: boolean }) {
         <Button variant="secondary" onClick={() => setAddOnOpen(true)}>
           Create add-on
         </Button>
-        {isAdmin && <SyncXeroProductsButton />}
+        {isAdmin && (
+          <>
+            <SyncXeroProductsButton />
+            <ProductCsvImportButton />
+          </>
+        )}
       </div>
 
       <Modal

@@ -80,6 +80,26 @@ Uses a Xero **Custom Connection** (OAuth2 client credentials, scopes
 
 Test against the free Xero Demo Company before pointing the credentials at the production org.
 
+## Product CSV import
+
+Admin-only **Import from CSV** on the Products page bulk-updates Sales-owned metadata for
+products that already exist (match key: Xero **Item Code**). Run **Sync from Xero** first so
+item codes are present.
+
+Required columns: `Item Code`, `Item Name`, `Zamp Tax Code`, `Type`, `Product Family`,
+`Currency`, `Market`, `Client Type`. One row per Item Code. Item Name is verified against the
+existing product but not overwritten.
+
+Availability expansion rules:
+
+- Market `RoW` also adds `Balkans`
+- Client Type `Both` → Direct, Agency, and Co-working
+- Client Type `Agency` also adds Co-working
+
+The import replaces each matched product’s availability rows and updates type, family, currency,
+and Zamp tax code. Images, list price, description, and add-on booth-family restrictions are
+not changed.
+
 ## Deploy
 
 1. New Vercel project from this repo

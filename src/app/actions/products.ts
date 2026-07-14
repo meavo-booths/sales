@@ -9,12 +9,18 @@ import {
   type DealClientType,
 } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { requireSalesAccess } from "@/lib/meavo-auth";
+import { requireSalesAccess, requireSalesAdmin } from "@/lib/meavo-auth";
 import {
   ADDON_FAMILY_OPTIONS,
   BOOTH_FAMILY_OPTIONS,
 } from "@/lib/deal-values";
 import { isQuoteCurrency, type QuoteCurrency } from "@/lib/exchange-rates";
+import {
+  applyProductCsvImport,
+  previewProductCsvImport,
+  type CsvImportApplyResult,
+  type CsvImportPreview,
+} from "@/lib/products/csv-import";
 
 export type ProductActionState = { error?: string; success?: boolean };
 
@@ -243,4 +249,53 @@ export async function updateProductAction(
 
   revalidatePath("/products");
   return { success: true };
+}
+
+export type ProductCsvPreviewResult =
+  | ({ ok: true } & CsvImportPreview)
+  | { ok: false; error: string };
+
+export async function previewProductCsvImportAction(
+  formData: FormData,
+): Promise<ProductCsvPreviewResult> {
+  await requireSalesAdmin();
+
+  const file = formData.get("csv");
+  if (!(file instanceof File) || file.size === 0) {
+    return { ok: false, error: "Choose a CSV file to upload" };
+  }
+
+  try {
+    const csvText = await file.text();
+    const preview = await previewProductCsvImport(csvText);
+    return { ok: true, ...preview };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "Could not read CSV file",
+    };
+  }
+}
+
+export type ProductCsvApplyResult =
+  | ({ ok: true } & CsvImportApplyResult)
+  | { ok: false; error: string };
+
+export async function applyProductCsvImportAction(
+  csvText: string,
+): Promise<ProductCsvApplyResult> {
+  await requireSalesAdmin();
+
+  if (!csvText.trim()) return { ok: false, error: "CSV content is missing" };
+
+  try {
+    const result = await applyProductCsvImport(csvText);
+    revalidatePath("/products");
+    return { ok: true, ...result };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "Import failed",
+    };
+  }
 }
