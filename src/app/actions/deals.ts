@@ -16,6 +16,7 @@ import { fetchExchangeRateToEur, isQuoteCurrency } from "@/lib/exchange-rates";
 import { normalizeUsState } from "@/lib/us-state";
 import { enqueueNotification } from "@/lib/notifications/enqueue";
 import { firstZodError } from "@/lib/zod-errors";
+import { DELIVERY_TYPE_OPTIONS } from "@/lib/deal-values";
 
 const paymentInputSchema = z.object({
   paymentStatus: z.nativeEnum(PaymentStatus),
@@ -59,6 +60,7 @@ const dealDetailsInputSchema = z.object({
     .union([z.literal(""), z.string().regex(/^\d{4}-\d{2}-\d{2}$/)])
     .default("")
     .transform((value) => (value ? new Date(`${value}T00:00:00.000Z`) : null)),
+  deliveryType: z.enum(DELIVERY_TYPE_OPTIONS, { message: "Delivery type is required" }),
 });
 
 const dealAssemblyNotesInputSchema = z.object({
@@ -310,6 +312,7 @@ export async function updateDealDetailsAction(
       website: input.website,
       socketType: input.socketType,
       targetDeliveryDate: input.targetDeliveryDate,
+      deliveryType: input.deliveryType,
     },
   });
 

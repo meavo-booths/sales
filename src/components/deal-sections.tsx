@@ -3,6 +3,7 @@ import type { Prisma } from "@prisma/client";
 import {
   CLIENT_TYPE_LABELS,
   CONTACT_KIND_LABELS,
+  DELIVERY_TYPE_LABELS,
   FINISH_LABELS,
   PAYMENT_TERMS_LABELS,
   formatDate,
@@ -38,6 +39,10 @@ export function DealDetailsCard({ deal }: { deal: DealWithRelations }) {
         <Field label="Client type" value={CLIENT_TYPE_LABELS[deal.clientType]} />
         <Field label="Payment terms" value={PAYMENT_TERMS_LABELS[deal.paymentTerms]} />
         <Field label="Target delivery" value={formatDate(deal.targetDeliveryDate)} />
+        <Field
+          label="Delivery type"
+          value={deal.deliveryType ? DELIVERY_TYPE_LABELS[deal.deliveryType] : ""}
+        />
         <Field label="VAT number" value={deal.vatNumber} />
         <Field label="URL" value={deal.website} />
         <Field label="Client PO" value={deal.clientPo} />

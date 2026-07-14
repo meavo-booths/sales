@@ -160,6 +160,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
               website: deal.website,
               socketType: deal.socketType,
               targetDeliveryDate: deal.targetDeliveryDate?.toISOString().slice(0, 10) ?? "",
+              deliveryType: deal.deliveryType ?? "",
             }}
           />
 

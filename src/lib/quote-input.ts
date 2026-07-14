@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { QUOTE_CURRENCIES } from "@/lib/exchange-rates";
+import { DELIVERY_TYPE_OPTIONS } from "@/lib/deal-values";
 import { normalizeUsState } from "@/lib/us-state";
 import { normalizeZampZip } from "@/lib/zamp/payload";
 
@@ -72,6 +73,7 @@ export const quoteInputSchema = z
     shipToZip: z.string().trim().max(20).default(""),
     socketType: z.string().trim().max(100).default(""),
     targetDeliveryDate: optionalDateString,
+    deliveryType: z.enum(DELIVERY_TYPE_OPTIONS, { message: "Delivery type is required" }),
     clientName: z.string().trim().min(1, "Client name is required"),
     registeredAddress: z.string().trim().default(""),
     website: z.string().trim().default(""),

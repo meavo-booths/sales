@@ -5,6 +5,7 @@ import type {
   DealClientType,
   DealContactKind,
   DealStage,
+  DeliveryType,
   PaymentStatus,
   PaymentTerms,
   ProductFinish,
@@ -92,6 +93,20 @@ export const SOCKET_TYPE_OPTIONS = [
   "BG",
   "PT",
 ] as const;
+
+export const DELIVERY_TYPE_OPTIONS = [
+  "DI",
+  "DELIVERY_ONLY",
+  "KERBSIDE",
+  "FACTORY_PICKUP",
+] as const satisfies readonly DeliveryType[];
+
+export const DELIVERY_TYPE_LABELS: Record<(typeof DELIVERY_TYPE_OPTIONS)[number], string> = {
+  DI: "D&I",
+  DELIVERY_ONLY: "Delivery only",
+  KERBSIDE: "Kerbside",
+  FACTORY_PICKUP: "Factory pickup (ExW)",
+};
 
 export const CONTACT_KIND_LABELS: Record<DealContactKind, string> = {
   MAIN: "Main contact",

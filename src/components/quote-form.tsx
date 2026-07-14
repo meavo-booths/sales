@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import type { AddOnProductFamily, BoothProductFamily, DealContactKind } from "@prisma/client";
+import type { AddOnProductFamily, BoothProductFamily, DealContactKind, DeliveryType } from "@prisma/client";
 import { createQuoteAction, updateQuoteAction } from "@/app/actions/quotes";
 import { calculateUsTaxAction } from "@/app/actions/zamp";
 import { searchClientsAction } from "@/app/actions/clients";
@@ -14,6 +14,8 @@ import {
   MARKET_OPTIONS,
   PAYMENT_TERMS_LABELS,
   QUOTE_CURRENCIES,
+  DELIVERY_TYPE_LABELS,
+  DELIVERY_TYPE_OPTIONS,
   SOCKET_TYPE_OPTIONS,
   formatMoney,
   type QuoteCurrency,
@@ -190,6 +192,7 @@ export type QuoteFormValues = {
   actualClient: string;
   socketType: string;
   targetDeliveryDate: string;
+  deliveryType: DeliveryType | "";
   vatNumber: string;
   clientType: "DIRECT" | "AGENCY" | "COWORKING";
   currency: QuoteCurrency;
@@ -262,6 +265,7 @@ export function QuoteForm({
       actualClient: "",
       socketType: "",
       targetDeliveryDate: "",
+      deliveryType: "",
       vatNumber: "",
       clientType: "DIRECT",
       currency: "EUR",
@@ -739,6 +743,27 @@ export function QuoteForm({
             value={values.targetDeliveryDate}
             onChange={(e) => set("targetDeliveryDate", e.target.value)}
           />
+          <Select
+            label="Delivery type"
+            value={values.deliveryType}
+            onChange={(e) =>
+              set("deliveryType", e.target.value as QuoteFormValues["deliveryType"])
+            }
+            required
+          >
+            <option value="" disabled>
+              Select delivery type…
+            </option>
+            {values.deliveryType &&
+              !DELIVERY_TYPE_OPTIONS.includes(
+                values.deliveryType as (typeof DELIVERY_TYPE_OPTIONS)[number],
+              ) && <option value={values.deliveryType}>{values.deliveryType}</option>}
+            {DELIVERY_TYPE_OPTIONS.map((type) => (
+              <option key={type} value={type}>
+                {DELIVERY_TYPE_LABELS[type]}
+              </option>
+            ))}
+          </Select>
           <div className="sm:col-span-2">
             <Textarea
               label="Deal Notes"

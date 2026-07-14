@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import type { BoothUnitStatus, DealContactKind, PaymentStatus } from "@prisma/client";
+import type { BoothUnitStatus, DealContactKind, DeliveryType, PaymentStatus } from "@prisma/client";
 import {
   deleteWonDealAction,
   retryOpsSheetSyncAction,
@@ -19,6 +19,8 @@ import {
   BOOTH_UNIT_STATUS_LABELS,
   CLIENT_TYPE_LABELS,
   CONTACT_KIND_LABELS,
+  DELIVERY_TYPE_LABELS,
+  DELIVERY_TYPE_OPTIONS,
   MARKET_OPTIONS,
   PAYMENT_STATUS_LABELS,
   PAYMENT_TERMS_LABELS,
@@ -48,6 +50,7 @@ export type DealDetailsValues = {
   website: string;
   socketType: string;
   targetDeliveryDate: string;
+  deliveryType: DeliveryType | "";
 };
 
 export type DealAssemblyNotesValues = {
@@ -150,6 +153,12 @@ export function DealDetailsEditorCard({
                   details.targetDeliveryDate
                     ? formatDate(new Date(details.targetDeliveryDate))
                     : ""
+                }
+              />
+              <DealField
+                label="Delivery type"
+                value={
+                  details.deliveryType ? DELIVERY_TYPE_LABELS[details.deliveryType] : ""
                 }
               />
               {isUsMarket(details.market) && (
@@ -257,6 +266,27 @@ export function DealDetailsEditorCard({
               value={values.targetDeliveryDate}
               onChange={(e) => set("targetDeliveryDate", e.target.value)}
             />
+            <Select
+              label="Delivery type"
+              value={values.deliveryType}
+              onChange={(e) =>
+                set("deliveryType", e.target.value as DealDetailsValues["deliveryType"])
+              }
+              required
+            >
+              <option value="" disabled>
+                Select delivery type…
+              </option>
+              {values.deliveryType &&
+                !DELIVERY_TYPE_OPTIONS.includes(
+                  values.deliveryType as (typeof DELIVERY_TYPE_OPTIONS)[number],
+                ) && <option value={values.deliveryType}>{values.deliveryType}</option>}
+              {DELIVERY_TYPE_OPTIONS.map((type) => (
+                <option key={type} value={type}>
+                  {DELIVERY_TYPE_LABELS[type]}
+                </option>
+              ))}
+            </Select>
             <Input
               label="URL"
               type="url"
