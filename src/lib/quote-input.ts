@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { QUOTE_CURRENCIES } from "@/lib/exchange-rates";
 import { normalizeUsState } from "@/lib/us-state";
+import { normalizeZampZip } from "@/lib/zamp/payload";
 
 const dateString = z
   .string()
@@ -105,6 +106,15 @@ export const quoteInputSchema = z
     },
     {
       message: "US ship-to address (line 1, city, state, ZIP) is required for US market quotes",
+    },
+  )
+  .refine(
+    (input) => {
+      if (input.market.trim().toUpperCase() !== "US") return true;
+      return normalizeZampZip(input.shipToZip) !== null;
+    },
+    {
+      message: "US ship-to ZIP must be 5 digits (or ZIP+4, e.g. 90210 or 90210-1234)",
     },
   );
 

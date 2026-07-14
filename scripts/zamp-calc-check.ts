@@ -7,6 +7,7 @@
  */
 import { zampCalculate } from "../src/lib/zamp/client";
 import { DEFAULT_ZAMP_TAX_CODE } from "../src/lib/zamp/constants";
+import { prepareZampTransaction } from "../src/lib/zamp/payload";
 import type { ZampTransaction } from "../src/lib/zamp/types";
 
 async function main() {
@@ -29,7 +30,6 @@ async function main() {
       city: "TOPEKA",
       state: "KS",
       zip: "66612",
-      country: "US",
     },
     lineItems: [
       {
@@ -44,7 +44,12 @@ async function main() {
   };
 
   console.log("Calling Zamp /calculations…");
-  const result = await zampCalculate(transaction);
+  const prepared = prepareZampTransaction(transaction);
+  if (typeof prepared === "string") {
+    console.error(prepared);
+    process.exit(1);
+  }
+  const result = await zampCalculate(prepared);
   console.log("taxDue:", result.taxDue);
   console.log("jurisdictions:", result.taxes.length);
   if (result.taxes[0]) {

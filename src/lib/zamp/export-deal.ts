@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { isZampConfigured, zampCreateTransaction } from "@/lib/zamp/client";
 import { buildZampTransaction } from "@/lib/zamp/calculate-tax";
 import { isUsMarket } from "@/lib/zamp/constants";
+import { prepareZampTransaction, roundZampMoney } from "@/lib/zamp/payload";
 import type { UsTaxDetail } from "@/lib/zamp/types";
 
 /**
@@ -28,20 +29,26 @@ export async function exportDealToZamp(dealDbId: string): Promise<void> {
 
   if (!isZampConfigured()) return;
 
-  const transaction = buildZampTransaction(deal, { forCommit: true });
-  if (!transaction) {
+  const draft = buildZampTransaction(deal, { forCommit: true });
+  if (!draft) {
     await fail(
       "US ship-to address (line 1, city, state, ZIP) is missing — edit the deal before retrying",
     );
     return;
   }
 
+  const prepared = prepareZampTransaction(draft);
+  if (typeof prepared === "string") {
+    await fail(prepared);
+    return;
+  }
+
   const taxDue = Number(deal.usTaxAmount);
-  transaction.taxCollected = Number.isFinite(taxDue) ? taxDue : 0;
-  transaction.total = transaction.subtotal + transaction.taxCollected;
+  prepared.taxCollected = roundZampMoney(Number.isFinite(taxDue) ? taxDue : 0);
+  prepared.total = roundZampMoney(prepared.subtotal + prepared.taxCollected);
 
   try {
-    const result = await zampCreateTransaction(transaction);
+    const result = await zampCreateTransaction(prepared);
     const detail: UsTaxDetail = {
       taxDue: result.taxDue,
       taxes: result.taxes,

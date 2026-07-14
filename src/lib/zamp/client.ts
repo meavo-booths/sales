@@ -51,13 +51,24 @@ export async function zampFetch<T>(
   if (!response.ok) {
     let detail = "";
     try {
-      const body = (await response.json()) as { message?: string; error?: string };
-      detail = body.message || body.error || "";
+      const body = (await response.json()) as {
+        message?: string;
+        error?: string;
+        issues?: Array<{ path?: Array<string | number>; message?: string }>;
+      };
+      const base = body.message || body.error || "";
+      const issues = body.issues
+        ?.map((issue) => {
+          const field = issue.path?.length ? issue.path.join(".") : "request";
+          return `${field}: ${issue.message ?? "invalid"}`;
+        })
+        .join("; ");
+      detail = issues ? `${base} (${issues})` : base;
     } catch {
       detail = await response.text().catch(() => "");
     }
     throw new ZampError(
-      `Zamp API ${init?.method ?? "GET"} ${path} failed (${response.status})${detail ? `: ${detail.slice(0, 500)}` : ""}`,
+      `Zamp API ${init?.method ?? "GET"} ${path} failed (${response.status})${detail ? `: ${detail.slice(0, 800)}` : ""}`,
       response.status,
     );
   }

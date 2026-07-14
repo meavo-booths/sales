@@ -4,6 +4,7 @@ import type { QuoteInput } from "@/lib/quote-input";
 import { dealSubtotal } from "@/lib/vat";
 import { zampCalculate } from "@/lib/zamp/client";
 import { DEFAULT_ZAMP_TAX_CODE, isUsMarket } from "@/lib/zamp/constants";
+import { prepareZampTransaction, roundZampMoney, sanitizeZampTaxCode } from "@/lib/zamp/payload";
 import type { UsTaxDetail, ZampAddress, ZampLineItem, ZampTransaction } from "@/lib/zamp/types";
 
 type LineForZamp = {
@@ -46,7 +47,7 @@ function lineDescription(item: LineForZamp): string {
 
 function taxCodeForLine(item: LineForZamp): string {
   const code = item.product?.taxCode?.trim();
-  return code || DEFAULT_ZAMP_TAX_CODE;
+  return sanitizeZampTaxCode(code || DEFAULT_ZAMP_TAX_CODE);
 }
 
 export function shipToAddressFromDeal(deal: DealForZampCalc): ZampAddress | null {
@@ -62,7 +63,6 @@ export function shipToAddressFromDeal(deal: DealForZampCalc): ZampAddress | null
     city,
     state,
     zip,
-    country: "US",
   };
 }
 
@@ -72,7 +72,7 @@ export function buildZampLineItems(
 ): ZampLineItem[] {
   return lineItems.map((item, index) => ({
     id: item.id ?? `${idPrefix}-li-${index + 1}`,
-    amount: Number(item.unitPrice),
+    amount: roundZampMoney(Number(item.unitPrice)),
     quantity: item.quantity,
     productName: lineDescription(item),
     productSku: item.product?.xeroItemCode ?? undefined,
@@ -89,7 +89,6 @@ export function buildZampTransaction(
   const shipToAddress = shipToAddressFromDeal(deal);
   if (!shipToAddress) return null;
 
-  const subtotal = dealSubtotal(deal);
   const idPrefix = options?.transactionId ?? deal.id ?? deal.quoteNumber ?? "estimate";
   const zampLineItems = buildZampLineItems(deal.lineItems, idPrefix);
   if (zampLineItems.length === 0) return null;
@@ -105,9 +104,9 @@ export function buildZampTransaction(
     name: deal.quoteNumber ?? deal.dealId ?? transactionId,
     transactedAt,
     currency: deal.currency || "USD",
-    subtotal,
+    subtotal: roundZampMoney(dealSubtotal(deal)),
     taxCollected: 0,
-    total: subtotal,
+    total: roundZampMoney(dealSubtotal(deal)),
     shipToAddress,
     lineItems: zampLineItems,
     metadata: {
@@ -121,18 +120,23 @@ export function buildZampTransaction(
 export async function calculateUsTaxForDeal(deal: DealForZampCalc): Promise<ZampCalcOutcome | null> {
   if (!isUsMarket(deal.market)) return null;
 
-  const transaction = buildZampTransaction(deal, {
+  const draft = buildZampTransaction(deal, {
     transactionId: deal.id ? `quote-${deal.id}` : undefined,
   });
-  if (!transaction) {
+  if (!draft) {
     return {
       ok: false,
-      error: "US ship-to address (line 1, city, state, ZIP) is required for sales tax",
+      error: "US ship-to address (line 1, city, state, and ZIP) is required for sales tax",
     };
   }
 
+  const prepared = prepareZampTransaction(draft);
+  if (typeof prepared === "string") {
+    return { ok: false, error: prepared };
+  }
+
   try {
-    const result = await zampCalculate(transaction);
+    const result = await zampCalculate(prepared);
     const detail: UsTaxDetail = {
       taxDue: result.taxDue,
       taxes: result.taxes,
