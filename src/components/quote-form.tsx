@@ -748,6 +748,27 @@ export function QuoteForm({
               placeholder="Internal notes, delivery expectations, special requests…"
             />
           </div>
+          <Textarea
+            label="Assembly address"
+            rows={4}
+            value={values.assemblyAddress}
+            onChange={(e) => set("assemblyAddress", e.target.value)}
+            placeholder="Where the booths get installed"
+          />
+          <div className="space-y-3">
+            <Input
+              label="Client PO"
+              value={values.clientPo}
+              onChange={(e) => set("clientPo", e.target.value)}
+              placeholder="Customer purchase order"
+            />
+            <Input
+              label="Actual Client"
+              value={values.actualClient}
+              onChange={(e) => set("actualClient", e.target.value)}
+              placeholder="End customer if billed via agency"
+            />
+          </div>
           {isUsMarket(values.market) && (
             <div className="sm:col-span-2 lg:col-span-4 space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-4">
               <p className="text-sm font-medium text-slate-900">US ship-to address</p>
@@ -814,27 +835,6 @@ export function QuoteForm({
               </div>
             </div>
           )}
-          <Textarea
-            label="Assembly address"
-            rows={4}
-            value={values.assemblyAddress}
-            onChange={(e) => set("assemblyAddress", e.target.value)}
-            placeholder="Where the booths get installed"
-          />
-          <div className="space-y-3">
-            <Input
-              label="Client PO"
-              value={values.clientPo}
-              onChange={(e) => set("clientPo", e.target.value)}
-              placeholder="Customer purchase order"
-            />
-            <Input
-              label="Actual Client"
-              value={values.actualClient}
-              onChange={(e) => set("actualClient", e.target.value)}
-              placeholder="End customer if billed via agency"
-            />
-          </div>
         </div>
       </Card>
 

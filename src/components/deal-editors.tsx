@@ -133,6 +133,19 @@ export function DealDetailsEditorCard({
           <DetailField label="Socket type" value={details.socketType} />
           <DetailField label="Client type" value={CLIENT_TYPE_LABELS[details.clientType]} />
           <DetailField label="Payment terms" value={PAYMENT_TERMS_LABELS[details.paymentTerms]} />
+          <DetailField
+            label="Target delivery"
+            value={
+              details.targetDeliveryDate
+                ? formatDate(new Date(details.targetDeliveryDate))
+                : ""
+            }
+          />
+          <DetailField label="VAT number" value={details.vatNumber} />
+          <DetailField label="URL" value={details.website} />
+          <div className="sm:col-span-2 lg:col-span-4">
+            <DetailField label="Registered address (invoicing)" value={details.registeredAddress} />
+          </div>
           {isUsMarket(details.market) && (
             <div className="sm:col-span-2 lg:col-span-4">
               <DetailField
@@ -147,19 +160,6 @@ export function DealDetailsEditorCard({
               />
             </div>
           )}
-          <DetailField
-            label="Target delivery"
-            value={
-              details.targetDeliveryDate
-                ? formatDate(new Date(details.targetDeliveryDate))
-                : ""
-            }
-          />
-          <DetailField label="VAT number" value={details.vatNumber} />
-          <DetailField label="URL" value={details.website} />
-          <div className="sm:col-span-2 lg:col-span-4">
-            <DetailField label="Registered address (invoicing)" value={details.registeredAddress} />
-          </div>
         </dl>
       ) : (
         <div className="space-y-3">
@@ -191,55 +191,6 @@ export function DealDetailsEditorCard({
                 </option>
               ))}
             </Select>
-            {isUsMarket(values.market) && (
-              <div className="sm:col-span-2 lg:col-span-4 space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-4">
-                <p className="text-sm font-medium text-slate-900">US ship-to address</p>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Input
-                    label="Address line 1"
-                    value={values.shipToLine1}
-                    onChange={(e) => set("shipToLine1", e.target.value)}
-                  />
-                  <Input
-                    label="Address line 2"
-                    value={values.shipToLine2}
-                    onChange={(e) => set("shipToLine2", e.target.value)}
-                    placeholder="Optional"
-                  />
-                  <Input
-                    label="City"
-                    value={values.shipToCity}
-                    onChange={(e) => set("shipToCity", e.target.value)}
-                  />
-                  <Input
-                    label="ZIP code"
-                    value={values.shipToZip}
-                    onChange={(e) => {
-                      const zip = e.target.value;
-                      set("shipToZip", zip);
-                      const inferred = stateFromZip(zip);
-                      if (inferred) set("usState", inferred);
-                    }}
-                  />
-                  <Select
-                    label="State"
-                    value={values.usState}
-                    onChange={(e) => set("usState", e.target.value)}
-                  >
-                    <option value="">Select state…</option>
-                    {values.usState &&
-                      !US_STATES.some((state) => state.code === values.usState) && (
-                        <option value={values.usState}>{values.usState}</option>
-                      )}
-                    {US_STATES.map((state) => (
-                      <option key={state.code} value={state.code}>
-                        {state.code} — {state.name}
-                      </option>
-                    ))}
-                  </Select>
-                </div>
-              </div>
-            )}
             <Select
               label="Client type"
               value={values.clientType}
@@ -310,6 +261,55 @@ export function DealDetailsEditorCard({
             value={values.registeredAddress}
             onChange={(e) => set("registeredAddress", e.target.value)}
           />
+          {isUsMarket(values.market) && (
+            <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-4">
+              <p className="text-sm font-medium text-slate-900">US ship-to address</p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Input
+                  label="Address line 1"
+                  value={values.shipToLine1}
+                  onChange={(e) => set("shipToLine1", e.target.value)}
+                />
+                <Input
+                  label="Address line 2"
+                  value={values.shipToLine2}
+                  onChange={(e) => set("shipToLine2", e.target.value)}
+                  placeholder="Optional"
+                />
+                <Input
+                  label="City"
+                  value={values.shipToCity}
+                  onChange={(e) => set("shipToCity", e.target.value)}
+                />
+                <Input
+                  label="ZIP code"
+                  value={values.shipToZip}
+                  onChange={(e) => {
+                    const zip = e.target.value;
+                    set("shipToZip", zip);
+                    const inferred = stateFromZip(zip);
+                    if (inferred) set("usState", inferred);
+                  }}
+                />
+                <Select
+                  label="State"
+                  value={values.usState}
+                  onChange={(e) => set("usState", e.target.value)}
+                >
+                  <option value="">Select state…</option>
+                  {values.usState &&
+                    !US_STATES.some((state) => state.code === values.usState) && (
+                      <option value={values.usState}>{values.usState}</option>
+                    )}
+                  {US_STATES.map((state) => (
+                    <option key={state.code} value={state.code}>
+                      {state.code} — {state.name}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+            </div>
+          )}
           {error && <p className="text-sm text-red-600">{error}</p>}
           <Button onClick={save} disabled={pending}>
             {pending ? "Saving…" : "Save changes"}

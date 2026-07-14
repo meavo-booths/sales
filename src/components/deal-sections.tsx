@@ -37,6 +37,14 @@ export function DealDetailsCard({ deal }: { deal: DealWithRelations }) {
         <Field label="Socket type" value={deal.socketType} />
         <Field label="Client type" value={CLIENT_TYPE_LABELS[deal.clientType]} />
         <Field label="Payment terms" value={PAYMENT_TERMS_LABELS[deal.paymentTerms]} />
+        <Field label="Target delivery" value={formatDate(deal.targetDeliveryDate)} />
+        <Field label="VAT number" value={deal.vatNumber} />
+        <Field label="URL" value={deal.website} />
+        <Field label="Client PO" value={deal.clientPo} />
+        <Field label="Actual client" value={deal.actualClient} />
+        <div className="sm:col-span-2 lg:col-span-4">
+          <Field label="Registered address (invoicing)" value={deal.registeredAddress} />
+        </div>
         {isUsMarket(deal.market) && (
           <div className="sm:col-span-2 lg:col-span-4">
             <Field
@@ -51,14 +59,6 @@ export function DealDetailsCard({ deal }: { deal: DealWithRelations }) {
             />
           </div>
         )}
-        <Field label="Target delivery" value={formatDate(deal.targetDeliveryDate)} />
-        <Field label="VAT number" value={deal.vatNumber} />
-        <Field label="URL" value={deal.website} />
-        <Field label="Client PO" value={deal.clientPo} />
-        <Field label="Actual client" value={deal.actualClient} />
-        <div className="sm:col-span-2 lg:col-span-4">
-          <Field label="Registered address (invoicing)" value={deal.registeredAddress} />
-        </div>
       </dl>
     </Card>
   );
