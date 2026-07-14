@@ -141,39 +141,27 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
         )}
 
         <div className="grid gap-6 lg:grid-cols-2">
-          <div className="space-y-6">
-            <DealDetailsEditorCard
-              dealId={deal.id}
-              details={{
-                dealDate: deal.dealDate.toISOString().slice(0, 10),
-                salesRep: deal.salesRep,
-                market: deal.market,
-                usState: deal.usState,
-                shipToLine1: deal.shipToLine1,
-                shipToLine2: deal.shipToLine2,
-                shipToCity: deal.shipToCity,
-                shipToZip: deal.shipToZip,
-                clientName: deal.clientName,
-                clientType: deal.clientType,
-                paymentTerms: deal.paymentTerms,
-                vatNumber: deal.vatNumber,
-                registeredAddress: deal.registeredAddress,
-                website: deal.website,
-                socketType: deal.socketType,
-                targetDeliveryDate: deal.targetDeliveryDate?.toISOString().slice(0, 10) ?? "",
-              }}
-            />
-
-            <DealDeliveryNotesCard
-              dealId={deal.id}
-              values={{
-                assemblyAddress: deal.assemblyAddress,
-                notes: deal.notes,
-                clientPo: deal.clientPo,
-                actualClient: deal.actualClient,
-              }}
-            />
-          </div>
+          <DealDetailsEditorCard
+            dealId={deal.id}
+            details={{
+              dealDate: deal.dealDate.toISOString().slice(0, 10),
+              salesRep: deal.salesRep,
+              market: deal.market,
+              usState: deal.usState,
+              shipToLine1: deal.shipToLine1,
+              shipToLine2: deal.shipToLine2,
+              shipToCity: deal.shipToCity,
+              shipToZip: deal.shipToZip,
+              clientName: deal.clientName,
+              clientType: deal.clientType,
+              paymentTerms: deal.paymentTerms,
+              vatNumber: deal.vatNumber,
+              registeredAddress: deal.registeredAddress,
+              website: deal.website,
+              socketType: deal.socketType,
+              targetDeliveryDate: deal.targetDeliveryDate?.toISOString().slice(0, 10) ?? "",
+            }}
+          />
 
           <DealPeopleBillingCard
             dealId={deal.id}
@@ -188,6 +176,16 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
             paymentPoDate={deal.paymentPoDate?.toISOString().slice(0, 10) ?? ""}
           />
         </div>
+
+        <DealDeliveryNotesCard
+          dealId={deal.id}
+          values={{
+            assemblyAddress: deal.assemblyAddress,
+            notes: deal.notes,
+            clientPo: deal.clientPo,
+            actualClient: deal.actualClient,
+          }}
+        />
 
         <LineItemsCard deal={deal} />
 

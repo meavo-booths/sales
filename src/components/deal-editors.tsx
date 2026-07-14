@@ -358,22 +358,22 @@ export function DealDeliveryNotesCard({
     <Card>
       <h2 className="mb-4 text-base font-semibold text-slate-900">Delivery & notes</h2>
       <div className="space-y-4">
-        <Textarea
-          label="Deal notes"
-          rows={4}
-          value={values.notes}
-          onChange={(e) => set("notes", e.target.value)}
-          placeholder="Internal notes, delivery expectations, special requests…"
-        />
-        <div className="grid gap-4 border-t border-slate-100 pt-4 sm:grid-cols-2">
+        <div className="grid gap-4 lg:grid-cols-2">
           <Textarea
-            label="Assembly address"
+            label="Deal notes"
             rows={4}
-            value={values.assemblyAddress}
-            onChange={(e) => set("assemblyAddress", e.target.value)}
-            placeholder="Where the booths get installed"
+            value={values.notes}
+            onChange={(e) => set("notes", e.target.value)}
+            placeholder="Internal notes, delivery expectations, special requests…"
           />
           <div className="space-y-3">
+            <Textarea
+              label="Assembly address"
+              rows={4}
+              value={values.assemblyAddress}
+              onChange={(e) => set("assemblyAddress", e.target.value)}
+              placeholder="Where the booths get installed"
+            />
             <Input
               label="Client PO"
               value={values.clientPo}
