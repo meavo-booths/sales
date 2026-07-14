@@ -26,6 +26,7 @@ import {
   formatDate,
 } from "@/lib/deal-values";
 import { Button, Card, Input, Select, Textarea } from "@/components/ui";
+import { DealField, DealFieldGrid, DealSubsection } from "@/components/deal-layout";
 import { VatNumberField } from "@/components/vat-check";
 import { isUsMarket } from "@/lib/zamp/constants";
 import { stateFromZip, US_STATES } from "@/lib/us-state";
@@ -72,15 +73,6 @@ const EMPTY_CONTACT: DealContactValues = {
   role: "",
 };
 
-function DetailField({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</dt>
-      <dd className="mt-0.5 text-sm text-slate-900">{value || "—"}</dd>
-    </div>
-  );
-}
-
 export function DealDetailsEditorCard({
   dealId,
   details,
@@ -113,7 +105,7 @@ export function DealDetailsEditorCard({
   return (
     <Card>
       <div className="mb-4 flex items-center justify-between gap-3">
-        <h2 className="text-base font-semibold text-slate-900">Details</h2>
+        <h2 className="text-base font-semibold text-slate-900">Deal & client</h2>
         <Button
           variant="secondary"
           onClick={() => {
@@ -127,41 +119,58 @@ export function DealDetailsEditorCard({
       </div>
 
       {!editing ? (
-        <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <DetailField label="Deal date" value={formatDate(new Date(details.dealDate))} />
-          <DetailField label="Sales rep" value={details.salesRep} />
-          <DetailField label="Market" value={details.market} />
-          <DetailField label="Socket type" value={details.socketType} />
-          <DetailField label="Client type" value={CLIENT_TYPE_LABELS[details.clientType]} />
-          <DetailField label="Payment terms" value={PAYMENT_TERMS_LABELS[details.paymentTerms]} />
-          <DetailField
-            label="Target delivery"
-            value={
-              details.targetDeliveryDate
-                ? formatDate(new Date(details.targetDeliveryDate))
-                : ""
-            }
-          />
-          <DetailField label="VAT number" value={details.vatNumber} />
-          <DetailField label="URL" value={details.website} />
-          <div className="sm:col-span-2 lg:col-span-4">
-            <DetailField label="Registered address (invoicing)" value={details.registeredAddress} />
-          </div>
-          {isUsMarket(details.market) && (
-            <div className="sm:col-span-2 lg:col-span-4">
-              <DetailField
-                label="US ship-to address"
-                value={[
-                  details.shipToLine1,
-                  details.shipToLine2,
-                  [details.shipToCity, details.usState, details.shipToZip].filter(Boolean).join(", "),
-                ]
-                  .filter(Boolean)
-                  .join("\n")}
+        <div className="space-y-4">
+          <DealSubsection title="Commercial">
+            <DealFieldGrid columns="sm:grid-cols-2 lg:grid-cols-3">
+              <DealField label="Deal date" value={formatDate(new Date(details.dealDate))} />
+              <DealField label="Sales rep" value={details.salesRep} />
+              <DealField label="Market" value={details.market} />
+              <DealField label="Client name" value={details.clientName} />
+              <DealField label="Client type" value={CLIENT_TYPE_LABELS[details.clientType]} />
+              <DealField
+                label="Payment terms"
+                value={PAYMENT_TERMS_LABELS[details.paymentTerms]}
               />
-            </div>
-          )}
-        </dl>
+              <DealField label="VAT number" value={details.vatNumber} />
+              <DealField label="URL" value={details.website} />
+              <div className="sm:col-span-2 lg:col-span-3">
+                <DealField
+                  label="Registered address (invoicing)"
+                  value={details.registeredAddress}
+                />
+              </div>
+            </DealFieldGrid>
+          </DealSubsection>
+          <DealSubsection title="Technical & delivery">
+            <DealFieldGrid columns="sm:grid-cols-2 lg:grid-cols-3">
+              <DealField label="Socket type" value={details.socketType} />
+              <DealField
+                label="Target delivery"
+                value={
+                  details.targetDeliveryDate
+                    ? formatDate(new Date(details.targetDeliveryDate))
+                    : ""
+                }
+              />
+              {isUsMarket(details.market) && (
+                <div className="sm:col-span-2 lg:col-span-3">
+                  <DealField
+                    label="US ship-to address"
+                    value={[
+                      details.shipToLine1,
+                      details.shipToLine2,
+                      [details.shipToCity, details.usState, details.shipToZip]
+                        .filter(Boolean)
+                        .join(", "),
+                    ]
+                      .filter(Boolean)
+                      .join("\n")}
+                  />
+                </div>
+              )}
+            </DealFieldGrid>
+          </DealSubsection>
+        </div>
       ) : (
         <div className="space-y-3">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -321,7 +330,7 @@ export function DealDetailsEditorCard({
   );
 }
 
-export function AssemblyAndNotesEditorRow({
+export function DealDeliveryNotesCard({
   dealId,
   values: initialValues,
 }: {
@@ -346,55 +355,56 @@ export function AssemblyAndNotesEditorRow({
   };
 
   return (
-    <div className="grid gap-6 lg:grid-cols-4">
-      <Card className="lg:col-span-2">
-        <h2 className="mb-4 text-base font-semibold text-slate-900">Deal Notes</h2>
+    <Card>
+      <h2 className="mb-4 text-base font-semibold text-slate-900">Delivery & notes</h2>
+      <div className="space-y-4">
         <Textarea
+          label="Deal notes"
           rows={4}
           value={values.notes}
           onChange={(e) => set("notes", e.target.value)}
           placeholder="Internal notes, delivery expectations, special requests…"
         />
-      </Card>
-      <Card>
-        <h2 className="mb-4 text-base font-semibold text-slate-900">Assembly address</h2>
-        <Textarea
-          rows={4}
-          value={values.assemblyAddress}
-          onChange={(e) => set("assemblyAddress", e.target.value)}
-          placeholder="Where the booths get installed"
-        />
-      </Card>
-      <Card>
-        <h2 className="mb-4 text-base font-semibold text-slate-900">PO & client</h2>
-        <div className="space-y-3">
-          <Input
-            label="Client PO"
-            value={values.clientPo}
-            onChange={(e) => set("clientPo", e.target.value)}
-            placeholder="Customer purchase order"
+        <div className="grid gap-4 border-t border-slate-100 pt-4 sm:grid-cols-2">
+          <Textarea
+            label="Assembly address"
+            rows={4}
+            value={values.assemblyAddress}
+            onChange={(e) => set("assemblyAddress", e.target.value)}
+            placeholder="Where the booths get installed"
           />
-          <Input
-            label="Actual Client"
-            value={values.actualClient}
-            onChange={(e) => set("actualClient", e.target.value)}
-            placeholder="End customer if billed via agency"
-          />
+          <div className="space-y-3">
+            <Input
+              label="Client PO"
+              value={values.clientPo}
+              onChange={(e) => set("clientPo", e.target.value)}
+              placeholder="Customer purchase order"
+            />
+            <Input
+              label="Actual client"
+              value={values.actualClient}
+              onChange={(e) => set("actualClient", e.target.value)}
+              placeholder="End customer if billed via agency"
+            />
+          </div>
         </div>
-      </Card>
-      <div className="flex items-center gap-3 lg:col-span-4">
-        <Button onClick={save} disabled={pending}>
-          {pending ? "Saving…" : "Save"}
-        </Button>
-        {message && (
-          <p className={`text-sm ${message === "Saved." ? "text-green-700" : "text-red-600"}`}>
-            {message}
-          </p>
-        )}
+        <div className="flex items-center justify-end gap-3 border-t border-slate-100 pt-4">
+          {message && (
+            <p className={`text-sm ${message === "Saved." ? "text-green-700" : "text-red-600"}`}>
+              {message}
+            </p>
+          )}
+          <Button onClick={save} disabled={pending}>
+            {pending ? "Saving…" : "Save"}
+          </Button>
+        </div>
       </div>
-    </div>
+    </Card>
   );
 }
+
+/** @deprecated Use DealDeliveryNotesCard */
+export const AssemblyAndNotesEditorRow = DealDeliveryNotesCard;
 
 export function ReadyToAssembleToggle({
   dealId,
@@ -445,7 +455,7 @@ export function ReadyToAssembleToggle({
   );
 }
 
-export function DealContactsEditorCard({
+function DealContactsEditorBody({
   dealId,
   contacts,
 }: {
@@ -475,9 +485,9 @@ export function DealContactsEditorCard({
   };
 
   return (
-    <Card>
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <h2 className="text-base font-semibold text-slate-900">Contacts</h2>
+    <>
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h3 className="text-sm font-semibold text-slate-800">Contacts</h3>
         <Button
           variant="secondary"
           onClick={() => {
@@ -494,9 +504,9 @@ export function DealContactsEditorCard({
         contacts.length === 0 ? (
           <p className="text-sm text-slate-500">No contacts.</p>
         ) : (
-          <ul className="space-y-3">
+          <ul className="divide-y divide-slate-100">
             {contacts.map((contact, index) => (
-              <li key={index} className="rounded-lg border border-slate-200 p-3">
+              <li key={index} className="py-3 first:pt-0 last:pb-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-sm font-medium text-slate-900">{contact.name}</span>
                   <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
@@ -504,7 +514,7 @@ export function DealContactsEditorCard({
                   </span>
                   {contact.role && <span className="text-xs text-slate-500">{contact.role}</span>}
                 </div>
-                <p className="mt-1 text-sm text-slate-600">
+                <p className="mt-0.5 text-sm text-slate-600">
                   {[contact.email, contact.phone].filter(Boolean).join(" · ") || "—"}
                 </p>
               </li>
@@ -576,6 +586,51 @@ export function DealContactsEditorCard({
           {error && <p className="text-sm text-red-600">{error}</p>}
         </div>
       )}
+    </>
+  );
+}
+
+export function DealPeopleBillingCard({
+  dealId,
+  contacts,
+  paymentStatus,
+  paymentPoDate,
+}: {
+  dealId: string;
+  contacts: DealContactValues[];
+  paymentStatus: PaymentStatus;
+  paymentPoDate: string;
+}) {
+  return (
+    <Card>
+      <h2 className="mb-4 text-base font-semibold text-slate-900">Contacts & billing</h2>
+      <div className="grid gap-6 lg:grid-cols-2 lg:gap-0 lg:divide-x lg:divide-slate-100">
+        <div className="lg:pr-6">
+          <DealContactsEditorBody dealId={dealId} contacts={contacts} />
+        </div>
+        <div className="lg:pl-6">
+          <h3 className="mb-3 text-sm font-semibold text-slate-800">Payment</h3>
+          <PaymentEditor
+            dealId={dealId}
+            paymentStatus={paymentStatus}
+            paymentPoDate={paymentPoDate}
+          />
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+export function DealContactsEditorCard({
+  dealId,
+  contacts,
+}: {
+  dealId: string;
+  contacts: DealContactValues[];
+}) {
+  return (
+    <Card>
+      <DealContactsEditorBody dealId={dealId} contacts={contacts} />
     </Card>
   );
 }
