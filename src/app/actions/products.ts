@@ -299,3 +299,46 @@ export async function applyProductCsvImportAction(
     };
   }
 }
+
+export type ProductDeleteResult = { ok: true } | { ok: false; error: string };
+
+export async function deleteProductAction(productId: string): Promise<ProductDeleteResult> {
+  await requireSalesAccess();
+
+  const product = await prisma.product.findUnique({
+    where: { id: productId },
+    select: { id: true },
+  });
+  if (!product) return { ok: false, error: "Product not found" };
+
+  const [lineItemCount, boothUnitCount] = await Promise.all([
+    prisma.quoteLineItem.count({ where: { productId } }),
+    prisma.boothUnit.count({ where: { productId } }),
+  ]);
+
+  if (lineItemCount > 0 || boothUnitCount > 0) {
+    const parts: string[] = [];
+    if (lineItemCount > 0) {
+      parts.push(`${lineItemCount} quote line${lineItemCount === 1 ? "" : "s"}`);
+    }
+    if (boothUnitCount > 0) {
+      parts.push(`${boothUnitCount} booth unit${boothUnitCount === 1 ? "" : "s"}`);
+    }
+    return {
+      ok: false,
+      error: `Used on ${parts.join(" and ")} — deactivate it instead of deleting`,
+    };
+  }
+
+  try {
+    await prisma.product.delete({ where: { id: productId } });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2003") {
+      return { ok: false, error: "This product is still referenced and cannot be deleted" };
+    }
+    throw error;
+  }
+
+  revalidatePath("/products");
+  return { ok: true };
+}

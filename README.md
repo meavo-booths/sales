@@ -100,6 +100,15 @@ The import replaces each matched product’s availability rows and updates type,
 and Zamp tax code. Images, list price, description, and add-on booth-family restrictions are
 not changed.
 
+## Deleting deals and products
+
+- **Won deals** — admins see **Delete deal** on the deal page. Removes the deal, quote lines,
+  and booth units from the database. Xero invoices and Ops File rows are not removed from those
+  external systems.
+- **Products** — **Delete** on each product card removes unused catalogue entries. If a product
+  is still on a quote or booth unit, deletion is blocked; use **Active** to hide it from new
+  quotes instead.
+
 ## Deploy
 
 1. New Vercel project from this repo

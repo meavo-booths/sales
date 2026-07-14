@@ -5,7 +5,7 @@ import { waitUntil } from "@vercel/functions";
 import { BoothUnitStatus, PaymentStatus, Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { requireSalesAccess } from "@/lib/meavo-auth";
+import { requireSalesAccess, requireSalesAdmin } from "@/lib/meavo-auth";
 import { contactInputSchema, convertInputSchema } from "@/lib/quote-input";
 import { exportDealToOpsSheet } from "@/lib/ops-sheet-export";
 import { exportDealToXero } from "@/lib/xero/export-deal";
@@ -458,5 +458,29 @@ export async function retryOpsSheetSyncAction(id: string): Promise<DealActionRes
 
   await exportDealToOpsSheet(id);
   revalidatePath(`/deals/${id}`);
+  return { ok: true, id };
+}
+
+/** Permanently remove a won deal and its line items / booth units (admin only). */
+export async function deleteWonDealAction(id: string): Promise<DealActionResult> {
+  await requireSalesAdmin();
+
+  const deal = await prisma.deal.findUnique({
+    where: { id },
+    select: { stage: true },
+  });
+  if (!deal) return { ok: false, error: "Deal not found" };
+  if (deal.stage !== "WON") return { ok: false, error: "Only won deals can be deleted here" };
+
+  try {
+    await prisma.deal.delete({ where: { id } });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2003") {
+      return { ok: false, error: "This deal is linked to other records and cannot be deleted" };
+    }
+    throw error;
+  }
+
+  revalidatePath("/deals");
   return { ok: true, id };
 }

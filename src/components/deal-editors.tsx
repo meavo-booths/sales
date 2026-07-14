@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import type { BoothUnitStatus, DealContactKind, PaymentStatus } from "@prisma/client";
 import {
+  deleteWonDealAction,
   retryOpsSheetSyncAction,
   updateBoothUnitAction,
   updateDealContactsAction,
@@ -784,6 +785,44 @@ export function RetrySheetSyncButton({ dealId }: { dealId: string }) {
         }}
       >
         {pending ? "Syncing…" : "Retry Ops File sync"}
+      </Button>
+      {error && <p className="text-sm text-red-600">{error}</p>}
+    </div>
+  );
+}
+
+export function DealDeleteButton({ dealId }: { dealId: string }) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <Button
+        variant="danger"
+        disabled={pending}
+        onClick={() => {
+          if (
+            !confirm(
+              "Delete this deal and all its line items? This cannot be undone. " +
+                "Xero invoices and Ops sheet rows are not removed from external systems.",
+            )
+          ) {
+            return;
+          }
+          setError(null);
+          startTransition(async () => {
+            const result = await deleteWonDealAction(dealId);
+            if (!result.ok) {
+              setError(result.error);
+              return;
+            }
+            router.push("/deals");
+            router.refresh();
+          });
+        }}
+      >
+        {pending ? "Deleting…" : "Delete deal"}
       </Button>
       {error && <p className="text-sm text-red-600">{error}</p>}
     </div>

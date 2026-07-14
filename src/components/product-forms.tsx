@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import type { AddOnProductFamily, BoothProductFamily } from "@prisma/client";
 import {
   createProductAction,
+  deleteProductAction,
   updateProductAction,
   type ProductActionState,
 } from "@/app/actions/products";
@@ -327,7 +328,10 @@ export function AddOnCreateForm({
 }
 
 export function ProductListItem({ product }: { product: ProductRow }) {
+  const router = useRouter();
   const [editing, setEditing] = useState(false);
+  const [deletePending, startDeleteTransition] = useTransition();
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [state, formAction, pending] = useActionState(updateProductAction, initialState);
 
   const isAddOn = product.kind === "ADDON";
@@ -395,10 +399,32 @@ export function ProductListItem({ product }: { product: ProductRow }) {
                 ].join(", ")}`}
           </p>
         </div>
-        <Button variant="secondary" onClick={() => setEditing((v) => !v)}>
-          {editing ? "Close" : "Edit"}
-        </Button>
+        <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+          <Button variant="secondary" onClick={() => setEditing((v) => !v)}>
+            {editing ? "Close" : "Edit"}
+          </Button>
+          <Button
+            variant="danger"
+            disabled={deletePending || pending}
+            onClick={() => {
+              if (!confirm("Delete this product? This cannot be undone.")) return;
+              setDeleteError(null);
+              startDeleteTransition(async () => {
+                const result = await deleteProductAction(product.id);
+                if (!result.ok) {
+                  setDeleteError(result.error);
+                  return;
+                }
+                setEditing(false);
+                router.refresh();
+              });
+            }}
+          >
+            {deletePending ? "Deleting…" : "Delete"}
+          </Button>
+        </div>
       </div>
+      {deleteError && <p className="mt-2 text-sm text-red-600">{deleteError}</p>}
 
       {editing && (
         <form action={formAction} className="mt-4 space-y-4 border-t border-slate-100 pt-4">

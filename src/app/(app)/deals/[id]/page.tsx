@@ -14,6 +14,7 @@ import {
   AssemblyAndNotesEditorRow,
   BoothUnitEditor,
   DealContactsEditorCard,
+  DealDeleteButton,
   DealDetailsEditorCard,
   PaymentEditor,
   ReadyToAssembleToggle,
@@ -60,6 +61,11 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
   });
 
   const showAddTask = await hasTasksAccess(session.user!.id);
+  const user = await prisma.user.findUnique({
+    where: { id: session.user!.id },
+    select: { systemRole: true },
+  });
+  const isAdmin = user?.systemRole === "ADMIN";
 
   return (
     <>
@@ -97,6 +103,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
             </a>
           ))}
           <ReadyToAssembleToggle dealId={deal.id} ready={deal.readyToAssemble} />
+          {isAdmin && <DealDeleteButton dealId={deal.id} />}
         </div>
       </PageHeader>
 
