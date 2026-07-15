@@ -9,6 +9,19 @@ import {
   formatDate,
   formatMoney,
 } from "@/lib/deal-values";
+import {
+  buildDealListHref,
+  buildDealListWhere,
+  hasDealListFilters,
+  mergeSocketTypeOptions,
+  parseClientTypeFilters,
+  parseDealSort,
+  parseMarketFilters,
+  parseSalesRepFilters,
+  parseSocketTypeFilters,
+  type DealListUrlState,
+} from "@/lib/deal-list-filters";
+import { DealListToolbar } from "@/components/deal-list-toolbar";
 import { LIST_PAGE_SIZE, parseListPage } from "@/lib/list-pagination";
 import { ListPagination } from "@/components/list-pagination";
 import { Badge, Card, EmptyState, PageHeader, VipBadge } from "@/components/ui";
@@ -35,27 +48,42 @@ const SCOPES = [
 
 type ScopeKey = (typeof SCOPES)[number]["key"];
 
-function buildQueryParams(
+function urlState(
   payment: string,
   scope: ScopeKey,
+  listFilters: Omit<DealListUrlState, "scope" | "quotesFilter" | "dealsPaymentPill" | "page">,
   page?: number,
-): URLSearchParams {
-  const query = new URLSearchParams();
-  if (scope === "all") query.set("scope", "all");
-  if (payment !== "all") query.set("payment", payment);
-  if (page && page > 1) query.set("page", String(page));
-  return query;
+): DealListUrlState {
+  return {
+    ...listFilters,
+    scope,
+    dealsPaymentPill: payment,
+    page,
+  };
 }
 
-function listHref(payment: string, scope: ScopeKey): string {
-  const qs = buildQueryParams(payment, scope).toString();
-  return qs ? `/deals?${qs}` : "/deals";
+function listHref(
+  payment: string,
+  scope: ScopeKey,
+  listFilters: Omit<DealListUrlState, "scope" | "quotesFilter" | "dealsPaymentPill" | "page">,
+): string {
+  return buildDealListHref("/deals", urlState(payment, scope, listFilters), "deals");
 }
 
 export default async function DealsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ payment?: string; scope?: string; page?: string }>;
+  searchParams: Promise<{
+    payment?: string;
+    scope?: string;
+    page?: string;
+    q?: string;
+    sort?: string;
+    type?: string | string[];
+    market?: string | string[];
+    salesRep?: string | string[];
+    socket?: string | string[];
+  }>;
 }) {
   const session = await requireSalesAccess();
 
@@ -64,31 +92,60 @@ export default async function DealsPage({
   const payment = FILTERS.some((f) => f.key === paymentParam) ? paymentParam : "all";
   const scope: ScopeKey = params.scope === "all" ? "all" : "mine";
 
-  const where: Prisma.DealWhereInput = {
+  const listFilters = {
+    search: (params.q ?? "").trim(),
+    sort: parseDealSort(params.sort),
+    clientTypes: parseClientTypeFilters(params.type),
+    markets: parseMarketFilters(params.market),
+    salesReps: parseSalesRepFilters(params.salesRep),
+    paymentStatuses: [] as PaymentStatus[],
+    socketTypes: parseSocketTypeFilters(params.socket),
+  };
+
+  const baseWhere: Prisma.DealWhereInput = {
     stage: "WON",
     ...(payment !== "all" ? { paymentStatus: payment as PaymentStatus } : {}),
     ...(scope === "mine" ? { createdByUserId: session.user.id } : {}),
   };
+  const where = buildDealListWhere(baseWhere, listFilters);
+  const sortDirection = listFilters.sort === "date_asc" ? "asc" : "desc";
 
-  const totalDeals = await prisma.deal.count({ where });
+  const [totalDeals, salesRepRows, socketRows] = await Promise.all([
+    prisma.deal.count({ where }),
+    prisma.deal.findMany({
+      where: { salesRep: { not: "" } },
+      distinct: ["salesRep"],
+      select: { salesRep: true },
+      orderBy: { salesRep: "asc" },
+    }),
+    prisma.deal.findMany({
+      where: { socketType: { not: "" } },
+      distinct: ["socketType"],
+      select: { socketType: true },
+      orderBy: { socketType: "asc" },
+    }),
+  ]);
+
   const totalPages = Math.max(1, Math.ceil(totalDeals / LIST_PAGE_SIZE));
   const page = parseListPage(params.page, totalPages);
 
   const deals = await prisma.deal.findMany({
     where,
-    orderBy: { wonAt: "desc" },
+    orderBy: { wonAt: sortDirection },
     skip: (page - 1) * LIST_PAGE_SIZE,
     take: LIST_PAGE_SIZE,
     include: { lineItems: true, boothUnits: true, client: { select: { isVip: true } } },
   });
 
-  const pageHref = (target: number) => {
-    const qs = buildQueryParams(payment, scope, target).toString();
-    return qs ? `/deals?${qs}` : "/deals";
-  };
+  const pageHref = (target: number) =>
+    buildDealListHref("/deals", urlState(payment, scope, listFilters, target), "deals");
 
-  const emptyMessage =
-    scope === "mine" ? "You have no won deals yet." : "No won deals here yet. Go smash that FUCK YEAH button.";
+  const filtersActive = hasDealListFilters(listFilters);
+  const emptyMessage = filtersActive
+    ? "No deals match these filters."
+    : scope === "mine"
+      ? "You have no won deals yet."
+      : "No won deals here yet. Go smash that FUCK YEAH button.";
 
   return (
     <>
@@ -101,7 +158,7 @@ export default async function DealsPage({
         {SCOPES.map((s) => (
           <Link
             key={s.key}
-            href={listHref(payment, s.key)}
+            href={listHref(payment, s.key, listFilters)}
             className={`rounded-full px-3 py-1 text-sm font-medium transition ${
               scope === s.key
                 ? "bg-slate-900 text-white"
@@ -117,7 +174,7 @@ export default async function DealsPage({
         {FILTERS.map((f) => (
           <Link
             key={f.key}
-            href={listHref(f.key, scope)}
+            href={listHref(f.key, scope, listFilters)}
             className={`rounded-full px-3 py-1 text-sm font-medium transition ${
               payment === f.key
                 ? "bg-slate-900 text-white"
@@ -128,6 +185,22 @@ export default async function DealsPage({
           </Link>
         ))}
       </div>
+
+      <DealListToolbar
+        basePath="/deals"
+        variant="deals"
+        search={listFilters.search}
+        sort={listFilters.sort}
+        selectedTypes={listFilters.clientTypes}
+        selectedMarkets={listFilters.markets}
+        selectedSalesReps={listFilters.salesReps}
+        selectedPaymentStatuses={[]}
+        selectedSocketTypes={listFilters.socketTypes}
+        salesRepOptions={salesRepRows.map((row) => row.salesRep)}
+        socketTypeOptions={mergeSocketTypeOptions(socketRows.map((row) => row.socketType))}
+        scope={scope}
+        dealsPaymentPill={payment}
+      />
 
       {deals.length === 0 ? (
         <EmptyState>{emptyMessage}</EmptyState>

@@ -9,6 +9,20 @@ import {
   formatDate,
   formatMoney,
 } from "@/lib/deal-values";
+import {
+  buildDealListHref,
+  buildDealListWhere,
+  hasDealListFilters,
+  mergeSocketTypeOptions,
+  parseClientTypeFilters,
+  parseDealSort,
+  parseMarketFilters,
+  parsePaymentStatusFilters,
+  parseSalesRepFilters,
+  parseSocketTypeFilters,
+  type DealListUrlState,
+} from "@/lib/deal-list-filters";
+import { DealListToolbar } from "@/components/deal-list-toolbar";
 import { Badge, Card, EmptyState, PageHeader, VipBadge } from "@/components/ui";
 import { ListPagination } from "@/components/list-pagination";
 import { LIST_PAGE_SIZE, parseListPage } from "@/lib/list-pagination";
@@ -39,23 +53,43 @@ function stageWhere(filter: FilterKey): Prisma.DealWhereInput {
   return {};
 }
 
-function buildQueryParams(filter: FilterKey, scope: ScopeKey, page?: number): URLSearchParams {
-  const query = new URLSearchParams();
-  if (scope === "all") query.set("scope", "all");
-  if (filter !== "open") query.set("filter", filter);
-  if (page && page > 1) query.set("page", String(page));
-  return query;
+function urlState(
+  filter: FilterKey,
+  scope: ScopeKey,
+  listFilters: Omit<DealListUrlState, "scope" | "quotesFilter" | "dealsPaymentPill" | "page">,
+  page?: number,
+): DealListUrlState {
+  return {
+    ...listFilters,
+    scope,
+    quotesFilter: filter,
+    page,
+  };
 }
 
-function listHref(filter: FilterKey, scope: ScopeKey): string {
-  const qs = buildQueryParams(filter, scope).toString();
-  return qs ? `/?${qs}` : "/";
+function listHref(
+  filter: FilterKey,
+  scope: ScopeKey,
+  listFilters: Omit<DealListUrlState, "scope" | "quotesFilter" | "dealsPaymentPill" | "page">,
+): string {
+  return buildDealListHref("/", urlState(filter, scope, listFilters), "quotes");
 }
 
 export default async function QuotesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ filter?: string; scope?: string; page?: string }>;
+  searchParams: Promise<{
+    filter?: string;
+    scope?: string;
+    page?: string;
+    q?: string;
+    sort?: string;
+    type?: string | string[];
+    market?: string | string[];
+    salesRep?: string | string[];
+    payment?: string | string[];
+    socket?: string | string[];
+  }>;
 }) {
   const session = await requireSalesAccess();
 
@@ -65,17 +99,45 @@ export default async function QuotesPage({
     : "open";
   const scope: ScopeKey = params.scope === "all" ? "all" : "mine";
 
-  const where: Prisma.DealWhereInput = {
+  const listFilters = {
+    search: (params.q ?? "").trim(),
+    sort: parseDealSort(params.sort),
+    clientTypes: parseClientTypeFilters(params.type),
+    markets: parseMarketFilters(params.market),
+    salesReps: parseSalesRepFilters(params.salesRep),
+    paymentStatuses: parsePaymentStatusFilters(params.payment),
+    socketTypes: parseSocketTypeFilters(params.socket),
+  };
+
+  const baseWhere: Prisma.DealWhereInput = {
     ...stageWhere(filter),
     ...(scope === "mine" ? { createdByUserId: session.user.id } : {}),
   };
-  const totalQuotes = await prisma.deal.count({ where });
+  const where = buildDealListWhere(baseWhere, listFilters);
+  const sortDirection = listFilters.sort === "date_asc" ? "asc" : "desc";
+
+  const [totalQuotes, salesRepRows, socketRows] = await Promise.all([
+    prisma.deal.count({ where }),
+    prisma.deal.findMany({
+      where: { salesRep: { not: "" } },
+      distinct: ["salesRep"],
+      select: { salesRep: true },
+      orderBy: { salesRep: "asc" },
+    }),
+    prisma.deal.findMany({
+      where: { socketType: { not: "" } },
+      distinct: ["socketType"],
+      select: { socketType: true },
+      orderBy: { socketType: "asc" },
+    }),
+  ]);
+
   const totalPages = Math.max(1, Math.ceil(totalQuotes / LIST_PAGE_SIZE));
   const page = parseListPage(params.page, totalPages);
 
   const quotes = await prisma.deal.findMany({
     where,
-    orderBy: { createdAt: "desc" },
+    orderBy: { dealDate: sortDirection },
     skip: (page - 1) * LIST_PAGE_SIZE,
     take: LIST_PAGE_SIZE,
     include: {
@@ -84,13 +146,13 @@ export default async function QuotesPage({
     },
   });
 
-  const pageHref = (target: number) => {
-    const qs = buildQueryParams(filter, scope, target).toString();
-    return qs ? `/?${qs}` : "/";
-  };
+  const pageHref = (target: number) =>
+    buildDealListHref("/", urlState(filter, scope, listFilters, target), "quotes");
 
-  const emptyMessage =
-    filter === "open"
+  const filtersActive = hasDealListFilters(listFilters);
+  const emptyMessage = filtersActive
+    ? "No quotes match these filters."
+    : filter === "open"
       ? scope === "mine"
         ? "You have no open quotes."
         : "No open quotes."
@@ -111,7 +173,7 @@ export default async function QuotesPage({
         {SCOPES.map((s) => (
           <Link
             key={s.key}
-            href={listHref(filter, s.key)}
+            href={listHref(filter, s.key, listFilters)}
             className={`rounded-full px-3 py-1 text-sm font-medium transition ${
               scope === s.key
                 ? "bg-slate-900 text-white"
@@ -127,7 +189,7 @@ export default async function QuotesPage({
         {FILTERS.map((f) => (
           <Link
             key={f.key}
-            href={listHref(f.key, scope)}
+            href={listHref(f.key, scope, listFilters)}
             className={`rounded-full px-3 py-1 text-sm font-medium transition ${
               filter === f.key
                 ? "bg-slate-900 text-white"
@@ -138,6 +200,22 @@ export default async function QuotesPage({
           </Link>
         ))}
       </div>
+
+      <DealListToolbar
+        basePath="/"
+        variant="quotes"
+        search={listFilters.search}
+        sort={listFilters.sort}
+        selectedTypes={listFilters.clientTypes}
+        selectedMarkets={listFilters.markets}
+        selectedSalesReps={listFilters.salesReps}
+        selectedPaymentStatuses={listFilters.paymentStatuses}
+        selectedSocketTypes={listFilters.socketTypes}
+        salesRepOptions={salesRepRows.map((row) => row.salesRep)}
+        socketTypeOptions={mergeSocketTypeOptions(socketRows.map((row) => row.socketType))}
+        scope={scope}
+        quotesFilter={filter}
+      />
 
       {quotes.length === 0 ? (
         <EmptyState>{emptyMessage}</EmptyState>
