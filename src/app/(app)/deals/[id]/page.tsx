@@ -20,6 +20,7 @@ import { DealLifecycleStrip, DealSummaryBar } from "@/components/deal-summary";
 import { dealSubtotal, dealTotals } from "@/lib/vat";
 import { persistedUsTaxAmount } from "@/lib/zamp/calculate-tax";
 import { isUsMarket } from "@/lib/zamp/constants";
+import { fetchXeroPaymentBreakdown } from "@/lib/xero/sync-payment";
 
 export const dynamic = "force-dynamic";
 
@@ -67,6 +68,11 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
     deal.paymentTerms === "SPLIT_50_50" && Boolean(deal.xeroInvoiceId) && !deal.xeroFinalInvoiceId;
   const createInvoiceLabel = deal.xeroSyncError ? "Retry Xero invoice" : "Create invoice";
 
+  const xeroPaymentBreakdown =
+    deal.xeroPaymentSyncedAt && deal.xeroInvoiceId
+      ? await fetchXeroPaymentBreakdown(deal.id)
+      : null;
+
   return (
     <>
       <PageHeader title={`Deal ${deal.dealId}`}>
@@ -110,6 +116,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
         showZamp={isUsMarket(deal.market)}
         paymentStatus={deal.paymentStatus}
         readyToAssemble={deal.readyToAssemble}
+        xeroPaymentBreakdown={xeroPaymentBreakdown}
       />
 
       {(showCreateXeroInvoice || showCreateXeroFinalInvoice) && (
@@ -206,6 +213,10 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
             }))}
             paymentStatus={deal.paymentStatus}
             paymentPoDate={deal.paymentPoDate?.toISOString().slice(0, 10) ?? ""}
+            paymentTerms={deal.paymentTerms}
+            xeroPaymentSyncedAt={deal.xeroPaymentSyncedAt?.toISOString() ?? null}
+            xeroInvoiceId={deal.xeroInvoiceId}
+            xeroPaymentBreakdown={xeroPaymentBreakdown}
           />
         </div>
 

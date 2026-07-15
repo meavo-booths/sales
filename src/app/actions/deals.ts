@@ -302,9 +302,18 @@ export async function updatePaymentAction(
   if (!parsed.success) return { ok: false, error: "Invalid payment details" };
   const input = parsed.data;
 
-  const deal = await prisma.deal.findUnique({ where: { id }, select: { stage: true } });
+  const deal = await prisma.deal.findUnique({
+    where: { id },
+    select: { stage: true, xeroPaymentSyncedAt: true },
+  });
   if (!deal) return { ok: false, error: "Deal not found" };
   if (deal.stage !== "WON") return { ok: false, error: "Only won deals have payment details" };
+  if (deal.xeroPaymentSyncedAt) {
+    return {
+      ok: false,
+      error: "Payment status is synced from Xero — use Refresh from Xero on the deal page",
+    };
+  }
 
   const paymentPoDate =
     input.paymentPoDate === undefined

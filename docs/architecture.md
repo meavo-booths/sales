@@ -73,10 +73,13 @@ Xero Items (one-way product import by item code, Sales-owned fields preserved).
 - **Server Actions** (`src/app/actions/`) — the mutation pattern for everything: quotes CRUD, conversion, won-deal edits, clients, products (with Blob upload), Xero settings/sync/retry, FX and VAT lookups.
 - **REST**: `GET /api/quotes/[id]/pdf` (streams the quote PDF; own auth + `ToolCardAccess` check) and `GET|POST /api/auth/[...nextauth]`.
 - No webhooks.
+- **Cron:** `GET /api/cron/sync-xero-payments` every 15 minutes — polls Xero invoice payment state into `Deal.paymentStatus` (requires `CRON_SECRET`).
 
 ## Scheduled jobs
 
-N/A — no cron routes and no `vercel.json` schedule.
+| Route | Schedule | Purpose |
+|-------|----------|---------|
+| `/api/cron/sync-xero-payments` | `*/15 * * * *` | Sync payment status from linked Xero invoices on won deals |
 
 ## Environment variables
 
@@ -95,6 +98,7 @@ Document names only (see `.env.example`):
 | `ASSEMBLY_URL` | Link target for Assembly records on deal pages |
 | `XERO_CLIENT_ID` / `XERO_CLIENT_SECRET` | Xero Custom Connection (client credentials) |
 | `XERO_SALES_ACCOUNT_CODE` | Optional last-resort revenue account code |
+| `CRON_SECRET` | Bearer token for `/api/cron/*` (Xero payment sync) |
 
 ## Deployment
 

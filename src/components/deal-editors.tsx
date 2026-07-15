@@ -16,6 +16,7 @@ import {
 import {
   createXeroFinalInvoiceAction,
   createXeroInvoiceAction,
+  syncDealPaymentFromXeroAction,
 } from "@/app/actions/xero";
 import { retryZampSyncAction } from "@/app/actions/zamp";
 import {
@@ -32,6 +33,8 @@ import {
   formatDate,
 } from "@/lib/deal-values";
 import { Button, Card, Input, Select, Textarea } from "@/components/ui";
+import type { XeroPaymentBreakdown } from "@/lib/xero/sync-payment";
+import { formatPaymentBreakdownLine } from "@/lib/xero/sync-payment";
 import { DealField, DealFieldGrid, DealSubsection } from "@/components/deal-layout";
 import { VatNumberField } from "@/components/vat-check";
 import { isUsMarket } from "@/lib/zamp/constants";
@@ -629,11 +632,19 @@ export function DealPeopleBillingCard({
   contacts,
   paymentStatus,
   paymentPoDate,
+  paymentTerms,
+  xeroPaymentSyncedAt,
+  xeroInvoiceId,
+  xeroPaymentBreakdown,
 }: {
   dealId: string;
   contacts: DealContactValues[];
   paymentStatus: PaymentStatus;
   paymentPoDate: string;
+  paymentTerms: PaymentTerms;
+  xeroPaymentSyncedAt: string | null;
+  xeroInvoiceId: string | null;
+  xeroPaymentBreakdown: XeroPaymentBreakdown | null;
 }) {
   return (
     <Card>
@@ -646,6 +657,10 @@ export function DealPeopleBillingCard({
             dealId={dealId}
             paymentStatus={paymentStatus}
             paymentPoDate={paymentPoDate}
+            paymentTerms={paymentTerms}
+            xeroPaymentSyncedAt={xeroPaymentSyncedAt}
+            xeroInvoiceId={xeroInvoiceId}
+            xeroPaymentBreakdown={xeroPaymentBreakdown}
           />
         </div>
       </div>
@@ -667,20 +682,65 @@ export function DealContactsEditorCard({
   );
 }
 
+function PaymentBreakdownList({
+  paymentTerms,
+  breakdown,
+}: {
+  paymentTerms: PaymentTerms;
+  breakdown: XeroPaymentBreakdown;
+}) {
+  const lines =
+    paymentTerms === "SPLIT_50_50"
+      ? [
+          formatPaymentBreakdownLine("Advance", breakdown.advance.number, breakdown.advance.state),
+          formatPaymentBreakdownLine("Final", breakdown.final.number, breakdown.final.state),
+        ]
+      : [
+          formatPaymentBreakdownLine(
+            "Invoice",
+            breakdown.advance.number,
+            breakdown.advance.state,
+          ),
+        ];
+
+  return (
+    <ul className="space-y-1 text-sm">
+      {lines.map((line) => (
+        <li key={line} className="text-slate-700">
+          {line}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export function PaymentEditor({
   dealId,
   paymentStatus,
   paymentPoDate,
+  paymentTerms,
+  xeroPaymentSyncedAt,
+  xeroInvoiceId,
+  xeroPaymentBreakdown,
 }: {
   dealId: string;
   paymentStatus: PaymentStatus;
   paymentPoDate: string;
+  paymentTerms: PaymentTerms;
+  xeroPaymentSyncedAt: string | null;
+  xeroInvoiceId: string | null;
+  xeroPaymentBreakdown: XeroPaymentBreakdown | null;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const [refreshPending, startRefresh] = useTransition();
   const [status, setStatus] = useState<PaymentStatus>(paymentStatus);
   const [poDate, setPoDate] = useState(paymentPoDate);
   const [message, setMessage] = useState<string | null>(null);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
+
+  const locked = Boolean(xeroPaymentSyncedAt);
+  const canRefresh = Boolean(xeroInvoiceId);
 
   const save = () => {
     setMessage(null);
@@ -694,8 +754,61 @@ export function PaymentEditor({
     });
   };
 
+  const refreshFromXero = () => {
+    setRefreshError(null);
+    startRefresh(async () => {
+      const result = await syncDealPaymentFromXeroAction(dealId);
+      if (!result.ok) setRefreshError(result.error);
+      router.refresh();
+    });
+  };
+
+  if (locked) {
+    return (
+      <div className="space-y-3">
+        <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+            Payment status
+          </p>
+          <p className="mt-0.5 text-sm font-medium text-slate-900">
+            {PAYMENT_STATUS_LABELS[paymentStatus]}
+          </p>
+          <p className="mt-1 text-xs text-slate-600">Synced from Xero</p>
+        </div>
+
+        {xeroPaymentBreakdown && (
+          <PaymentBreakdownList paymentTerms={paymentTerms} breakdown={xeroPaymentBreakdown} />
+        )}
+
+        {paymentPoDate && (
+          <p className="text-sm text-slate-600">
+            Payment / PO date: {formatDate(new Date(`${paymentPoDate}T00:00:00.000Z`))}
+          </p>
+        )}
+
+        {canRefresh && (
+          <div className="flex flex-wrap items-center gap-3">
+            <Button variant="secondary" disabled={refreshPending} onClick={refreshFromXero}>
+              {refreshPending ? "Refreshing…" : "Refresh from Xero"}
+            </Button>
+            {refreshError && <p className="text-sm text-red-600">{refreshError}</p>}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-3">
+      {canRefresh && (
+        <div className="flex flex-wrap items-center gap-3">
+          <Button variant="secondary" disabled={refreshPending} onClick={refreshFromXero}>
+            {refreshPending ? "Syncing…" : "Sync from Xero"}
+          </Button>
+          {refreshError && <p className="text-sm text-red-600">{refreshError}</p>}
+        </div>
+      )}
+
       <div className="grid gap-3 sm:grid-cols-2">
         <Select
           label="Payment status"

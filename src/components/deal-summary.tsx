@@ -1,5 +1,6 @@
 import type { PaymentStatus } from "@prisma/client";
 import { Badge, Card, VipBadge } from "@/components/ui";
+import type { XeroPaymentBreakdown } from "@/lib/xero/sync-payment";
 import {
   PAYMENT_STATUS_LABELS,
   PAYMENT_TERMS_LABELS,
@@ -127,7 +128,14 @@ export type DealLifecycleProps = {
   zampSyncError: string | null;
   paymentStatus: PaymentStatus;
   readyToAssemble: boolean;
+  xeroPaymentBreakdown?: XeroPaymentBreakdown | null;
 };
+
+function xeroPaymentSuffix(state: XeroPaymentBreakdown["advance"]["state"] | undefined): string {
+  if (state === "paid") return " · Paid";
+  if (state === "partial") return " · Partial";
+  return "";
+}
 
 function LifecyclePill({ step }: { step: LifecycleStep }) {
   const tone = step.warning
@@ -174,11 +182,13 @@ export function DealLifecycleStrip(props: DealLifecycleProps) {
     },
     {
       id: "xero",
-      label: props.xeroInvoiceId
-        ? props.paymentTerms === "SPLIT_50_50"
-          ? "Xero advance invoice"
+      label: `${
+        props.xeroInvoiceId
+          ? props.paymentTerms === "SPLIT_50_50"
+            ? "Xero advance invoice"
+            : "Xero invoice"
           : "Xero invoice"
-        : "Xero invoice",
+      }${xeroPaymentSuffix(props.xeroPaymentBreakdown?.advance.state)}`,
       done: Boolean(props.xeroInvoiceId),
       warning: Boolean(props.xeroSyncError),
       href: props.xeroSyncError ? "#deal-sync-alerts" : undefined,
@@ -187,7 +197,7 @@ export function DealLifecycleStrip(props: DealLifecycleProps) {
       ? [
           {
             id: "xero-final",
-            label: props.xeroFinalInvoiceId ? "Xero final invoice" : "Xero final invoice",
+            label: `Xero final invoice${xeroPaymentSuffix(props.xeroPaymentBreakdown?.final.state)}`,
             done: Boolean(props.xeroFinalInvoiceId),
             warning: Boolean(props.xeroFinalSyncError),
             href: props.xeroFinalSyncError ? "#deal-sync-alerts" : undefined,

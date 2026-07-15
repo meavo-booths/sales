@@ -122,6 +122,22 @@ export type XeroInvoiceResult = {
   InvoiceNumber: string;
 };
 
+export type XeroInvoicePayment = {
+  InvoiceID: string;
+  InvoiceNumber?: string;
+  Status: string;
+  AmountPaid?: number;
+  AmountDue?: number;
+  FullyPaidOnDate?: string;
+};
+
+export async function getInvoice(invoiceId: string): Promise<XeroInvoicePayment> {
+  const data = await xeroFetch<{ Invoices: XeroInvoicePayment[] }>(`/Invoices/${invoiceId}`);
+  const invoice = data.Invoices?.[0];
+  if (!invoice) throw new Error("Xero invoice not found");
+  return invoice;
+}
+
 export async function createDraftInvoice(input: {
   contactId: string;
   date: string;

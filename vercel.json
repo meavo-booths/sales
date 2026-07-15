@@ -1,3 +1,9 @@
 {
-  "installCommand": "npm ci"
+  "installCommand": "npm ci",
+  "crons": [
+    {
+      "path": "/api/cron/sync-xero-payments",
+      "schedule": "*/15 * * * *"
+    }
+  ]
 }

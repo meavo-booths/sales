@@ -21,7 +21,7 @@ Business rules and **where to change what**. For stack see [architecture.md](arc
 
 **`BoothUnitStatus`:** starts `PLANNED` at conversion; later stages belong to downstream tools.
 
-**`PaymentStatus`:** on won deals, edited via `updatePaymentAction`.
+**`PaymentStatus`:** on won deals, edited via `updatePaymentAction` until the first Xero payment sync (`xeroPaymentSyncedAt`); then synced from linked Xero invoice(s) every 15 minutes (cron) or on demand via **Refresh from Xero**.
 
 **Sync states on `Deal`:** `sheetRows`/`sheetSyncedAt`/`sheetSyncError` (Ops File) and `xeroInvoiceId`/`xeroSyncError` (Xero). Error set ⇒ deal page shows badge + retry button; conversion itself is never blocked.
 

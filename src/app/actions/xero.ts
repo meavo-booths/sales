@@ -16,6 +16,7 @@ import {
   type XeroTaxRate,
 } from "@/lib/xero/resources";
 import { createDealXeroInvoice, primaryInvoicePhase } from "@/lib/xero/export-deal";
+import { syncDealPaymentFromXero } from "@/lib/xero/sync-payment";
 import { importItemsFromXero, type XeroItemsImportResult } from "@/lib/xero/import-items";
 import { getXeroSettings, upsertXeroSettings } from "@/lib/xero/settings";
 import { firstZodError } from "@/lib/zod-errors";
@@ -362,6 +363,18 @@ export async function createXeroFinalInvoiceAction(dealDbId: string): Promise<Xe
 
   const result = await createDealXeroInvoice(dealDbId, { phase: "final" });
   revalidatePath(`/deals/${dealDbId}`);
+
+  if (!result.ok) return { ok: false, error: result.error };
+  return { ok: true };
+}
+
+/** Pull latest payment status from linked Xero invoice(s) for one deal. */
+export async function syncDealPaymentFromXeroAction(dealDbId: string): Promise<XeroActionResult> {
+  await requireSalesAccess();
+
+  const result = await syncDealPaymentFromXero(dealDbId);
+  revalidatePath(`/deals/${dealDbId}`);
+  revalidatePath("/deals");
 
   if (!result.ok) return { ok: false, error: result.error };
   return { ok: true };
