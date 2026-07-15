@@ -84,7 +84,7 @@ export const quoteInputSchema = z
     clientType: z.enum(["DIRECT", "AGENCY", "COWORKING"]),
     currency: z.enum(QUOTE_CURRENCIES).default("EUR"),
     isVip: z.boolean().default(false),
-    paymentTerms: z.enum(["UPFRONT_100", "SPLIT_50_50", "NET_30"]),
+    paymentTerms: z.enum(["UPFRONT_100", "SPLIT_50_50", "NET_7", "NET_30"]),
     notes: z.string().trim().default(""),
     contacts: z.array(contactInputSchema).min(1, "Add at least one contact"),
     lineItems: z.array(lineItemInputSchema).default([]),
@@ -173,11 +173,8 @@ export type QuoteInput = z.infer<typeof quoteInputSchema>;
 export type UsTaxEstimateInput = z.infer<typeof usTaxEstimateInputSchema>;
 
 export const convertInputSchema = z.object({
-  dealId: z
-    .string()
-    .trim()
-    .min(1, "DealID is required")
-    .max(64, "DealID is too long"),
+  skipXeroInvoice: z.boolean().default(false),
+  dealId: z.string().trim().max(64, "DealID is too long").optional(),
   paymentPoDate: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/)

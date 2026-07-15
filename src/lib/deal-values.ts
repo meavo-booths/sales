@@ -20,8 +20,12 @@ export const DEAL_STAGE_LABELS: Record<DealStage, string> = {
 export const PAYMENT_TERMS_LABELS: Record<PaymentTerms, string> = {
   UPFRONT_100: "100% upfront",
   SPLIT_50_50: "50% / 50%",
-  NET_30: "Net 30",
+  NET_7: "Net 7",
+  NET_30: "Net 7",
 };
+
+/** Payment terms selectable on quote/deal forms (excludes legacy NET_30). */
+export const PAYMENT_TERMS_FORM_OPTIONS = ["UPFRONT_100", "SPLIT_50_50", "NET_7"] as const satisfies readonly PaymentTerms[];
 
 export const CLIENT_TYPE_LABELS: Record<DealClientType, string> = {
   DIRECT: "Direct",

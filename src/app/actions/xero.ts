@@ -15,7 +15,7 @@ import {
   type XeroBrandingTheme,
   type XeroTaxRate,
 } from "@/lib/xero/resources";
-import { exportDealToXero } from "@/lib/xero/export-deal";
+import { createDealXeroInvoice, primaryInvoicePhase } from "@/lib/xero/export-deal";
 import { importItemsFromXero, type XeroItemsImportResult } from "@/lib/xero/import-items";
 import { getXeroSettings, upsertXeroSettings } from "@/lib/xero/settings";
 import { firstZodError } from "@/lib/zod-errors";
@@ -312,25 +312,57 @@ export async function syncProductsFromXeroAction(): Promise<XeroProductSyncResul
 
 /** Retry creating the Xero draft invoice after a failed win-time export. */
 export async function retryXeroInvoiceAction(dealDbId: string): Promise<XeroActionResult> {
+  return createXeroInvoiceAction(dealDbId);
+}
+
+/** Create the primary Xero invoice (full or 50% advance) for a won deal. */
+export async function createXeroInvoiceAction(dealDbId: string): Promise<XeroActionResult> {
   await requireSalesAccess();
 
   const deal = await prisma.deal.findUnique({
     where: { id: dealDbId },
-    select: { stage: true, xeroInvoiceId: true },
+    select: { stage: true, paymentTerms: true, xeroInvoiceId: true },
   });
   if (!deal) return { ok: false, error: "Deal not found" };
   if (deal.stage !== "WON") return { ok: false, error: "Only won deals create Xero invoices" };
   if (deal.xeroInvoiceId) return { ok: false, error: "This deal already has a Xero invoice" };
 
-  await exportDealToXero(dealDbId);
+  const phase = primaryInvoicePhase(deal.paymentTerms);
+  const result = await createDealXeroInvoice(dealDbId, { phase });
   revalidatePath(`/deals/${dealDbId}`);
 
-  const updated = await prisma.deal.findUnique({
+  if (!result.ok) return { ok: false, error: result.error };
+  return { ok: true };
+}
+
+/** Create the final 50% Xero invoice for a split-payment deal. */
+export async function createXeroFinalInvoiceAction(dealDbId: string): Promise<XeroActionResult> {
+  await requireSalesAccess();
+
+  const deal = await prisma.deal.findUnique({
     where: { id: dealDbId },
-    select: { xeroInvoiceId: true, xeroSyncError: true },
+    select: {
+      stage: true,
+      paymentTerms: true,
+      xeroInvoiceId: true,
+      xeroFinalInvoiceId: true,
+    },
   });
-  if (!updated?.xeroInvoiceId) {
-    return { ok: false, error: updated?.xeroSyncError ?? "Xero invoice creation failed" };
+  if (!deal) return { ok: false, error: "Deal not found" };
+  if (deal.stage !== "WON") return { ok: false, error: "Only won deals create Xero invoices" };
+  if (deal.paymentTerms !== "SPLIT_50_50") {
+    return { ok: false, error: "Final invoices apply only to 50/50 payment terms" };
   }
+  if (!deal.xeroInvoiceId) {
+    return { ok: false, error: "Create the advance invoice before the final invoice" };
+  }
+  if (deal.xeroFinalInvoiceId) {
+    return { ok: false, error: "This deal already has a final Xero invoice" };
+  }
+
+  const result = await createDealXeroInvoice(dealDbId, { phase: "final" });
+  revalidatePath(`/deals/${dealDbId}`);
+
+  if (!result.ok) return { ok: false, error: result.error };
   return { ok: true };
 }

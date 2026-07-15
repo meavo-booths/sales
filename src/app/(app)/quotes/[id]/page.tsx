@@ -64,7 +64,7 @@ export default async function QuotePage({ params }: { params: Promise<{ id: stri
               >
                 Edit
               </Link>
-              <ConvertQuoteButton quoteId={quote.id} />
+              <ConvertQuoteButton quoteId={quote.id} paymentTerms={quote.paymentTerms} />
             </>
           )}
         </div>

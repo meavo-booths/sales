@@ -119,9 +119,12 @@ export type DealLifecycleProps = {
   sheetSyncError: string | null;
   xeroInvoiceId: string | null;
   xeroSyncError: string | null;
+  xeroFinalInvoiceId: string | null;
+  xeroFinalSyncError: string | null;
+  paymentTerms: keyof typeof PAYMENT_TERMS_LABELS;
+  showZamp: boolean;
   zampSyncedAt: Date | null;
   zampSyncError: string | null;
-  showZamp: boolean;
   paymentStatus: PaymentStatus;
   readyToAssemble: boolean;
 };
@@ -158,6 +161,8 @@ function LifecyclePill({ step }: { step: LifecycleStep }) {
 }
 
 export function DealLifecycleStrip(props: DealLifecycleProps) {
+  const showFinalInvoice = props.paymentTerms === "SPLIT_50_50";
+
   const steps: LifecycleStep[] = [
     { id: "won", label: "Won", done: true },
     {
@@ -169,11 +174,26 @@ export function DealLifecycleStrip(props: DealLifecycleProps) {
     },
     {
       id: "xero",
-      label: props.xeroInvoiceId ? "Xero invoice" : "Xero invoice",
+      label: props.xeroInvoiceId
+        ? props.paymentTerms === "SPLIT_50_50"
+          ? "Xero advance invoice"
+          : "Xero invoice"
+        : "Xero invoice",
       done: Boolean(props.xeroInvoiceId),
       warning: Boolean(props.xeroSyncError),
       href: props.xeroSyncError ? "#deal-sync-alerts" : undefined,
     },
+    ...(showFinalInvoice
+      ? [
+          {
+            id: "xero-final",
+            label: props.xeroFinalInvoiceId ? "Xero final invoice" : "Xero final invoice",
+            done: Boolean(props.xeroFinalInvoiceId),
+            warning: Boolean(props.xeroFinalSyncError),
+            href: props.xeroFinalSyncError ? "#deal-sync-alerts" : undefined,
+          } satisfies LifecycleStep,
+        ]
+      : []),
     ...(props.showZamp
       ? [
           {

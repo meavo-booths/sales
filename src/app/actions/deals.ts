@@ -8,8 +8,10 @@ import { prisma } from "@/lib/prisma";
 import { requireSalesAccess, requireSalesAdmin } from "@/lib/meavo-auth";
 import { contactInputSchema, convertInputSchema } from "@/lib/quote-input";
 import { exportDealToOpsSheet } from "@/lib/ops-sheet-export";
-import { exportDealToXero } from "@/lib/xero/export-deal";
+import { createDealXeroInvoice } from "@/lib/xero/export-deal";
 import { exportDealToZamp } from "@/lib/zamp/export-deal";
+import { isXeroConfigured } from "@/lib/xero/client";
+import { isXeroSetupConfirmed } from "@/lib/xero/settings";
 import { syncClientContacts } from "@/lib/client-contacts";
 import { isClientVip } from "@/lib/client-hierarchy";
 import { fetchExchangeRateToEur, isQuoteCurrency } from "@/lib/exchange-rates";
@@ -51,7 +53,7 @@ const dealDetailsInputSchema = z.object({
   shipToZip: z.string().trim().max(20).default(""),
   clientName: z.string().trim().min(1, "Client name is required").max(500),
   clientType: z.enum(["DIRECT", "AGENCY", "COWORKING"]),
-  paymentTerms: z.enum(["UPFRONT_100", "SPLIT_50_50", "NET_30"]),
+  paymentTerms: z.enum(["UPFRONT_100", "SPLIT_50_50", "NET_7", "NET_30"]),
   vatNumber: z.string().trim().max(100).default(""),
   registeredAddress: z.string().trim().max(2000).default(""),
   website: z.string().trim().max(500).default(""),
@@ -143,8 +145,8 @@ export async function convertQuoteAction(
   await requireSalesAccess();
 
   const parsed = convertInputSchema.safeParse(rawInput);
-  if (!parsed.success) return { ok: false, error: "Enter a valid DealID" };
-  const { dealId, paymentPoDate } = parsed.data;
+  if (!parsed.success) return { ok: false, error: "Invalid conversion details" };
+  const { skipXeroInvoice, paymentPoDate } = parsed.data;
 
   const deal = await prisma.deal.findUnique({
     where: { id },
@@ -154,6 +156,62 @@ export async function convertQuoteAction(
   if (deal.stage !== "QUOTE") return { ok: false, error: "This quote was already converted" };
   if (deal.lineItems.length === 0) {
     return { ok: false, error: "Add at least one line item before converting" };
+  }
+
+  const manualDealId =
+    skipXeroInvoice || deal.paymentTerms === "NET_7" || deal.paymentTerms === "NET_30";
+  const wantsAutoXero = !manualDealId;
+
+  let dealId: string;
+  let xeroFields:
+    | {
+        xeroInvoiceId: string;
+        xeroInvoiceNumber: string;
+        xeroSyncedAt: Date;
+        xeroSyncError: null;
+      }
+    | undefined;
+
+  if (wantsAutoXero) {
+    if (!isXeroConfigured()) {
+      return {
+        ok: false,
+        error: "Xero is not configured — check No Xero invoice and enter a DealID manually",
+      };
+    }
+    if (!(await isXeroSetupConfirmed())) {
+      return {
+        ok: false,
+        error:
+          "Xero setup is not confirmed — check No Xero invoice and enter a DealID manually, or complete Xero settings",
+      };
+    }
+
+    const phase = deal.paymentTerms === "SPLIT_50_50" ? "advance" : "full";
+    const xeroResult = await createDealXeroInvoice(id, {
+      phase,
+      persist: false,
+    });
+    if (!xeroResult.ok) {
+      return {
+        ok: false,
+        error: xeroResult.error,
+      };
+    }
+
+    dealId = xeroResult.invoiceNumber;
+    xeroFields = {
+      xeroInvoiceId: xeroResult.invoiceId,
+      xeroInvoiceNumber: xeroResult.invoiceNumber,
+      xeroSyncedAt: new Date(),
+      xeroSyncError: null,
+    };
+  } else {
+    const rawDealId = parsed.data.dealId?.trim() ?? "";
+    if (!rawDealId) {
+      return { ok: false, error: "Enter a DealID" };
+    }
+    dealId = rawDealId;
   }
 
   const conflict = await prisma.deal.findUnique({ where: { dealId } });
@@ -191,10 +249,11 @@ export async function convertQuoteAction(
           wonAt: new Date(),
           paymentPoDate: paymentPoDate ?? undefined,
           exchangeRateToEur: new Prisma.Decimal(exchangeRateToEur.toFixed(8)),
+          skipXeroOnWin: skipXeroInvoice,
+          ...(xeroFields ?? {}),
         },
       }),
       prisma.boothUnit.createMany({ data: boothUnits }),
-      // Backfill EUR prices for all line items in one statement.
       prisma.$executeRaw`
         UPDATE "QuoteLineItem"
         SET "unitPriceEur" = ROUND("unitPrice" * ${exchangeRateToEur}::numeric, 2)
@@ -202,8 +261,6 @@ export async function convertQuoteAction(
       `,
     ]);
   } catch (error) {
-    // Another conversion may have claimed this DealID between the check above
-    // and the write (unique index on Deal.dealId).
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
       return { ok: false, error: `DealID ${dealId} is already in use` };
     }
@@ -213,9 +270,7 @@ export async function convertQuoteAction(
 
   waitUntil(notifyIfVipDealWon(id, dealId, deal.clientId, deal.clientName, deal.quoteNumber));
 
-  // Append to the Ops File, create the Xero draft invoice, and commit US deals
-  // to Zamp in the background; failures are recorded on the deal, never thrown.
-  waitUntil(Promise.all([exportDealToOpsSheet(id), exportDealToXero(id), exportDealToZamp(id)]));
+  waitUntil(Promise.all([exportDealToOpsSheet(id), exportDealToZamp(id)]));
 
   revalidatePath("/");
   revalidatePath("/deals");

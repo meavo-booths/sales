@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import type { AddOnProductFamily, BoothProductFamily, DealContactKind, DeliveryType } from "@prisma/client";
+import type { AddOnProductFamily, BoothProductFamily, DealContactKind, DeliveryType, PaymentTerms } from "@prisma/client";
 import { createQuoteAction, updateQuoteAction } from "@/app/actions/quotes";
 import { calculateUsTaxAction } from "@/app/actions/zamp";
 import { searchClientsAction } from "@/app/actions/clients";
@@ -12,6 +12,7 @@ import {
   CONTACT_KIND_LABELS,
   FINISH_LABELS,
   MARKET_OPTIONS,
+  PAYMENT_TERMS_FORM_OPTIONS,
   PAYMENT_TERMS_LABELS,
   QUOTE_CURRENCIES,
   DELIVERY_TYPE_LABELS,
@@ -197,7 +198,7 @@ export type QuoteFormValues = {
   clientType: "DIRECT" | "AGENCY" | "COWORKING";
   currency: QuoteCurrency;
   isVip: boolean;
-  paymentTerms: "UPFRONT_100" | "SPLIT_50_50" | "NET_30";
+  paymentTerms: PaymentTerms;
   notes: string;
   contacts: ContactDraft[];
   lineItems: LineItemDraft[];
@@ -731,9 +732,9 @@ export function QuoteForm({
             value={values.paymentTerms}
             onChange={(e) => set("paymentTerms", e.target.value as QuoteFormValues["paymentTerms"])}
           >
-            {Object.entries(PAYMENT_TERMS_LABELS).map(([value, label]) => (
+            {PAYMENT_TERMS_FORM_OPTIONS.map((value) => (
               <option key={value} value={value}>
-                {label}
+                {PAYMENT_TERMS_LABELS[value]}
               </option>
             ))}
           </Select>

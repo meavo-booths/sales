@@ -6,6 +6,8 @@ import { Card, PageHeader } from "@/components/ui";
 import { LineItemsCard } from "@/components/deal-sections";
 import {
   BoothUnitEditor,
+  CreateXeroFinalInvoiceButton,
+  CreateXeroInvoiceButton,
   DealDeliveryNotesCard,
   DealDetailsEditorCard,
   DealPeopleBillingCard,
@@ -57,7 +59,13 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
   const hasSyncAlerts =
     Boolean(deal.sheetSyncError) ||
     Boolean(deal.xeroSyncError) ||
+    Boolean(deal.xeroFinalSyncError) ||
     (isUsMarket(deal.market) && Boolean(deal.zampSyncError));
+
+  const showCreateXeroInvoice = !deal.xeroInvoiceId;
+  const showCreateXeroFinalInvoice =
+    deal.paymentTerms === "SPLIT_50_50" && Boolean(deal.xeroInvoiceId) && !deal.xeroFinalInvoiceId;
+  const createInvoiceLabel = deal.xeroSyncError ? "Retry Xero invoice" : "Create invoice";
 
   return (
     <>
@@ -94,12 +102,24 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
         sheetSyncError={deal.sheetSyncError}
         xeroInvoiceId={deal.xeroInvoiceId}
         xeroSyncError={deal.xeroSyncError}
+        xeroFinalInvoiceId={deal.xeroFinalInvoiceId}
+        xeroFinalSyncError={deal.xeroFinalSyncError}
+        paymentTerms={deal.paymentTerms}
         zampSyncedAt={deal.zampSyncedAt}
         zampSyncError={deal.zampSyncError}
         showZamp={isUsMarket(deal.market)}
         paymentStatus={deal.paymentStatus}
         readyToAssemble={deal.readyToAssemble}
       />
+
+      {(showCreateXeroInvoice || showCreateXeroFinalInvoice) && (
+        <div className="mb-6 flex flex-wrap gap-3">
+          {showCreateXeroInvoice && (
+            <CreateXeroInvoiceButton dealId={deal.id} label={createInvoiceLabel} />
+          )}
+          {showCreateXeroFinalInvoice && <CreateXeroFinalInvoiceButton dealId={deal.id} />}
+        </div>
+      )}
 
       <div className="space-y-6">
         {hasSyncAlerts && (
@@ -123,6 +143,17 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
                     <p className="text-sm text-amber-800">{deal.xeroSyncError}</p>
                   </div>
                   <RetryXeroInvoiceButton dealId={deal.id} />
+                </div>
+              </Card>
+            )}
+            {deal.xeroFinalSyncError && (
+              <Card className="border-amber-300 bg-amber-50">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium text-amber-900">Xero final invoice not created</p>
+                    <p className="text-sm text-amber-800">{deal.xeroFinalSyncError}</p>
+                  </div>
+                  <CreateXeroFinalInvoiceButton dealId={deal.id} />
                 </div>
               </Card>
             )}

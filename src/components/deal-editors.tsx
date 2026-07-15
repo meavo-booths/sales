@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import type { BoothUnitStatus, DealContactKind, DeliveryType, PaymentStatus } from "@prisma/client";
+import type { BoothUnitStatus, DealContactKind, DeliveryType, PaymentStatus, PaymentTerms } from "@prisma/client";
 import {
   deleteWonDealAction,
   retryOpsSheetSyncAction,
@@ -13,7 +13,10 @@ import {
   updateDealReadyAction,
   updatePaymentAction,
 } from "@/app/actions/deals";
-import { retryXeroInvoiceAction } from "@/app/actions/xero";
+import {
+  createXeroFinalInvoiceAction,
+  createXeroInvoiceAction,
+} from "@/app/actions/xero";
 import { retryZampSyncAction } from "@/app/actions/zamp";
 import {
   BOOTH_UNIT_STATUS_LABELS,
@@ -23,6 +26,7 @@ import {
   DELIVERY_TYPE_OPTIONS,
   MARKET_OPTIONS,
   PAYMENT_STATUS_LABELS,
+  PAYMENT_TERMS_FORM_OPTIONS,
   PAYMENT_TERMS_LABELS,
   SOCKET_TYPE_OPTIONS,
   formatDate,
@@ -44,7 +48,7 @@ export type DealDetailsValues = {
   shipToZip: string;
   clientName: string;
   clientType: "DIRECT" | "AGENCY" | "COWORKING";
-  paymentTerms: "UPFRONT_100" | "SPLIT_50_50" | "NET_30";
+  paymentTerms: PaymentTerms;
   vatNumber: string;
   registeredAddress: string;
   website: string;
@@ -228,9 +232,9 @@ export function DealDetailsEditorCard({
                 set("paymentTerms", e.target.value as DealDetailsValues["paymentTerms"])
               }
             >
-              {Object.entries(PAYMENT_TERMS_LABELS).map(([value, label]) => (
+              {PAYMENT_TERMS_FORM_OPTIONS.map((value) => (
                 <option key={value} value={value}>
-                  {label}
+                  {PAYMENT_TERMS_LABELS[value]}
                 </option>
               ))}
             </Select>
@@ -822,7 +826,13 @@ export function RetryZampSyncButton({ dealId }: { dealId: string }) {
   );
 }
 
-export function RetryXeroInvoiceButton({ dealId }: { dealId: string }) {
+export function CreateXeroInvoiceButton({
+  dealId,
+  label = "Create invoice",
+}: {
+  dealId: string;
+  label?: string;
+}) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -835,17 +845,47 @@ export function RetryXeroInvoiceButton({ dealId }: { dealId: string }) {
         onClick={() => {
           setError(null);
           startTransition(async () => {
-            const result = await retryXeroInvoiceAction(dealId);
+            const result = await createXeroInvoiceAction(dealId);
             if (!result.ok) setError(result.error);
             router.refresh();
           });
         }}
       >
-        {pending ? "Creating…" : "Retry Xero invoice"}
+        {pending ? "Creating…" : label}
       </Button>
       {error && <p className="text-sm text-red-600">{error}</p>}
     </div>
   );
+}
+
+export function CreateXeroFinalInvoiceButton({ dealId }: { dealId: string }) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  return (
+    <div className="flex items-center gap-2">
+      <Button
+        variant="secondary"
+        disabled={pending}
+        onClick={() => {
+          setError(null);
+          startTransition(async () => {
+            const result = await createXeroFinalInvoiceAction(dealId);
+            if (!result.ok) setError(result.error);
+            router.refresh();
+          });
+        }}
+      >
+        {pending ? "Creating…" : "Create final invoice"}
+      </Button>
+      {error && <p className="text-sm text-red-600">{error}</p>}
+    </div>
+  );
+}
+
+export function RetryXeroInvoiceButton({ dealId }: { dealId: string }) {
+  return <CreateXeroInvoiceButton dealId={dealId} label="Retry Xero invoice" />;
 }
 
 export function RetrySheetSyncButton({ dealId }: { dealId: string }) {
