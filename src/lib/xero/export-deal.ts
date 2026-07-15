@@ -1,6 +1,7 @@
 import type { PaymentTerms, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { FINISH_LABELS } from "@/lib/deal-values";
+import { xeroLineFromQuoteItem } from "@/lib/line-item-pricing";
 import { isUsMarket } from "@/lib/zamp/constants";
 import { persistedUsTaxAmount } from "@/lib/zamp/calculate-tax";
 import { isXeroConfigured } from "@/lib/xero/client";
@@ -224,14 +225,21 @@ export async function createDealXeroInvoice(
     const contactId = await findOrCreateXeroContact(deal);
 
     const sorted = [...deal.lineItems].sort((a, b) => a.sortOrder - b.sortOrder);
-    const lineItems = sorted.map((item) => ({
-      Description: lineDescription(item),
-      Quantity: item.quantity,
-      UnitAmount: Number(item.unitPrice) * amountFactor,
-      TaxType: taxType,
-      AccountCode: accountCode,
-      ...(item.product?.xeroItemCode ? { ItemCode: item.product.xeroItemCode } : {}),
-    }));
+    const lineItems = sorted.map((item) => {
+      const xeroLine = xeroLineFromQuoteItem(item, amountFactor, deal.currency);
+      const description = xeroLine.descriptionSuffix
+        ? `${lineDescription(item)} · ${xeroLine.descriptionSuffix}`
+        : lineDescription(item);
+      return {
+        Description: description,
+        Quantity: item.quantity,
+        UnitAmount: xeroLine.UnitAmount,
+        ...(xeroLine.DiscountRate != null ? { DiscountRate: xeroLine.DiscountRate } : {}),
+        TaxType: taxType,
+        AccountCode: accountCode,
+        ...(item.product?.xeroItemCode ? { ItemCode: item.product.xeroItemCode } : {}),
+      };
+    });
 
     const usTaxAmount = usDeal ? persistedUsTaxAmount(deal) * amountFactor : 0;
     if (usTaxAmount > 0) {

@@ -13,6 +13,7 @@ import { addOnCompatibleWithBoothFamily } from "@/lib/addon-compatibility";
 import { firstZodError } from "@/lib/zod-errors";
 import { resolveUsTaxForQuoteInput } from "@/lib/zamp/calculate-tax";
 import { isUsMarket } from "@/lib/zamp/constants";
+import { effectiveUnitPrice } from "@/lib/line-item-pricing";
 
 export type QuoteActionResult =
   | { ok: true; id: string }
@@ -115,6 +116,24 @@ function unitPriceEurValue(unitPrice: number, exchangeRateToEur: number): Prisma
   return new Prisma.Decimal((unitPrice * exchangeRateToEur).toFixed(2));
 }
 
+function netUnitPrice(item: {
+  unitPrice: number;
+  discountType: "NONE" | "FIXED" | "PERCENT";
+  discountValue: number;
+}): number {
+  return effectiveUnitPrice(item.unitPrice, item.discountType, item.discountValue);
+}
+
+function lineDiscountData(item: {
+  discountType: "NONE" | "FIXED" | "PERCENT";
+  discountValue: number;
+}) {
+  return {
+    discountType: item.discountType,
+    discountValue: new Prisma.Decimal(item.discountValue.toFixed(2)),
+  };
+}
+
 /**
  * Link the picked client, or create a new one from the quote's client fields.
  * Either way the quote's contacts are merged into the client's directory so
@@ -169,11 +188,12 @@ async function createLineItems(
         productId: item.productId,
         quantity: item.quantity,
         unitPrice: new Prisma.Decimal(item.unitPrice.toFixed(2)),
-        unitPriceEur: unitPriceEurValue(item.unitPrice, exchangeRateToEur),
+        unitPriceEur: unitPriceEurValue(netUnitPrice(item), exchangeRateToEur),
         finish: item.finish,
         finishDetails: item.finishDetails,
         description: item.description,
         sortOrder: sortOrder++,
+        ...lineDiscountData(item),
       },
     });
     for (const addOn of item.addOns) {
@@ -183,10 +203,11 @@ async function createLineItems(
           productId: addOn.productId,
           quantity: addOn.quantity,
           unitPrice: new Prisma.Decimal(addOn.unitPrice.toFixed(2)),
-          unitPriceEur: unitPriceEurValue(addOn.unitPrice, exchangeRateToEur),
+          unitPriceEur: unitPriceEurValue(netUnitPrice(addOn), exchangeRateToEur),
           description: addOn.description,
           sortOrder: sortOrder++,
           parentLineItemId: parent.id,
+          ...lineDiscountData(addOn),
         },
       });
     }
@@ -199,9 +220,10 @@ async function createLineItems(
         productId: addOn.productId,
         quantity: addOn.quantity,
         unitPrice: new Prisma.Decimal(addOn.unitPrice.toFixed(2)),
-        unitPriceEur: unitPriceEurValue(addOn.unitPrice, exchangeRateToEur),
+        unitPriceEur: unitPriceEurValue(netUnitPrice(addOn), exchangeRateToEur),
         description: addOn.description,
         sortOrder: sortOrder++,
+        ...lineDiscountData(addOn),
       },
     });
   }
@@ -213,9 +235,10 @@ async function createLineItems(
         customName: custom.name,
         quantity: custom.quantity,
         unitPrice: new Prisma.Decimal(custom.unitPrice.toFixed(2)),
-        unitPriceEur: unitPriceEurValue(custom.unitPrice, exchangeRateToEur),
+        unitPriceEur: unitPriceEurValue(netUnitPrice(custom), exchangeRateToEur),
         description: custom.description,
         sortOrder: sortOrder++,
+        ...lineDiscountData(custom),
       },
     });
   }

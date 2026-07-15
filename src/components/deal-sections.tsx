@@ -10,6 +10,12 @@ import {
   formatMoney,
 } from "@/lib/deal-values";
 import { dealSubtotal, dealTotals, formatTaxLineLabel } from "@/lib/vat";
+import {
+  formatDiscountLabel,
+  lineItemExtendedTotal,
+  parseDiscountType,
+  parseDiscountValue,
+} from "@/lib/line-item-pricing";
 import { persistedUsTaxAmount } from "@/lib/zamp/calculate-tax";
 import { isUsMarket } from "@/lib/zamp/constants";
 import { Card } from "@/components/ui";
@@ -120,6 +126,10 @@ function LineItemRow({
   // Custom one-off lines have no product; their name lives in customName.
   const isCustom = !item.product;
   const isAddOn = item.product?.kind === "ADDON";
+  const discountType = parseDiscountType(item.discountType);
+  const discountValue = parseDiscountValue(item.discountValue);
+  const discountLabel = formatDiscountLabel(discountType, discountValue, currency);
+  const lineTotal = lineItemExtendedTotal(item);
   return (
     <tr className="border-b border-slate-100">
       <td className={`py-2 pr-4 ${indent ? "pl-6" : ""}`}>
@@ -151,10 +161,13 @@ function LineItemRow({
         )}
       </td>
       <td className="py-2 pr-4 text-right">{item.quantity}</td>
-      <td className="py-2 pr-4 text-right">{formatMoney(Number(item.unitPrice), currency)}</td>
-      <td className="py-2 text-right font-medium">
-        {formatMoney(item.quantity * Number(item.unitPrice), currency)}
+      <td className="py-2 pr-4 text-right">
+        {formatMoney(Number(item.unitPrice), currency)}
+        {discountLabel ? (
+          <p className="text-xs text-slate-500">{discountLabel}</p>
+        ) : null}
       </td>
+      <td className="py-2 text-right font-medium">{formatMoney(lineTotal, currency)}</td>
     </tr>
   );
 }

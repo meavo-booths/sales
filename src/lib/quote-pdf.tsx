@@ -18,6 +18,12 @@ import {
   formatDate,
   formatMoney,
 } from "@/lib/deal-values";
+import {
+  lineItemExtendedTotal,
+  formatDiscountLabel,
+  parseDiscountType,
+  parseDiscountValue,
+} from "@/lib/line-item-pricing";
 import { dealSubtotal, dealTotals, formatTaxLineLabel } from "@/lib/vat";
 import { persistedUsTaxAmount } from "@/lib/zamp/calculate-tax";
 import { isUsMarket } from "@/lib/zamp/constants";
@@ -112,6 +118,10 @@ function LineItemRow({
   // Custom one-off lines have no product; their name lives in customName.
   const isCustom = !item.product;
   const isAddOn = item.product?.kind === "ADDON";
+  const discountType = parseDiscountType(item.discountType);
+  const discountValue = parseDiscountValue(item.discountValue);
+  const discountLabel = formatDiscountLabel(discountType, discountValue, currency);
+  const lineTotal = lineItemExtendedTotal(item);
   return (
     <View style={styles.row} wrap={false}>
       <View
@@ -148,10 +158,11 @@ function LineItemRow({
         )}
       </View>
       <Text style={styles.cellQty}>{item.quantity}</Text>
-      <Text style={styles.cellPrice}>{formatMoney(Number(item.unitPrice), currency)}</Text>
-      <Text style={styles.cellAmount}>
-        {formatMoney(item.quantity * Number(item.unitPrice), currency)}
-      </Text>
+      <View style={styles.cellPrice}>
+        <Text>{formatMoney(Number(item.unitPrice), currency)}</Text>
+        {discountLabel ? <Text style={{ color: MUTED }}>{discountLabel}</Text> : null}
+      </View>
+      <Text style={styles.cellAmount}>{formatMoney(lineTotal, currency)}</Text>
     </View>
   );
 }

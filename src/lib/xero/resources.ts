@@ -112,6 +112,7 @@ export type XeroInvoiceLineItem = {
   Description: string;
   Quantity: number;
   UnitAmount: number;
+  DiscountRate?: number;
   TaxType?: string;
   AccountCode?: string;
   ItemCode?: string;

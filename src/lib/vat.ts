@@ -5,6 +5,7 @@
  * Line item prices are always stored and displayed excl. tax; tax is added
  * on top at display/invoice time.
  */
+import { lineItemExtendedTotal, type LineItemWithDiscount } from "@/lib/line-item-pricing";
 export const MARKET_VAT_RATES: Record<string, number> = {
   UK: 0.2,
   Germany: 0.19,
@@ -68,10 +69,8 @@ export function dealTotals(
 }
 
 /** Sum of line items in the quote currency, excl. VAT — the single subtotal implementation. */
-export function dealSubtotal(deal: {
-  lineItems: { quantity: number; unitPrice: { toString(): string } | number | string }[];
-}): number {
-  return deal.lineItems.reduce((sum, li) => sum + li.quantity * Number(li.unitPrice), 0);
+export function dealSubtotal(deal: { lineItems: LineItemWithDiscount[] }): number {
+  return deal.lineItems.reduce((sum, li) => sum + lineItemExtendedTotal(li), 0);
 }
 
 export function formatVatRate(rate: number): string {

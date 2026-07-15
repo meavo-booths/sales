@@ -22,6 +22,12 @@ import {
   type QuoteCurrency,
 } from "@/lib/deal-values";
 import { convertBetweenQuoteCurrencies } from "@/lib/exchange-rates";
+import {
+  lineExtendedTotal,
+  lineItemExtendedTotal,
+  type LineItemDiscountType,
+} from "@/lib/line-item-pricing";
+import { currencyForMarket } from "@/lib/market-currency";
 import { dealSubtotal, dealTotals, formatTaxLineLabel } from "@/lib/vat";
 import { isUsMarket } from "@/lib/zamp/constants";
 import { stateFromZip, US_STATES } from "@/lib/us-state";
@@ -151,21 +157,28 @@ export type ClientOption = {
   contacts: ContactDraft[];
 };
 
-type CustomLineDraft = {
+type DiscountDraft = {
+  discountType: LineItemDiscountType;
+  discountValue: number;
+};
+
+const EMPTY_DISCOUNT: DiscountDraft = { discountType: "NONE", discountValue: 0 };
+
+type CustomLineDraft = DiscountDraft & {
   name: string;
   quantity: number;
   unitPrice: number;
   description: string;
 };
 
-type AddOnDraft = {
+type AddOnDraft = DiscountDraft & {
   productId: string;
   quantity: number;
   unitPrice: number;
   description: string;
 };
 
-type LineItemDraft = {
+type LineItemDraft = DiscountDraft & {
   productId: string;
   quantity: number;
   unitPrice: number;
@@ -473,6 +486,7 @@ export function QuoteForm({
           ? client.contacts.map((c) => ({ ...c }))
           : [{ ...EMPTY_CONTACT }],
     }));
+    void changeCurrency(currencyForMarket(client.market));
   };
 
   const setContact = (index: number, patch: Partial<ContactDraft>) =>
@@ -502,6 +516,7 @@ export function QuoteForm({
           finishDetails: "",
           description: "",
           addOns: [],
+          ...EMPTY_DISCOUNT,
         },
       ],
     }));
@@ -530,6 +545,7 @@ export function QuoteForm({
       quantity: 1,
       unitPrice: catalogUnitPrice(first),
       description: "",
+      ...EMPTY_DISCOUNT,
     };
   };
 
@@ -604,13 +620,55 @@ export function QuoteForm({
       });
   };
 
+  const discountControls = (
+    draft: DiscountDraft,
+    update: (patch: Partial<DiscountDraft>) => void,
+    unitPrice: number,
+  ) => (
+    <div className="grid gap-2 sm:grid-cols-2">
+      <Select
+        label="Discount"
+        value={draft.discountType}
+        onChange={(e) => {
+          const discountType = e.target.value as LineItemDiscountType;
+          update({
+            discountType,
+            discountValue: discountType === "NONE" ? 0 : draft.discountValue,
+          });
+        }}
+      >
+        <option value="NONE">None</option>
+        <option value="FIXED">Fixed amount</option>
+        <option value="PERCENT">Percentage</option>
+      </Select>
+      {draft.discountType !== "NONE" ? (
+        <Input
+          label={
+            draft.discountType === "PERCENT"
+              ? "Discount %"
+              : `Discount (${values.currency})`
+          }
+          type="number"
+          step="0.01"
+          min={0}
+          max={draft.discountType === "PERCENT" ? 100 : unitPrice}
+          value={draft.discountValue}
+          onChange={(e) => update({ discountValue: Number(e.target.value) || 0 })}
+        />
+      ) : (
+        <div />
+      )}
+    </div>
+  );
+
   const addOnFields = (
     addOn: AddOnDraft,
     update: (patch: Partial<AddOnDraft>) => void,
     remove: () => void,
     options: ProductOption[] = availableAddOnProducts,
   ) => (
-    <div className="grid gap-2 sm:grid-cols-[2fr_1fr_1fr_1.5fr_auto]">
+    <>
+      <div className="grid gap-2 sm:grid-cols-[2fr_1fr_1fr_1.5fr_auto]">
       <Select
         label="Add-on"
         value={addOn.productId}
@@ -654,7 +712,21 @@ export function QuoteForm({
           Remove
         </Button>
       </div>
-    </div>
+      </div>
+      <div className="mt-2">{discountControls(addOn, update, addOn.unitPrice)}</div>
+      <p className="mt-2 text-right text-sm font-medium text-slate-700">
+        Line total:{" "}
+        {formatMoney(
+          lineExtendedTotal(
+            addOn.quantity,
+            addOn.unitPrice,
+            addOn.discountType,
+            addOn.discountValue,
+          ),
+          values.currency,
+        )}
+      </p>
+    </>
   );
 
   return (
@@ -684,9 +756,11 @@ export function QuoteForm({
             label="Market"
             value={values.market}
             onChange={(e) => {
-              set("market", e.target.value);
+              const market = e.target.value;
+              setValues((prev) => ({ ...prev, market }));
               setEstimatedUsTax(null);
               setEstimateError(null);
+              if (market) void changeCurrency(currencyForMarket(market));
             }}
           >
             <option value="">Select market…</option>
@@ -1032,7 +1106,7 @@ export function QuoteForm({
                   ...prev,
                   customLines: [
                     ...prev.customLines,
-                    { name: "", quantity: 1, unitPrice: 0, description: "" },
+                    { name: "", quantity: 1, unitPrice: 0, description: "", ...EMPTY_DISCOUNT },
                   ],
                 }))
               }
@@ -1139,6 +1213,7 @@ export function QuoteForm({
                     placeholder="Optional — shown on the quote PDF"
                   />
                 </div>
+                <div className="mt-2">{discountControls(item, (patch) => setLineItem(index, patch), item.unitPrice)}</div>
 
                 {item.addOns.length > 0 && (
                   <div className="mt-3 space-y-2 border-l-2 border-brand-100 pl-3">
@@ -1177,8 +1252,8 @@ export function QuoteForm({
                   </Button>
                   <p className="text-right text-sm font-medium text-slate-700">
                     {formatMoney(
-                      item.quantity * item.unitPrice +
-                        item.addOns.reduce((s, a) => s + a.quantity * a.unitPrice, 0),
+                      lineItemExtendedTotal(item) +
+                        item.addOns.reduce((sum, addOn) => sum + lineItemExtendedTotal(addOn), 0),
                       values.currency,
                     )}
                   </p>
@@ -1200,9 +1275,6 @@ export function QuoteForm({
                       standaloneAddOns: prev.standaloneAddOns.filter((_, i) => i !== index),
                     })),
                 )}
-                <p className="mt-2 text-right text-sm font-medium text-slate-700">
-                  {formatMoney(addOn.quantity * addOn.unitPrice, values.currency)}
-                </p>
               </div>
             ))}
 
@@ -1259,8 +1331,11 @@ export function QuoteForm({
                     </Button>
                   </div>
                 </div>
+                <div className="mt-2">
+                  {discountControls(custom, (patch) => setCustomLine(index, patch), custom.unitPrice)}
+                </div>
                 <p className="mt-2 text-right text-sm font-medium text-slate-700">
-                  {formatMoney(custom.quantity * custom.unitPrice, values.currency)}
+                  Line total: {formatMoney(lineItemExtendedTotal(custom), values.currency)}
                 </p>
               </div>
             ))}

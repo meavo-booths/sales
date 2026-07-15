@@ -3,6 +3,7 @@ import { QUOTE_CURRENCIES } from "@/lib/exchange-rates";
 import { DELIVERY_TYPE_OPTIONS } from "@/lib/deal-values";
 import { normalizeUsState } from "@/lib/us-state";
 import { normalizeZampZip } from "@/lib/zamp/payload";
+import type { LineItemDiscountType } from "@/lib/line-item-pricing";
 
 const dateString = z
   .string()
@@ -28,31 +29,68 @@ export const contactInputSchema = z.object({
   role: z.string().trim().default(""),
 });
 
-/** Add-on line — no finish; can be attached to a booth line or standalone. */
-export const addOnInputSchema = z.object({
-  productId: z.string().min(1, "Pick an add-on"),
-  quantity: z.coerce.number().int().min(1).max(999),
-  unitPrice: z.coerce.number().min(0).max(9_999_999),
-  description: z.string().trim().default(""),
-});
+const discountTypeSchema = z.enum(["NONE", "FIXED", "PERCENT"]).default("NONE");
+const discountValueSchema = z.coerce.number().min(0).max(9_999_999).default(0);
 
-export const lineItemInputSchema = z.object({
-  productId: z.string().min(1, "Pick a product"),
-  quantity: z.coerce.number().int().min(1).max(999),
-  unitPrice: z.coerce.number().min(0).max(9_999_999),
-  finish: z.enum(["CUSTOM", "WHITE_STOCK", "BLACK_STOCK", "LDF_COLOUR"]),
-  finishDetails: z.string().trim().default(""),
-  description: z.string().trim().default(""),
-  addOns: z.array(addOnInputSchema).default([]),
-});
+const lineDiscountFields = {
+  discountType: discountTypeSchema,
+  discountValue: discountValueSchema,
+};
+
+function refineLineDiscount<T extends { unitPrice: number; discountType: LineItemDiscountType; discountValue: number }>(
+  data: T,
+  ctx: z.RefinementCtx,
+) {
+  if (data.discountType === "PERCENT" && data.discountValue > 100) {
+    ctx.addIssue({
+      code: "custom",
+      message: "Percentage discount cannot exceed 100%",
+      path: ["discountValue"],
+    });
+  }
+  if (data.discountType === "FIXED" && data.discountValue > data.unitPrice) {
+    ctx.addIssue({
+      code: "custom",
+      message: "Fixed discount cannot exceed unit price",
+      path: ["discountValue"],
+    });
+  }
+}
+
+/** Add-on line — no finish; can be attached to a booth line or standalone. */
+export const addOnInputSchema = z
+  .object({
+    productId: z.string().min(1, "Pick an add-on"),
+    quantity: z.coerce.number().int().min(1).max(999),
+    unitPrice: z.coerce.number().min(0).max(9_999_999),
+    description: z.string().trim().default(""),
+    ...lineDiscountFields,
+  })
+  .superRefine(refineLineDiscount);
+
+export const lineItemInputSchema = z
+  .object({
+    productId: z.string().min(1, "Pick a product"),
+    quantity: z.coerce.number().int().min(1).max(999),
+    unitPrice: z.coerce.number().min(0).max(9_999_999),
+    finish: z.enum(["CUSTOM", "WHITE_STOCK", "BLACK_STOCK", "LDF_COLOUR"]),
+    finishDetails: z.string().trim().default(""),
+    description: z.string().trim().default(""),
+    addOns: z.array(addOnInputSchema).default([]),
+    ...lineDiscountFields,
+  })
+  .superRefine(refineLineDiscount);
 
 /** One-off custom line — free-text item name instead of a catalog product. */
-export const customLineInputSchema = z.object({
-  name: z.string().trim().min(1, "Custom line item name is required").max(500),
-  quantity: z.coerce.number().int().min(1).max(999),
-  unitPrice: z.coerce.number().min(0).max(9_999_999),
-  description: z.string().trim().default(""),
-});
+export const customLineInputSchema = z
+  .object({
+    name: z.string().trim().min(1, "Custom line item name is required").max(500),
+    quantity: z.coerce.number().int().min(1).max(999),
+    unitPrice: z.coerce.number().min(0).max(9_999_999),
+    description: z.string().trim().default(""),
+    ...lineDiscountFields,
+  })
+  .superRefine(refineLineDiscount);
 
 export const quoteInputSchema = z
   .object({

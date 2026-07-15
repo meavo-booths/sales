@@ -256,7 +256,14 @@ export async function convertQuoteAction(
       prisma.boothUnit.createMany({ data: boothUnits }),
       prisma.$executeRaw`
         UPDATE "QuoteLineItem"
-        SET "unitPriceEur" = ROUND("unitPrice" * ${exchangeRateToEur}::numeric, 2)
+        SET "unitPriceEur" = ROUND(
+          CASE
+            WHEN "discountType" = 'FIXED' THEN GREATEST(0, "unitPrice" - "discountValue")
+            WHEN "discountType" = 'PERCENT' THEN GREATEST(0, "unitPrice" * (1 - "discountValue" / 100))
+            ELSE "unitPrice"
+          END * ${exchangeRateToEur}::numeric,
+          2
+        )
         WHERE "dealId" = ${id}
       `,
     ]);

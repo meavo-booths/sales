@@ -79,6 +79,8 @@ export default async function EditQuotePage({ params }: { params: Promise<{ id: 
       finish: li.finish,
       finishDetails: li.finishDetails,
       description: li.description,
+      discountType: li.discountType,
+      discountValue: Number(li.discountValue),
       addOns: addOnLines
         .filter((addOn) => addOn.parentLineItemId === li.id)
         .map((addOn) => ({
@@ -86,6 +88,8 @@ export default async function EditQuotePage({ params }: { params: Promise<{ id: 
           quantity: addOn.quantity,
           unitPrice: Number(addOn.unitPrice),
           description: addOn.description,
+          discountType: addOn.discountType,
+          discountValue: Number(addOn.discountValue),
         })),
     })),
     standaloneAddOns: addOnLines
@@ -95,12 +99,16 @@ export default async function EditQuotePage({ params }: { params: Promise<{ id: 
         quantity: addOn.quantity,
         unitPrice: Number(addOn.unitPrice),
         description: addOn.description,
+        discountType: addOn.discountType,
+        discountValue: Number(addOn.discountValue),
       })),
     customLines: customLines.map((li) => ({
       name: li.customName,
       quantity: li.quantity,
       unitPrice: Number(li.unitPrice),
       description: li.description,
+      discountType: li.discountType,
+      discountValue: Number(li.discountValue),
     })),
   };
 

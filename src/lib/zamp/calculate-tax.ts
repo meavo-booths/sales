@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { QuoteInput, UsTaxEstimateInput } from "@/lib/quote-input";
+import { lineItemEffectiveUnitPrice } from "@/lib/line-item-pricing";
 import { dealSubtotal } from "@/lib/vat";
 import { zampCalculate } from "@/lib/zamp/client";
 import { DEFAULT_ZAMP_TAX_CODE, isUsMarket } from "@/lib/zamp/constants";
@@ -11,6 +12,8 @@ type LineForZamp = {
   id?: string;
   quantity: number;
   unitPrice: number | string | { toString(): string };
+  discountType?: string | null;
+  discountValue?: number | string | { toString(): string } | null;
   customName?: string | null;
   product?: {
     name?: string;
@@ -72,7 +75,7 @@ export function buildZampLineItems(
 ): ZampLineItem[] {
   return lineItems.map((item, index) => ({
     id: item.id ?? `${idPrefix}-li-${index + 1}`,
-    amount: roundZampMoney(Number(item.unitPrice)),
+    amount: roundZampMoney(lineItemEffectiveUnitPrice(item)),
     quantity: item.quantity,
     productName: lineDescription(item),
     productSku: item.product?.xeroItemCode ?? undefined,
@@ -178,11 +181,20 @@ export function flattenQuoteInputLines(
   input: UsTaxEstimateInput,
   productsById: Map<string, ProductTaxMeta>,
 ): LineForZamp[] {
-  const productLine = (productId: string, quantity: number, unitPrice: number, customName?: string) => {
+  const productLine = (
+    productId: string,
+    quantity: number,
+    unitPrice: number,
+    discountType: string,
+    discountValue: number,
+    customName?: string,
+  ) => {
     const product = productsById.get(productId);
     return {
       quantity,
       unitPrice,
+      discountType,
+      discountValue,
       customName,
       product: product
         ? {
@@ -197,18 +209,44 @@ export function flattenQuoteInputLines(
 
   const lines: LineForZamp[] = [];
   for (const item of input.lineItems) {
-    lines.push(productLine(item.productId, item.quantity, item.unitPrice));
+    lines.push(
+      productLine(
+        item.productId,
+        item.quantity,
+        item.unitPrice,
+        item.discountType,
+        item.discountValue,
+      ),
+    );
     for (const addOn of item.addOns) {
-      lines.push(productLine(addOn.productId, addOn.quantity, addOn.unitPrice));
+      lines.push(
+        productLine(
+          addOn.productId,
+          addOn.quantity,
+          addOn.unitPrice,
+          addOn.discountType,
+          addOn.discountValue,
+        ),
+      );
     }
   }
   for (const addOn of input.standaloneAddOns) {
-    lines.push(productLine(addOn.productId, addOn.quantity, addOn.unitPrice));
+    lines.push(
+      productLine(
+        addOn.productId,
+        addOn.quantity,
+        addOn.unitPrice,
+        addOn.discountType,
+        addOn.discountValue,
+      ),
+    );
   }
   for (const custom of input.customLines) {
     lines.push({
       quantity: custom.quantity,
       unitPrice: custom.unitPrice,
+      discountType: custom.discountType,
+      discountValue: custom.discountValue,
       customName: custom.name,
       product: null,
     });
