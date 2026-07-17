@@ -74,7 +74,10 @@ export function ConvertQuoteButton({ quoteId, paymentTerms }: ConvertQuoteButton
     <>
       <Button
         className="bg-green-600 px-6 text-base font-bold tracking-wide hover:bg-green-700"
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          setPoDate(new Date().toISOString().slice(0, 10));
+          setOpen(true);
+        }}
       >
         FUCK YEAH
       </Button>
