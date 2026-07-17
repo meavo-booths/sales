@@ -11,16 +11,14 @@ import {
 } from "@react-pdf/renderer";
 import type { Prisma } from "@prisma/client";
 import {
-  CLIENT_TYPE_LABELS,
-  CONTACT_KIND_LABELS,
   FINISH_LABELS,
   PAYMENT_TERMS_LABELS,
   formatDate,
   formatMoney,
 } from "@/lib/deal-values";
 import {
+  lineItemEffectiveUnitPrice,
   lineItemExtendedTotal,
-  formatDiscountLabel,
   parseDiscountType,
   parseDiscountValue,
 } from "@/lib/line-item-pricing";
@@ -73,11 +71,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   headRow: { backgroundColor: "#f8fafc" },
-  cellProduct: { flex: 4, paddingRight: 8 },
-  cellFinish: { flex: 2.5, paddingRight: 8 },
-  cellQty: { flex: 0.8, textAlign: "right", paddingRight: 8 },
-  cellPrice: { flex: 1.5, textAlign: "right", paddingRight: 8 },
-  cellAmount: { flex: 1.5, textAlign: "right" },
+  cellProduct: { flex: 3.5, paddingRight: 8 },
+  cellFinish: { flex: 2, paddingRight: 8 },
+  cellQty: { flex: 0.7, textAlign: "right", paddingRight: 8 },
+  cellPrice: { flex: 1.4, textAlign: "right", paddingRight: 8 },
+  cellAfterDiscount: { flex: 1.4, textAlign: "right", paddingRight: 8 },
+  cellAmount: { flex: 1.4, textAlign: "right" },
   productImage: { width: 32, height: 32, objectFit: "cover", borderRadius: 4, marginRight: 8 },
   addOnIndent: { paddingLeft: 16 },
   totalRow: {
@@ -110,18 +109,18 @@ function LineItemRow({
   item,
   currency,
   indent,
+  hasDiscount,
 }: {
   item: LineItemForPdf;
   currency: string;
   indent?: boolean;
+  hasDiscount: boolean;
 }) {
   // Custom one-off lines have no product; their name lives in customName.
   const isCustom = !item.product;
   const isAddOn = item.product?.kind === "ADDON";
-  const discountType = parseDiscountType(item.discountType);
-  const discountValue = parseDiscountValue(item.discountValue);
-  const discountLabel = formatDiscountLabel(discountType, discountValue, currency);
   const lineTotal = lineItemExtendedTotal(item);
+  const afterDiscount = lineItemEffectiveUnitPrice(item);
   return (
     <View style={styles.row} wrap={false}>
       <View
@@ -158,10 +157,10 @@ function LineItemRow({
         )}
       </View>
       <Text style={styles.cellQty}>{item.quantity}</Text>
-      <View style={styles.cellPrice}>
-        <Text>{formatMoney(Number(item.unitPrice), currency)}</Text>
-        {discountLabel ? <Text style={{ color: MUTED }}>{discountLabel}</Text> : null}
-      </View>
+      <Text style={styles.cellPrice}>{formatMoney(Number(item.unitPrice), currency)}</Text>
+      {hasDiscount ? (
+        <Text style={styles.cellAfterDiscount}>{formatMoney(afterDiscount, currency)}</Text>
+      ) : null}
       <Text style={styles.cellAmount}>{formatMoney(lineTotal, currency)}</Text>
     </View>
   );
@@ -174,6 +173,11 @@ export function QuotePdfDocument({ quote }: { quote: QuoteForPdf }) {
   });
   const taxLabel = formatTaxLineLabel(quote.market, totals.vatRate);
   const mainContacts = quote.contacts.filter((c) => c.kind === "MAIN");
+  const hasDiscount = quote.lineItems.some(
+    (item) =>
+      parseDiscountType(item.discountType) !== "NONE" &&
+      parseDiscountValue(item.discountValue) > 0,
+  );
 
   // Attached add-ons render indented under their booth; everything else is a top-level row.
   const topLevelItems = quote.lineItems.filter((item) => !item.parentLineItemId);
@@ -189,7 +193,9 @@ export function QuotePdfDocument({ quote }: { quote: QuoteForPdf }) {
           <View style={{ alignItems: "flex-end" }}>
             <Text style={styles.title}>Quote {quote.quoteNumber}</Text>
             <Text style={styles.meta}>Date: {formatDate(quote.dealDate)}</Text>
-            {quote.salesRep ? <Text style={styles.meta}>Sales rep: {quote.salesRep}</Text> : null}
+            {quote.salesRep ? (
+              <Text style={styles.meta}>Prepared by: {quote.salesRep}</Text>
+            ) : null}
           </View>
         </View>
 
@@ -201,22 +207,15 @@ export function QuotePdfDocument({ quote }: { quote: QuoteForPdf }) {
               <Text style={styles.line}>{quote.registeredAddress}</Text>
             ) : null}
             {quote.vatNumber ? <Text style={styles.line}>VAT: {quote.vatNumber}</Text> : null}
-            <Text style={styles.line}>
-              Client type: {CLIENT_TYPE_LABELS[quote.clientType]}
-            </Text>
           </View>
           <View style={styles.column}>
             <Text style={styles.sectionTitle}>Contacts</Text>
-            {(mainContacts.length > 0 ? mainContacts : quote.contacts).map((contact) => (
+            {mainContacts.map((contact) => (
               <View key={contact.id} style={{ marginBottom: 4 }}>
-                <Text style={styles.bold}>
-                  {contact.name}
-                  {contact.role ? ` — ${contact.role}` : ""}
-                </Text>
-                <Text style={{ color: MUTED }}>
-                  {[contact.email, contact.phone].filter(Boolean).join(" · ") ||
-                    CONTACT_KIND_LABELS[contact.kind]}
-                </Text>
+                <Text style={styles.bold}>{contact.name}</Text>
+                {contact.email ? (
+                  <Text style={{ color: MUTED }}>{contact.email}</Text>
+                ) : null}
               </View>
             ))}
           </View>
@@ -244,13 +243,22 @@ export function QuotePdfDocument({ quote }: { quote: QuoteForPdf }) {
             <Text style={[styles.cellFinish, styles.bold]}>Finish</Text>
             <Text style={[styles.cellQty, styles.bold]}>Qty</Text>
             <Text style={[styles.cellPrice, styles.bold]}>Unit price</Text>
+            {hasDiscount ? (
+              <Text style={[styles.cellAfterDiscount, styles.bold]}>After discount</Text>
+            ) : null}
             <Text style={[styles.cellAmount, styles.bold]}>Amount</Text>
           </View>
           {topLevelItems.map((item) => (
             <React.Fragment key={item.id}>
-              <LineItemRow item={item} currency={quote.currency} />
+              <LineItemRow item={item} currency={quote.currency} hasDiscount={hasDiscount} />
               {attachedAddOns(item.id).map((addOn) => (
-                <LineItemRow key={addOn.id} item={addOn} currency={quote.currency} indent />
+                <LineItemRow
+                  key={addOn.id}
+                  item={addOn}
+                  currency={quote.currency}
+                  indent
+                  hasDiscount={hasDiscount}
+                />
               ))}
             </React.Fragment>
           ))}
