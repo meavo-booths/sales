@@ -17,6 +17,7 @@ import {
   formatMoney,
 } from "@/lib/deal-values";
 import {
+  formatDiscountLabel,
   lineItemEffectiveUnitPrice,
   lineItemExtendedTotal,
   parseDiscountType,
@@ -119,6 +120,9 @@ function LineItemRow({
   // Custom one-off lines have no product; their name lives in customName.
   const isCustom = !item.product;
   const isAddOn = item.product?.kind === "ADDON";
+  const discountType = parseDiscountType(item.discountType);
+  const discountValue = parseDiscountValue(item.discountValue);
+  const discountLabel = formatDiscountLabel(discountType, discountValue, currency);
   const lineTotal = lineItemExtendedTotal(item);
   const afterDiscount = lineItemEffectiveUnitPrice(item);
   return (
@@ -157,7 +161,10 @@ function LineItemRow({
         )}
       </View>
       <Text style={styles.cellQty}>{item.quantity}</Text>
-      <Text style={styles.cellPrice}>{formatMoney(Number(item.unitPrice), currency)}</Text>
+      <View style={styles.cellPrice}>
+        <Text>{formatMoney(Number(item.unitPrice), currency)}</Text>
+        {discountLabel ? <Text style={{ color: MUTED }}>{discountLabel}</Text> : null}
+      </View>
       {hasDiscount ? (
         <Text style={styles.cellAfterDiscount}>{formatMoney(afterDiscount, currency)}</Text>
       ) : null}
