@@ -6,7 +6,7 @@ import {
   getSheetsClient,
   isOpsSheetConfigured,
 } from "@/lib/sheets-client";
-import { CLIENT_TYPE_LABELS, formatSheetDate } from "@/lib/deal-values";
+import { BOOTH_FAMILY_LABELS, CLIENT_TYPE_LABELS, formatSheetDate } from "@/lib/deal-values";
 import { lineItemAmountEur } from "@/lib/line-item-eur";
 import { prisma } from "@/lib/prisma";
 
@@ -124,7 +124,9 @@ export function buildExportGroups(deal: DealForExport): ExportGroup[] {
     } else {
       groups.set(key, {
         suffix: "",
-        model: item.product!.name,
+        model: item.product!.boothFamily
+          ? BOOTH_FAMILY_LABELS[item.product!.boothFamily]
+          : item.product!.name,
         quantity: item.quantity,
         addOns: [],
         amount,
