@@ -154,6 +154,34 @@ export function hasDealListFilters(filters: DealListFilterState): boolean {
   return filters.search.trim().length > 0 || hasDealAdvancedFilters(filters);
 }
 
+/** Non-default filter facets shown in the Quotes/Deals sidebar (excludes search/sort). */
+export function countDealSidebarFilters(input: {
+  variant: "quotes" | "deals";
+  scope: "mine" | "all";
+  quotesFilter?: string;
+  dealsPaymentPill?: string;
+  clientTypes: DealClientType[];
+  markets: string[];
+  salesReps: string[];
+  paymentStatuses: PaymentStatus[];
+  socketTypes: string[];
+}): number {
+  let count = 0;
+  if (input.scope !== "mine") count += 1;
+  if (input.variant === "quotes" && input.quotesFilter && input.quotesFilter !== "open") {
+    count += 1;
+  }
+  if (input.variant === "deals" && input.dealsPaymentPill && input.dealsPaymentPill !== "all") {
+    count += 1;
+  }
+  if (input.clientTypes.length > 0) count += 1;
+  if (input.markets.length > 0) count += 1;
+  if (input.salesReps.length > 0) count += 1;
+  if (input.variant === "quotes" && input.paymentStatuses.length > 0) count += 1;
+  if (input.socketTypes.length > 0) count += 1;
+  return count;
+}
+
 export type DealListUrlState = DealListFilterState & {
   scope: "mine" | "all";
   quotesFilter?: string;

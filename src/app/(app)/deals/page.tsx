@@ -12,6 +12,7 @@ import {
 import {
   buildDealListHref,
   buildDealListWhere,
+  countDealSidebarFilters,
   hasDealListFilters,
   mergeSocketTypeOptions,
   parseClientTypeFilters,
@@ -21,10 +22,7 @@ import {
   parseSocketTypeFilters,
   type DealListUrlState,
 } from "@/lib/deal-list-filters";
-import {
-  countDealSidebarFilters,
-  DealListFiltersSidebar,
-} from "@/components/deal-list-filters-sidebar";
+import { DealListFiltersSidebar } from "@/components/deal-list-filters-sidebar";
 import { DealListShell } from "@/components/deal-list-shell";
 import { DealListToolbar } from "@/components/deal-list-toolbar";
 import { LIST_PAGE_SIZE, parseListPage } from "@/lib/list-pagination";

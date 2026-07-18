@@ -10,6 +10,7 @@ import {
 } from "@/lib/deal-values";
 import {
   appendDealListParams,
+  countDealSidebarFilters,
   hasDealAdvancedFilters,
   type DealListFilterState,
   type DealListSort,
@@ -23,33 +24,6 @@ export type DealListPillOption = {
   href: string;
   active: boolean;
 };
-
-export function countDealSidebarFilters(input: {
-  variant: "quotes" | "deals";
-  scope: "mine" | "all";
-  quotesFilter?: string;
-  dealsPaymentPill?: string;
-  clientTypes: DealClientType[];
-  markets: string[];
-  salesReps: string[];
-  paymentStatuses: PaymentStatus[];
-  socketTypes: string[];
-}): number {
-  let count = 0;
-  if (input.scope !== "mine") count += 1;
-  if (input.variant === "quotes" && input.quotesFilter && input.quotesFilter !== "open") {
-    count += 1;
-  }
-  if (input.variant === "deals" && input.dealsPaymentPill && input.dealsPaymentPill !== "all") {
-    count += 1;
-  }
-  if (input.clientTypes.length > 0) count += 1;
-  if (input.markets.length > 0) count += 1;
-  if (input.salesReps.length > 0) count += 1;
-  if (input.variant === "quotes" && input.paymentStatuses.length > 0) count += 1;
-  if (input.socketTypes.length > 0) count += 1;
-  return count;
-}
 
 function FilterSection({
   title,
