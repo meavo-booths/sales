@@ -21,6 +21,11 @@ import {
   parseSocketTypeFilters,
   type DealListUrlState,
 } from "@/lib/deal-list-filters";
+import {
+  countDealSidebarFilters,
+  DealListFiltersSidebar,
+} from "@/components/deal-list-filters-sidebar";
+import { DealListShell } from "@/components/deal-list-shell";
 import { DealListToolbar } from "@/components/deal-list-toolbar";
 import { LIST_PAGE_SIZE, parseListPage } from "@/lib/list-pagination";
 import { ListPagination } from "@/components/list-pagination";
@@ -154,111 +159,120 @@ export default async function DealsPage({
         description="Won deals, their payment status, and booth production progress."
       />
 
-      <div className="mb-3 flex flex-wrap gap-2">
-        {SCOPES.map((s) => (
-          <Link
-            key={s.key}
-            href={listHref(payment, s.key, listFilters)}
-            className={`rounded-full px-3 py-1 text-sm font-medium transition ${
-              scope === s.key
-                ? "bg-slate-900 text-white"
-                : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50"
-            }`}
-          >
-            {s.label}
-          </Link>
-        ))}
-      </div>
-
-      <div className="mb-4 flex flex-wrap gap-2">
-        {FILTERS.map((f) => (
-          <Link
-            key={f.key}
-            href={listHref(f.key, scope, listFilters)}
-            className={`rounded-full px-3 py-1 text-sm font-medium transition ${
-              payment === f.key
-                ? "bg-slate-900 text-white"
-                : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50"
-            }`}
-          >
-            {f.label}
-          </Link>
-        ))}
-      </div>
-
-      <DealListToolbar
-        basePath="/deals"
-        variant="deals"
-        search={listFilters.search}
-        sort={listFilters.sort}
-        selectedTypes={listFilters.clientTypes}
-        selectedMarkets={listFilters.markets}
-        selectedSalesReps={listFilters.salesReps}
-        selectedPaymentStatuses={[]}
-        selectedSocketTypes={listFilters.socketTypes}
-        salesRepOptions={salesRepRows.map((row) => row.salesRep)}
-        socketTypeOptions={mergeSocketTypeOptions(socketRows.map((row) => row.socketType))}
-        scope={scope}
-        dealsPaymentPill={payment}
-      />
-
-      {deals.length === 0 ? (
-        <EmptyState>{emptyMessage}</EmptyState>
-      ) : (
-        <div className="space-y-3">
-          {deals.map((deal) => {
-            const total = dealTotalEur(deal);
-            const statusCounts = deal.boothUnits.reduce<Record<string, number>>((acc, unit) => {
-              acc[unit.status] = (acc[unit.status] ?? 0) + 1;
-              return acc;
-            }, {});
-            return (
-              <Link key={deal.id} href={`/deals/${deal.id}`} className="block">
-                <Card className="transition hover:border-brand-500/40 hover:shadow">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-semibold text-slate-900">{deal.dealId}</span>
-                        <span className="text-sm text-slate-500">{deal.quoteNumber}</span>
-                        <Badge tone={PAYMENT_TONES[deal.paymentStatus]}>
-                          {PAYMENT_STATUS_LABELS[deal.paymentStatus]}
-                        </Badge>
-                        {deal.client?.isVip && <VipBadge />}
-                        {deal.readyToAssemble && <Badge tone="green">Ready to assemble</Badge>}
-                        {deal.sheetSyncError && <Badge tone="amber">Sheet sync failed</Badge>}
+      <DealListShell
+        activeFilterCount={countDealSidebarFilters({
+          variant: "deals",
+          scope,
+          dealsPaymentPill: payment,
+          clientTypes: listFilters.clientTypes,
+          markets: listFilters.markets,
+          salesReps: listFilters.salesReps,
+          paymentStatuses: listFilters.paymentStatuses,
+          socketTypes: listFilters.socketTypes,
+        })}
+        renderSidebar={() => (
+          <DealListFiltersSidebar
+            basePath="/deals"
+            variant="deals"
+            search={listFilters.search}
+            sort={listFilters.sort}
+            selectedTypes={listFilters.clientTypes}
+            selectedMarkets={listFilters.markets}
+            selectedSalesReps={listFilters.salesReps}
+            selectedPaymentStatuses={[]}
+            selectedSocketTypes={listFilters.socketTypes}
+            salesRepOptions={salesRepRows.map((row) => row.salesRep)}
+            socketTypeOptions={mergeSocketTypeOptions(socketRows.map((row) => row.socketType))}
+            scope={scope}
+            dealsPaymentPill={payment}
+            ownershipPills={SCOPES.map((s) => ({
+              key: s.key,
+              label: s.label,
+              href: listHref(payment, s.key, listFilters),
+              active: scope === s.key,
+            }))}
+            statusPills={FILTERS.map((f) => ({
+              key: f.key,
+              label: f.label,
+              href: listHref(f.key, scope, listFilters),
+              active: payment === f.key,
+            }))}
+          />
+        )}
+        toolbar={
+          <DealListToolbar
+            basePath="/deals"
+            variant="deals"
+            search={listFilters.search}
+            sort={listFilters.sort}
+            scope={scope}
+            dealsPaymentPill={payment}
+            clientTypes={listFilters.clientTypes}
+            markets={listFilters.markets}
+            salesReps={listFilters.salesReps}
+            paymentStatuses={[]}
+            socketTypes={listFilters.socketTypes}
+          />
+        }
+      >
+        {deals.length === 0 ? (
+          <EmptyState>{emptyMessage}</EmptyState>
+        ) : (
+          <div className="space-y-3">
+            {deals.map((deal) => {
+              const total = dealTotalEur(deal);
+              const statusCounts = deal.boothUnits.reduce<Record<string, number>>((acc, unit) => {
+                acc[unit.status] = (acc[unit.status] ?? 0) + 1;
+                return acc;
+              }, {});
+              return (
+                <Link key={deal.id} href={`/deals/${deal.id}`} className="block">
+                  <Card className="transition hover:border-brand-500/40 hover:shadow">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-semibold text-slate-900">{deal.dealId}</span>
+                          <span className="text-sm text-slate-500">{deal.quoteNumber}</span>
+                          <Badge tone={PAYMENT_TONES[deal.paymentStatus]}>
+                            {PAYMENT_STATUS_LABELS[deal.paymentStatus]}
+                          </Badge>
+                          {deal.client?.isVip && <VipBadge />}
+                          {deal.readyToAssemble && <Badge tone="green">Ready to assemble</Badge>}
+                          {deal.sheetSyncError && <Badge tone="amber">Sheet sync failed</Badge>}
+                        </div>
+                        <p className="mt-1 text-sm text-slate-600">
+                          {deal.clientName}
+                          {deal.market && ` · ${deal.market}`}
+                          {` · won ${formatDate(deal.wonAt)}`}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          {Object.entries(statusCounts)
+                            .map(
+                              ([status, count]) =>
+                                `${count} ${BOOTH_UNIT_STATUS_LABELS[status as keyof typeof BOOTH_UNIT_STATUS_LABELS].toLowerCase()}`,
+                            )
+                            .join(" · ") || "No booth units"}
+                        </p>
                       </div>
-                      <p className="mt-1 text-sm text-slate-600">
-                        {deal.clientName}
-                        {deal.market && ` · ${deal.market}`}
-                        {` · won ${formatDate(deal.wonAt)}`}
-                      </p>
-                      <p className="mt-1 text-xs text-slate-500">
-                        {Object.entries(statusCounts)
-                          .map(
-                            ([status, count]) =>
-                              `${count} ${BOOTH_UNIT_STATUS_LABELS[status as keyof typeof BOOTH_UNIT_STATUS_LABELS].toLowerCase()}`,
-                          )
-                          .join(" · ") || "No booth units"}
+                      <p className="font-semibold text-slate-900">
+                        {total == null ? "—" : formatMoney(total)}
                       </p>
                     </div>
-                    <p className="font-semibold text-slate-900">
-                      {total == null ? "—" : formatMoney(total)}
-                    </p>
-                  </div>
-                </Card>
-              </Link>
-            );
-          })}
+                  </Card>
+                </Link>
+              );
+            })}
 
-          <ListPagination
-            page={page}
-            totalPages={totalPages}
-            totalCount={totalDeals}
-            pageHref={pageHref}
-            countLabel="deal"
-          />
-        </div>
-      )}
+            <ListPagination
+              page={page}
+              totalPages={totalPages}
+              totalCount={totalDeals}
+              pageHref={pageHref}
+              countLabel="deal"
+            />
+          </div>
+        )}
+      </DealListShell>
     </>
   );
 }

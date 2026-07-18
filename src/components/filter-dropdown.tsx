@@ -42,11 +42,13 @@ export function MultiSelectDropdown({
   options,
   selected,
   onChange,
+  fullWidth,
 }: {
   label: string;
   options: FilterOption[];
   selected: string[];
   onChange: (next: string[]) => void;
+  fullWidth?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -58,13 +60,15 @@ export function MultiSelectDropdown({
     selected.length === 0 ? label : `${label} (${selected.length})`;
 
   return (
-    <div ref={rootRef} className="relative shrink-0">
+    <div ref={rootRef} className={`relative ${fullWidth ? "w-full" : "shrink-0"}`}>
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
         aria-haspopup="listbox"
-        className={`inline-flex min-w-[7.5rem] items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm transition ${
+        className={`inline-flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm transition ${
+          fullWidth ? "w-full" : "min-w-[7.5rem]"
+        } ${
           selected.length > 0
             ? "border-brand-500 bg-brand-50 text-brand-800"
             : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"

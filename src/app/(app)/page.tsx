@@ -22,6 +22,11 @@ import {
   parseSocketTypeFilters,
   type DealListUrlState,
 } from "@/lib/deal-list-filters";
+import {
+  countDealSidebarFilters,
+  DealListFiltersSidebar,
+} from "@/components/deal-list-filters-sidebar";
+import { DealListShell } from "@/components/deal-list-shell";
 import { DealListToolbar } from "@/components/deal-list-toolbar";
 import { Badge, Card, EmptyState, PageHeader, VipBadge } from "@/components/ui";
 import { ListPagination } from "@/components/list-pagination";
@@ -169,109 +174,118 @@ export default async function QuotesPage({
         </Link>
       </PageHeader>
 
-      <div className="mb-3 flex flex-wrap gap-2">
-        {SCOPES.map((s) => (
-          <Link
-            key={s.key}
-            href={listHref(filter, s.key, listFilters)}
-            className={`rounded-full px-3 py-1 text-sm font-medium transition ${
-              scope === s.key
-                ? "bg-slate-900 text-white"
-                : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50"
-            }`}
-          >
-            {s.label}
-          </Link>
-        ))}
-      </div>
-
-      <div className="mb-4 flex flex-wrap gap-2">
-        {FILTERS.map((f) => (
-          <Link
-            key={f.key}
-            href={listHref(f.key, scope, listFilters)}
-            className={`rounded-full px-3 py-1 text-sm font-medium transition ${
-              filter === f.key
-                ? "bg-slate-900 text-white"
-                : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50"
-            }`}
-          >
-            {f.label}
-          </Link>
-        ))}
-      </div>
-
-      <DealListToolbar
-        basePath="/"
-        variant="quotes"
-        search={listFilters.search}
-        sort={listFilters.sort}
-        selectedTypes={listFilters.clientTypes}
-        selectedMarkets={listFilters.markets}
-        selectedSalesReps={listFilters.salesReps}
-        selectedPaymentStatuses={listFilters.paymentStatuses}
-        selectedSocketTypes={listFilters.socketTypes}
-        salesRepOptions={salesRepRows.map((row) => row.salesRep)}
-        socketTypeOptions={mergeSocketTypeOptions(socketRows.map((row) => row.socketType))}
-        scope={scope}
-        quotesFilter={filter}
-      />
-
-      {quotes.length === 0 ? (
-        <EmptyState>{emptyMessage}</EmptyState>
-      ) : (
-        <div className="space-y-3">
-          {quotes.map((quote) => {
-            const total = dealTotalEur(quote);
-            const booths = quote.lineItems
-              .filter((li) => li.product?.kind === "BOOTH")
-              .reduce((sum, li) => sum + li.quantity, 0);
-            const href = quote.stage === "WON" ? `/deals/${quote.id}` : `/quotes/${quote.id}`;
-            return (
-              <Link key={quote.id} href={href} className="block">
-                <Card className="transition hover:border-brand-500/40 hover:shadow">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-semibold text-slate-900">{quote.quoteNumber}</span>
-                        {quote.dealId && (
-                          <span className="text-sm text-slate-500">Deal {quote.dealId}</span>
-                        )}
-                        <Badge tone={STAGE_TONES[quote.stage]}>
-                          {DEAL_STAGE_LABELS[quote.stage]}
-                        </Badge>
-                        {quote.client?.isVip && <VipBadge />}
-                      </div>
-                      <p className="mt-1 text-sm text-slate-600">
-                        {quote.clientName}
-                        {quote.market && ` · ${quote.market}`}
-                        {` · ${CLIENT_TYPE_LABELS[quote.clientType]}`}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-semibold text-slate-900">
-                        {total == null ? "—" : formatMoney(total)}
-                      </p>
-                      <p className="text-sm text-slate-500">
-                        {booths} booth{booths === 1 ? "" : "s"} · {formatDate(quote.dealDate)}
-                        {quote.salesRep && ` · ${quote.salesRep}`}
-                      </p>
-                    </div>
-                  </div>
-                </Card>
-              </Link>
-            );
-          })}
-
-          <ListPagination
-            page={page}
-            totalPages={totalPages}
-            totalCount={totalQuotes}
-            pageHref={pageHref}
-            countLabel="quote"
+      <DealListShell
+        activeFilterCount={countDealSidebarFilters({
+          variant: "quotes",
+          scope,
+          quotesFilter: filter,
+          clientTypes: listFilters.clientTypes,
+          markets: listFilters.markets,
+          salesReps: listFilters.salesReps,
+          paymentStatuses: listFilters.paymentStatuses,
+          socketTypes: listFilters.socketTypes,
+        })}
+        renderSidebar={() => (
+          <DealListFiltersSidebar
+            basePath="/"
+            variant="quotes"
+            search={listFilters.search}
+            sort={listFilters.sort}
+            selectedTypes={listFilters.clientTypes}
+            selectedMarkets={listFilters.markets}
+            selectedSalesReps={listFilters.salesReps}
+            selectedPaymentStatuses={listFilters.paymentStatuses}
+            selectedSocketTypes={listFilters.socketTypes}
+            salesRepOptions={salesRepRows.map((row) => row.salesRep)}
+            socketTypeOptions={mergeSocketTypeOptions(socketRows.map((row) => row.socketType))}
+            scope={scope}
+            quotesFilter={filter}
+            ownershipPills={SCOPES.map((s) => ({
+              key: s.key,
+              label: s.label,
+              href: listHref(filter, s.key, listFilters),
+              active: scope === s.key,
+            }))}
+            statusPills={FILTERS.map((f) => ({
+              key: f.key,
+              label: f.label,
+              href: listHref(f.key, scope, listFilters),
+              active: filter === f.key,
+            }))}
           />
-        </div>
-      )}
+        )}
+        toolbar={
+          <DealListToolbar
+            basePath="/"
+            variant="quotes"
+            search={listFilters.search}
+            sort={listFilters.sort}
+            scope={scope}
+            quotesFilter={filter}
+            clientTypes={listFilters.clientTypes}
+            markets={listFilters.markets}
+            salesReps={listFilters.salesReps}
+            paymentStatuses={listFilters.paymentStatuses}
+            socketTypes={listFilters.socketTypes}
+          />
+        }
+      >
+        {quotes.length === 0 ? (
+          <EmptyState>{emptyMessage}</EmptyState>
+        ) : (
+          <div className="space-y-3">
+            {quotes.map((quote) => {
+              const total = dealTotalEur(quote);
+              const booths = quote.lineItems
+                .filter((li) => li.product?.kind === "BOOTH")
+                .reduce((sum, li) => sum + li.quantity, 0);
+              const href = quote.stage === "WON" ? `/deals/${quote.id}` : `/quotes/${quote.id}`;
+              return (
+                <Link key={quote.id} href={href} className="block">
+                  <Card className="transition hover:border-brand-500/40 hover:shadow">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-semibold text-slate-900">{quote.quoteNumber}</span>
+                          {quote.dealId && (
+                            <span className="text-sm text-slate-500">Deal {quote.dealId}</span>
+                          )}
+                          <Badge tone={STAGE_TONES[quote.stage]}>
+                            {DEAL_STAGE_LABELS[quote.stage]}
+                          </Badge>
+                          {quote.client?.isVip && <VipBadge />}
+                        </div>
+                        <p className="mt-1 text-sm text-slate-600">
+                          {quote.clientName}
+                          {quote.market && ` · ${quote.market}`}
+                          {` · ${CLIENT_TYPE_LABELS[quote.clientType]}`}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-semibold text-slate-900">
+                          {total == null ? "—" : formatMoney(total)}
+                        </p>
+                        <p className="text-sm text-slate-500">
+                          {booths} booth{booths === 1 ? "" : "s"} · {formatDate(quote.dealDate)}
+                          {quote.salesRep && ` · ${quote.salesRep}`}
+                        </p>
+                      </div>
+                    </div>
+                  </Card>
+                </Link>
+              );
+            })}
+
+            <ListPagination
+              page={page}
+              totalPages={totalPages}
+              totalCount={totalQuotes}
+              pageHref={pageHref}
+              countLabel="quote"
+            />
+          </div>
+        )}
+      </DealListShell>
     </>
   );
 }
