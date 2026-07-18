@@ -170,7 +170,7 @@ export default async function DealsPage({
           paymentStatuses: listFilters.paymentStatuses,
           socketTypes: listFilters.socketTypes,
         })}
-        renderSidebar={() => (
+        sidebar={
           <DealListFiltersSidebar
             basePath="/deals"
             variant="deals"
@@ -198,7 +198,7 @@ export default async function DealsPage({
               active: payment === f.key,
             }))}
           />
-        )}
+        }
         toolbar={
           <DealListToolbar
             basePath="/deals"

@@ -185,7 +185,7 @@ export default async function QuotesPage({
           paymentStatuses: listFilters.paymentStatuses,
           socketTypes: listFilters.socketTypes,
         })}
-        renderSidebar={() => (
+        sidebar={
           <DealListFiltersSidebar
             basePath="/"
             variant="quotes"
@@ -213,7 +213,7 @@ export default async function QuotesPage({
               active: filter === f.key,
             }))}
           />
-        )}
+        }
         toolbar={
           <DealListToolbar
             basePath="/"
