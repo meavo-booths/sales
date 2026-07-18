@@ -1,4 +1,3 @@
-import { MeavoNavBar } from "@meavo/navigation";
 import {
   getAccessibleTools,
   getNotifications,
@@ -11,6 +10,7 @@ import {
   markNotificationReadAction,
   refreshNotificationsAction,
 } from "@/app/actions/notifications";
+import { SalesNavBar } from "@/components/sales-nav-bar";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -19,13 +19,6 @@ import { prisma } from "@/lib/prisma";
 const MEAVO_APP_KEY = (process.env.MEAVO_APP_KEY ?? "sales") as MeavoAppKey;
 
 const GATEWAY_URL = process.env.GATEWAY_URL ?? "https://meavo.app";
-
-const links = [
-  { href: "/", label: "Quotes" },
-  { href: "/deals", label: "Deals" },
-  { href: "/clients", label: "Clients" },
-  { href: "/products", label: "Products" },
-];
 
 export async function Nav() {
   const session = await auth();
@@ -46,17 +39,8 @@ export async function Nav() {
     getNotifications(prisma, { userId: session.user.id }),
   ]);
 
-  const navLinks = admin
-    ? [
-        ...links,
-        { href: "/settings/xero", label: "Xero" },
-        { href: "/settings/xero/us", label: "Xero US" },
-      ]
-    : links;
-
   return (
-    <MeavoNavBar
-      links={navLinks}
+    <SalesNavBar
       logoHref={GATEWAY_URL}
       toolSwitcher={{
         currentId: resolveCurrentToolId(toolOptions, MEAVO_APP_KEY),
