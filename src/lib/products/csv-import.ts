@@ -83,6 +83,10 @@ const BOOTH_FAMILY_BY_LABEL = new Map<string, BoothProductFamily>(
   ),
 );
 
+// Legacy display names so older CSVs still resolve after Haven Two / Haven Four rename.
+BOOTH_FAMILY_BY_LABEL.set(normalizeKey("Haven 2"), "HAVEN_2");
+BOOTH_FAMILY_BY_LABEL.set(normalizeKey("Haven 4"), "HAVEN_4");
+
 const ADDON_FAMILY_BY_LABEL = new Map<string, AddOnProductFamily>(
   (Object.entries(ADDON_FAMILY_LABELS) as [AddOnProductFamily, string][]).flatMap(
     ([key, label]) => [

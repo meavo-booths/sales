@@ -64,8 +64,8 @@ export const BOOTH_FAMILY_LABELS: Record<BoothProductFamily, string> = {
   CAMDEN_4: "Camden 4",
   HAVEN_ONE: "Haven One",
   HAVEN_FOCUS: "Haven Focus",
-  HAVEN_2: "Haven 2",
-  HAVEN_4: "Haven 4",
+  HAVEN_2: "Haven Two",
+  HAVEN_4: "Haven Four",
 };
 
 export const ADDON_FAMILY_LABELS: Record<AddOnProductFamily, string> = {
