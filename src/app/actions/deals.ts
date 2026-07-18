@@ -18,7 +18,22 @@ import { fetchExchangeRateToEur, isQuoteCurrency } from "@/lib/exchange-rates";
 import { normalizeUsState } from "@/lib/us-state";
 import { enqueueNotification } from "@/lib/notifications/enqueue";
 import { firstZodError } from "@/lib/zod-errors";
-import { DELIVERY_TYPE_OPTIONS } from "@/lib/deal-values";
+import { DELIVERY_TYPE_OPTIONS, LOST_REASON_OPTIONS } from "@/lib/deal-values";
+
+const markLostInputSchema = z
+  .object({
+    reason: z.enum(LOST_REASON_OPTIONS),
+    note: z.string().max(2000).optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.reason === "OTHER" && !(value.note?.trim())) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["note"],
+        message: "Please describe the lost reason",
+      });
+    }
+  });
 
 const paymentInputSchema = z.object({
   paymentStatus: z.nativeEnum(PaymentStatus),
@@ -286,14 +301,31 @@ export async function convertQuoteAction(
   return { ok: true, id };
 }
 
-export async function markQuoteLostAction(id: string): Promise<DealActionResult> {
+export async function markQuoteLostAction(
+  id: string,
+  rawInput: { reason: string; note?: string },
+): Promise<DealActionResult> {
   await requireSalesAccess();
+
+  const parsed = markLostInputSchema.safeParse(rawInput);
+  if (!parsed.success) {
+    return { ok: false, error: firstZodError(parsed.error) ?? "Invalid lost reason" };
+  }
+  const { reason, note } = parsed.data;
+  const lostReasonNote = reason === "OTHER" ? (note?.trim() ?? "") : "";
 
   const deal = await prisma.deal.findUnique({ where: { id }, select: { stage: true } });
   if (!deal) return { ok: false, error: "Quote not found" };
   if (deal.stage !== "QUOTE") return { ok: false, error: "Only open quotes can be marked lost" };
 
-  await prisma.deal.update({ where: { id }, data: { stage: "LOST" } });
+  await prisma.deal.update({
+    where: { id },
+    data: {
+      stage: "LOST",
+      lostReason: reason,
+      lostReasonNote,
+    },
+  });
   revalidatePath("/");
   revalidatePath(`/quotes/${id}`);
   return { ok: true, id };

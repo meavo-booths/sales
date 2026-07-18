@@ -5,9 +5,11 @@ import {
   CONTACT_KIND_LABELS,
   DELIVERY_TYPE_LABELS,
   FINISH_LABELS,
+  LOST_REASON_LABELS,
   PAYMENT_TERMS_LABELS,
   formatDate,
   formatMoney,
+  type LostReasonOption,
 } from "@/lib/deal-values";
 import { dealSubtotal, dealTotals, formatTaxLineLabel } from "@/lib/vat";
 import {
@@ -34,6 +36,17 @@ function Field({ label, value }: { label: string; value: string }) {
 }
 
 export function DealDetailsCard({ deal }: { deal: DealWithRelations }) {
+  const lostReasonLabel =
+    deal.stage === "LOST" && deal.lostReason
+      ? LOST_REASON_LABELS[deal.lostReason as LostReasonOption]
+      : null;
+  const lostReasonDisplay =
+    lostReasonLabel == null
+      ? ""
+      : deal.lostReason === "OTHER" && deal.lostReasonNote
+        ? `${lostReasonLabel}: ${deal.lostReasonNote}`
+        : lostReasonLabel;
+
   return (
     <Card>
       <h2 className="mb-4 text-base font-semibold text-slate-900">Details</h2>
@@ -49,6 +62,9 @@ export function DealDetailsCard({ deal }: { deal: DealWithRelations }) {
           label="Delivery type"
           value={deal.deliveryType ? DELIVERY_TYPE_LABELS[deal.deliveryType] : ""}
         />
+        {deal.stage === "LOST" ? (
+          <Field label="Lost reason" value={lostReasonDisplay} />
+        ) : null}
         <Field label="VAT number" value={deal.vatNumber} />
         <Field label="URL" value={deal.website} />
         <Field label="Client PO" value={deal.clientPo} />

@@ -17,7 +17,9 @@ Business rules and **where to change what**. For stack see [architecture.md](arc
 
 ## Status / state values
 
-**`DealStage`:** `QUOTE` → `WON` (via conversion, irreversible) or `QUOTE` → `LOST` (`markQuoteLostAction`). Only `QUOTE`-stage deals are editable as quotes.
+**`DealStage`:** `QUOTE` → `WON` (via conversion, irreversible) or `QUOTE` → `LOST` (`markQuoteLostAction`, requires a lost reason). Only `QUOTE`-stage deals are editable as quotes.
+
+**`LostReason`:** `PROJECT_CANCELLED` · `CHOSE_COMPETITOR` · `PRICE_TOO_HIGH` · `NO_REPLY` · `OTHER` (with free-text `lostReasonNote`).
 
 **`BoothUnitStatus`:** starts `PLANNED` at conversion; later stages belong to downstream tools.
 
@@ -43,7 +45,7 @@ Resolved in `src/lib/meavo-auth.ts` (`requireSalesAccess`, `requireSalesAdmin`);
 | Create/edit/delete quote | `src/lib/quote-input.ts`, `src/lib/quote-number.ts` | `createQuoteAction` / `updateQuoteAction` / `deleteQuoteAction` (`src/app/actions/quotes.ts`) | Number from sequence on create; only `stage = QUOTE` editable |
 | Convert quote → won deal | `src/lib/ops-sheet-export.ts`, `src/lib/xero/export-deal.ts` | `convertQuoteAction` (`src/app/actions/deals.ts`) | Assigns DealID, creates BoothUnits, then Ops + Xero exports (never throw) |
 | Validate DealID before convert | — | `checkDealIdAction` | Uniqueness + existing `Assembly` check |
-| Mark quote lost | — | `markQuoteLostAction` | |
+| Mark quote lost | `src/lib/deal-values.ts` | `markQuoteLostAction` | Requires `lostReason` (+ `lostReasonNote` when Other) |
 | Edit won deal (payment, details, assembly, contacts, ready flag) | `src/lib/deal-values.ts`, `src/lib/client-contacts.ts` | `updatePaymentAction`, `updateDealDetailsAction`, `updateDealAssemblyAndNotesAction`, `updateDealContactsAction`, `updateDealReadyAction` | |
 | Edit booth unit | — | `updateBoothUnitAction` | |
 | Retry Ops File sync | `src/lib/ops-sheet-export.ts` | `retryOpsSheetSyncAction` | Idempotent — safe to re-run |

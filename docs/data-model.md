@@ -37,6 +37,7 @@ One row per quote **and** per deal — there is no separate Quote model; `stage`
 |-------|-------|
 | `quoteNumber` | Unique, `MQ-00001` format from Postgres sequence `"SalesQuoteNumberSeq"` |
 | `stage` | `QUOTE` → `WON` / `LOST` (`DealStage`) |
+| `lostReason` / `lostReasonNote` | Set when marking LOST (`LostReason` enum; note for Other) |
 | `dealId` | Business key entered at conversion; cross-app key for Assembly + Ops File; distinct from cuid `id` |
 | `clientId` + snapshot fields | FK to `Client` plus denormalized client name/market/etc. captured at quote time |
 | `currency`, `exchangeRateToEur` | Multi-currency quotes (EUR/GBP/CZK/USD); EUR amounts kept for reporting |

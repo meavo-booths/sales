@@ -17,6 +17,24 @@ export const DEAL_STAGE_LABELS: Record<DealStage, string> = {
   LOST: "Lost",
 };
 
+export const LOST_REASON_OPTIONS = [
+  "PROJECT_CANCELLED",
+  "CHOSE_COMPETITOR",
+  "PRICE_TOO_HIGH",
+  "NO_REPLY",
+  "OTHER",
+] as const;
+
+export type LostReasonOption = (typeof LOST_REASON_OPTIONS)[number];
+
+export const LOST_REASON_LABELS: Record<LostReasonOption, string> = {
+  PROJECT_CANCELLED: "Project cancelled",
+  CHOSE_COMPETITOR: "Chose a competitor",
+  PRICE_TOO_HIGH: "Price too high",
+  NO_REPLY: "No reply",
+  OTHER: "Other",
+};
+
 export const PAYMENT_TERMS_LABELS: Record<PaymentTerms, string> = {
   UPFRONT_100: "100% upfront",
   SPLIT_50_50: "50% / 50%",
