@@ -1,8 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import { ASSEMBLY_URL } from "@/lib/constants";
 import { AddTaskLink } from "@/components/add-task-link";
-import { DealDeleteButton, ReadyToAssembleToggle } from "@/components/deal-editors";
+import {
+  CreateXeroFinalInvoiceButton,
+  CreateXeroInvoiceButton,
+  ReadyToAssembleToggle,
+} from "@/components/deal-editors";
 
 const ASSEMBLY_EVENT_LABELS: Record<string, string> = {
   ASSEMBLY: "Assembly",
@@ -24,7 +29,9 @@ export function DealPageActions({
   readyToAssemble,
   assemblies,
   showAddTask,
-  isAdmin,
+  showCreateInvoice,
+  createInvoiceLabel,
+  showCreateFinalInvoice,
 }: {
   dealDbId: string;
   dealBusinessId: string;
@@ -32,16 +39,28 @@ export function DealPageActions({
   readyToAssemble: boolean;
   assemblies: AssemblyLink[];
   showAddTask: boolean;
-  isAdmin: boolean;
+  showCreateInvoice: boolean;
+  createInvoiceLabel: string;
+  showCreateFinalInvoice: boolean;
 }) {
   return (
     <div className="flex flex-wrap items-center justify-end gap-2">
+      <Link
+        href={`/deals/${dealDbId}/edit`}
+        className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+      >
+        Edit
+      </Link>
       <a
         href={`/api/quotes/${dealDbId}/pdf`}
         className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
       >
         Quote PDF
       </a>
+      {showCreateInvoice && (
+        <CreateXeroInvoiceButton dealId={dealDbId} label={createInvoiceLabel} />
+      )}
+      {showCreateFinalInvoice && <CreateXeroFinalInvoiceButton dealId={dealDbId} />}
       <ReadyToAssembleToggle dealId={dealDbId} ready={readyToAssemble} />
       {assemblies.map((assembly) => (
         <a
@@ -60,7 +79,6 @@ export function DealPageActions({
           title={`Follow up: ${dealBusinessId} — ${clientName}`}
         />
       )}
-      {isAdmin && <DealDeleteButton dealId={dealDbId} />}
     </div>
   );
 }

@@ -1,22 +1,26 @@
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireSalesAccess, hasTasksAccess } from "@/lib/meavo-auth";
-import { FINISH_LABELS } from "@/lib/deal-values";
+import { BOOTH_FAMILY_LABELS, FINISH_LABELS } from "@/lib/deal-values";
 import { Card, PageHeader } from "@/components/ui";
-import { LineItemsCard } from "@/components/deal-sections";
+import {
+  AssemblyAddressCard,
+  ContactsCard,
+  DealDetailsCard,
+  LineItemsCard,
+  NotesCard,
+} from "@/components/deal-sections";
 import {
   BoothUnitEditor,
   CreateXeroFinalInvoiceButton,
-  CreateXeroInvoiceButton,
-  DealDeliveryNotesCard,
-  DealDetailsEditorCard,
-  DealPeopleBillingCard,
+  DealDeleteButton,
+  DealPaymentCard,
   RetrySheetSyncButton,
   RetryXeroInvoiceButton,
   RetryZampSyncButton,
 } from "@/components/deal-editors";
 import { DealPageActions } from "@/components/deal-page-actions";
-import { DealLifecycleStrip, DealSummaryBar } from "@/components/deal-summary";
+import { DealLifecycleStrip, DealSummaryBar, type BoothSummaryItem } from "@/components/deal-summary";
 import { dealSubtotal, dealTotals } from "@/lib/vat";
 import { persistedUsTaxAmount } from "@/lib/zamp/calculate-tax";
 import { isUsMarket } from "@/lib/zamp/constants";
@@ -68,6 +72,19 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
     deal.paymentTerms === "SPLIT_50_50" && Boolean(deal.xeroInvoiceId) && !deal.xeroFinalInvoiceId;
   const createInvoiceLabel = deal.xeroSyncError ? "Retry Xero invoice" : "Create invoice";
 
+  const boothCounts = new Map<string, number>();
+  for (const item of deal.lineItems) {
+    if (item.product?.kind !== "BOOTH") continue;
+    const label = item.product.boothFamily
+      ? BOOTH_FAMILY_LABELS[item.product.boothFamily]
+      : item.product.name;
+    boothCounts.set(label, (boothCounts.get(label) ?? 0) + item.quantity);
+  }
+  const booths: BoothSummaryItem[] = [...boothCounts.entries()].map(([label, qty]) => ({
+    label,
+    qty,
+  }));
+
   const xeroPaymentBreakdown =
     deal.xeroPaymentSyncedAt && deal.xeroInvoiceId
       ? await fetchXeroPaymentBreakdown(deal.id)
@@ -83,7 +100,9 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
           readyToAssemble={deal.readyToAssemble}
           assemblies={assemblies}
           showAddTask={showAddTask}
-          isAdmin={isAdmin}
+          showCreateInvoice={showCreateXeroInvoice}
+          createInvoiceLabel={createInvoiceLabel}
+          showCreateFinalInvoice={showCreateXeroFinalInvoice}
         />
       </PageHeader>
 
@@ -93,14 +112,16 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
         clientName={deal.clientName}
         isVip={deal.client?.isVip ?? false}
         currency={deal.currency}
-        totalInclTax={totals.totalInclVat}
+        totalExclTax={totals.subtotal}
         taxLabel={totals.taxLabel}
         paymentStatus={deal.paymentStatus}
         wonAt={deal.wonAt}
         targetDeliveryDate={deal.targetDeliveryDate}
         paymentPoDate={deal.paymentPoDate}
         market={deal.market}
+        deliveryType={deal.deliveryType}
         paymentTerms={deal.paymentTerms}
+        booths={booths}
       />
 
       <DealLifecycleStrip
@@ -118,15 +139,6 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
         readyToAssemble={deal.readyToAssemble}
         xeroPaymentBreakdown={xeroPaymentBreakdown}
       />
-
-      {(showCreateXeroInvoice || showCreateXeroFinalInvoice) && (
-        <div className="mb-6 flex flex-wrap gap-3">
-          {showCreateXeroInvoice && (
-            <CreateXeroInvoiceButton dealId={deal.id} label={createInvoiceLabel} />
-          )}
-          {showCreateXeroFinalInvoice && <CreateXeroFinalInvoiceButton dealId={deal.id} />}
-        </div>
-      )}
 
       <div className="space-y-6">
         {hasSyncAlerts && (
@@ -178,94 +190,83 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
           </div>
         )}
 
-        <div className="grid gap-6 lg:grid-cols-2">
-          <DealDetailsEditorCard
-            dealId={deal.id}
-            details={{
-              dealDate: deal.dealDate.toISOString().slice(0, 10),
-              salesRep: deal.salesRep,
-              market: deal.market,
-              usState: deal.usState,
-              shipToLine1: deal.shipToLine1,
-              shipToLine2: deal.shipToLine2,
-              shipToCity: deal.shipToCity,
-              shipToZip: deal.shipToZip,
-              clientName: deal.clientName,
-              clientType: deal.clientType,
-              paymentTerms: deal.paymentTerms,
-              vatNumber: deal.vatNumber,
-              registeredAddress: deal.registeredAddress,
-              website: deal.website,
-              socketType: deal.socketType,
-              targetDeliveryDate: deal.targetDeliveryDate?.toISOString().slice(0, 10) ?? "",
-              deliveryType: deal.deliveryType ?? "",
-            }}
-          />
+        <Card className="!p-0">
+          <details className="group">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4 sm:p-6">
+              <div>
+                <h2 className="text-base font-semibold text-slate-900">
+                  Booth units ({deal.boothUnits.length})
+                </h2>
+                <p className="mt-1 text-sm text-slate-600">
+                  One per physical booth — manufacturing assigns these from the warehouse or the
+                  production backlog.
+                </p>
+              </div>
+              <span className="shrink-0 text-sm font-medium text-slate-500 transition group-open:hidden">
+                Show
+              </span>
+              <span className="hidden shrink-0 text-sm font-medium text-slate-500 transition group-open:inline">
+                Hide
+              </span>
+            </summary>
+            <div className="border-t border-slate-100 p-4 sm:p-6">
+              {deal.boothUnits.length === 0 ? (
+                <p className="text-sm text-slate-500">No booth units.</p>
+              ) : (
+                <ul className="space-y-2">
+                  {deal.boothUnits.map((unit, index) => (
+                    <li
+                      key={unit.id}
+                      className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 p-3"
+                    >
+                      <div>
+                        <p className="text-sm font-medium text-slate-900">
+                          #{index + 1} {unit.product.name}
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          {FINISH_LABELS[unit.finish]}
+                          {unit.finishDetails && ` · ${unit.finishDetails}`}
+                        </p>
+                      </div>
+                      <BoothUnitEditor
+                        unitId={unit.id}
+                        status={unit.status}
+                        location={unit.location}
+                      />
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </details>
+        </Card>
 
-          <DealPeopleBillingCard
-            dealId={deal.id}
-            contacts={deal.contacts.map((contact) => ({
-              kind: contact.kind,
-              name: contact.name,
-              email: contact.email,
-              phone: contact.phone,
-              role: contact.role,
-            }))}
-            paymentStatus={deal.paymentStatus}
-            paymentPoDate={deal.paymentPoDate?.toISOString().slice(0, 10) ?? ""}
-            paymentTerms={deal.paymentTerms}
-            xeroPaymentSyncedAt={deal.xeroPaymentSyncedAt?.toISOString() ?? null}
-            xeroInvoiceId={deal.xeroInvoiceId}
-            xeroPaymentBreakdown={xeroPaymentBreakdown}
-          />
+        <DealDetailsCard deal={deal} />
+
+        <div className="grid gap-6 lg:grid-cols-2">
+          <AssemblyAddressCard deal={deal} />
+          <NotesCard deal={deal} />
         </div>
 
-        <DealDeliveryNotesCard
-          dealId={deal.id}
-          values={{
-            assemblyAddress: deal.assemblyAddress,
-            notes: deal.notes,
-            clientPo: deal.clientPo,
-            actualClient: deal.actualClient,
-          }}
-        />
+        <ContactsCard deal={deal} />
 
         <LineItemsCard deal={deal} />
 
-        <Card>
-          <h2 className="mb-1 text-base font-semibold text-slate-900">Booth units</h2>
-          <p className="mb-4 text-sm text-slate-600">
-            One per physical booth — manufacturing assigns these from the warehouse or the
-            production backlog.
-          </p>
-          {deal.boothUnits.length === 0 ? (
-            <p className="text-sm text-slate-500">No booth units.</p>
-          ) : (
-            <ul className="space-y-2">
-              {deal.boothUnits.map((unit, index) => (
-                <li
-                  key={unit.id}
-                  className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 p-3"
-                >
-                  <div>
-                    <p className="text-sm font-medium text-slate-900">
-                      #{index + 1} {unit.product.name}
-                    </p>
-                    <p className="text-xs text-slate-500">
-                      {FINISH_LABELS[unit.finish]}
-                      {unit.finishDetails && ` · ${unit.finishDetails}`}
-                    </p>
-                  </div>
-                  <BoothUnitEditor
-                    unitId={unit.id}
-                    status={unit.status}
-                    location={unit.location}
-                  />
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
+        <DealPaymentCard
+          dealId={deal.id}
+          paymentStatus={deal.paymentStatus}
+          paymentPoDate={deal.paymentPoDate?.toISOString().slice(0, 10) ?? ""}
+          paymentTerms={deal.paymentTerms}
+          xeroPaymentSyncedAt={deal.xeroPaymentSyncedAt?.toISOString() ?? null}
+          xeroInvoiceId={deal.xeroInvoiceId}
+          xeroPaymentBreakdown={xeroPaymentBreakdown}
+        />
+
+        {isAdmin && (
+          <div className="flex justify-end border-t border-slate-200 pt-6">
+            <DealDeleteButton dealId={deal.id} />
+          </div>
+        )}
       </div>
     </>
   );

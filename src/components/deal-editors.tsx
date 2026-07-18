@@ -86,13 +86,15 @@ const EMPTY_CONTACT: DealContactValues = {
 export function DealDetailsEditorCard({
   dealId,
   details,
+  defaultEditing = false,
 }: {
   dealId: string;
   details: DealDetailsValues;
+  defaultEditing?: boolean;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState(defaultEditing);
   const [values, setValues] = useState<DealDetailsValues>(details);
   const [error, setError] = useState<string | null>(null);
 
@@ -495,14 +497,18 @@ export function ReadyToAssembleToggle({
 function DealContactsEditorBody({
   dealId,
   contacts,
+  defaultEditing = false,
 }: {
   dealId: string;
   contacts: DealContactValues[];
+  defaultEditing?: boolean;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [editing, setEditing] = useState(false);
-  const [drafts, setDrafts] = useState<DealContactValues[]>(contacts);
+  const [editing, setEditing] = useState(defaultEditing);
+  const [drafts, setDrafts] = useState<DealContactValues[]>(
+    contacts.length > 0 ? contacts.map((c) => ({ ...c })) : [{ ...EMPTY_CONTACT }],
+  );
   const [error, setError] = useState<string | null>(null);
 
   const setContact = (index: number, patch: Partial<DealContactValues>) =>
@@ -671,13 +677,19 @@ export function DealPeopleBillingCard({
 export function DealContactsEditorCard({
   dealId,
   contacts,
+  defaultEditing = false,
 }: {
   dealId: string;
   contacts: DealContactValues[];
+  defaultEditing?: boolean;
 }) {
   return (
     <Card>
-      <DealContactsEditorBody dealId={dealId} contacts={contacts} />
+      <DealContactsEditorBody
+        dealId={dealId}
+        contacts={contacts}
+        defaultEditing={defaultEditing}
+      />
     </Card>
   );
 }
@@ -839,6 +851,39 @@ export function PaymentEditor({
         )}
       </div>
     </div>
+  );
+}
+
+export function DealPaymentCard({
+  dealId,
+  paymentStatus,
+  paymentPoDate,
+  paymentTerms,
+  xeroPaymentSyncedAt,
+  xeroInvoiceId,
+  xeroPaymentBreakdown,
+}: {
+  dealId: string;
+  paymentStatus: PaymentStatus;
+  paymentPoDate: string;
+  paymentTerms: PaymentTerms;
+  xeroPaymentSyncedAt: string | null;
+  xeroInvoiceId: string | null;
+  xeroPaymentBreakdown: XeroPaymentBreakdown | null;
+}) {
+  return (
+    <Card>
+      <h2 className="mb-4 text-base font-semibold text-slate-900">Payment</h2>
+      <PaymentEditor
+        dealId={dealId}
+        paymentStatus={paymentStatus}
+        paymentPoDate={paymentPoDate}
+        paymentTerms={paymentTerms}
+        xeroPaymentSyncedAt={xeroPaymentSyncedAt}
+        xeroInvoiceId={xeroInvoiceId}
+        xeroPaymentBreakdown={xeroPaymentBreakdown}
+      />
+    </Card>
   );
 }
 

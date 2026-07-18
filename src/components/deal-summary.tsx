@@ -1,7 +1,8 @@
-import type { PaymentStatus } from "@prisma/client";
+import type { DeliveryType, PaymentStatus } from "@prisma/client";
 import { Badge, Card, VipBadge } from "@/components/ui";
 import type { XeroPaymentBreakdown } from "@/lib/xero/sync-payment";
 import {
+  DELIVERY_TYPE_LABELS,
   PAYMENT_STATUS_LABELS,
   PAYMENT_TERMS_LABELS,
   formatDate,
@@ -14,20 +15,27 @@ const PAYMENT_TONES: Record<PaymentStatus, "red" | "amber" | "green"> = {
   PAID: "green",
 };
 
+export type BoothSummaryItem = {
+  label: string;
+  qty: number;
+};
+
 export type DealSummaryProps = {
   dealId: string;
   quoteNumber: string;
   clientName: string;
   isVip: boolean;
   currency: string;
-  totalInclTax: number;
+  totalExclTax: number;
   taxLabel: string;
   paymentStatus: PaymentStatus;
   wonAt: Date | null;
   targetDeliveryDate: Date | null;
   paymentPoDate: Date | null;
   market: string;
+  deliveryType: DeliveryType | null;
   paymentTerms: keyof typeof PAYMENT_TERMS_LABELS;
+  booths: BoothSummaryItem[];
 };
 
 export function DealSummaryBar({
@@ -36,14 +44,16 @@ export function DealSummaryBar({
   clientName,
   isVip,
   currency,
-  totalInclTax,
+  totalExclTax,
   taxLabel,
   paymentStatus,
   wonAt,
   targetDeliveryDate,
   paymentPoDate,
   market,
+  deliveryType,
   paymentTerms,
+  booths,
 }: DealSummaryProps) {
   return (
     <Card className="mb-4">
@@ -59,13 +69,18 @@ export function DealSummaryBar({
           <p className="font-mono text-xs text-slate-500">
             {dealId} · {quoteNumber}
           </p>
+          {booths.length > 0 && (
+            <p className="text-sm text-slate-600">
+              {booths.map((booth) => `${booth.qty}× ${booth.label}`).join(" · ")}
+            </p>
+          )}
         </div>
 
         <div className="text-center lg:px-6">
           <p className="text-3xl font-semibold tabular-nums text-slate-900">
-            {formatMoney(totalInclTax, currency)}
+            {formatMoney(totalExclTax, currency)}
           </p>
-          <p className="mt-0.5 text-xs text-slate-500">Total incl. {taxLabel.toLowerCase()}</p>
+          <p className="mt-0.5 text-xs text-slate-500">Total excl. {taxLabel.toLowerCase()}</p>
         </div>
 
         <dl className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-1 lg:text-right xl:grid-cols-2 xl:text-left">
@@ -83,6 +98,18 @@ export function DealSummaryBar({
           </div>
           <div>
             <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">
+              Delivery type
+            </dt>
+            <dd className="mt-0.5 font-medium text-slate-900">
+              {deliveryType ? DELIVERY_TYPE_LABELS[deliveryType] : "—"}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Market</dt>
+            <dd className="mt-0.5 font-medium text-slate-900">{market || "—"}</dd>
+          </div>
+          <div>
+            <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">
               Payment / PO date
             </dt>
             <dd className="mt-0.5 font-medium text-slate-900">
@@ -90,10 +117,6 @@ export function DealSummaryBar({
             </dd>
           </div>
           <div>
-            <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Market</dt>
-            <dd className="mt-0.5 font-medium text-slate-900">{market || "—"}</dd>
-          </div>
-          <div className="sm:col-span-2 lg:col-span-1 xl:col-span-2">
             <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">
               Payment terms
             </dt>
