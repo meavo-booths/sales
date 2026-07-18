@@ -1,4 +1,4 @@
-import type { Prisma } from "@prisma/client";
+import type { PaymentTerms, Prisma } from "@prisma/client";
 import {
   OPS_SHEET_TAB,
   columnLetter,
@@ -22,6 +22,14 @@ import { prisma } from "@/lib/prisma";
  * the export. Headers we can't find are simply left blank.
  */
 
+/** Ops File wording for payment terms (distinct from in-app labels). */
+const OPS_PAYMENT_TERMS: Record<PaymentTerms, string> = {
+  UPFRONT_100: "100% Upfront",
+  SPLIT_50_50: "50% / 50%",
+  NET_7: "Net 7",
+  NET_30: "Net 7",
+};
+
 function slugifyHeader(header: string): string {
   return header
     .trim()
@@ -42,6 +50,9 @@ const FIELD_HEADER_ALIASES: Record<string, string[]> = {
   model: ["model", "product", "booth_model", "models"],
   quantity: ["booths", "no_of_booths", "number_of_booths", "no_booths", "qty", "quantity", "units"],
   addOns: ["add_ons", "addons", "add_on", "extras"],
+  paymentTerms: ["payment_terms"],
+  notes: ["notes"],
+  socketType: ["destination_country_socket_type"],
 };
 
 export type OpsSheetRowRef = {
@@ -218,6 +229,9 @@ async function appendDealRows(deal: DealForExport, groups: ExportGroup[]): Promi
     set("market", deal.market);
     set("clientType", CLIENT_TYPE_LABELS[deal.clientType]);
     set("clientName", deal.clientName);
+    set("paymentTerms", OPS_PAYMENT_TERMS[deal.paymentTerms]);
+    set("notes", deal.notes);
+    set("socketType", deal.socketType);
     // Standalone add-on rows leave Model and the booths count empty.
     if (group.model) set("model", group.model);
     if (group.quantity !== null) set("quantity", String(group.quantity));
