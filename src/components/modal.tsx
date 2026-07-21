@@ -84,22 +84,24 @@ export function Modal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/40 p-4"
+      className="fixed inset-0 z-[200] overflow-y-auto bg-black/40"
       onClick={() => onCloseRef.current()}
     >
-      <div
-        ref={panelRef}
-        tabIndex={-1}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        className={`w-full rounded-xl border border-slate-200 bg-white shadow-lg outline-none ${maxWidthClassName} ${panelClassName}`}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h3 id={titleId} className="text-lg font-semibold text-slate-900">
-          {title}
-        </h3>
-        <div className={bodyClassName}>{children}</div>
+      <div className="flex min-h-full items-center justify-center p-4">
+        <div
+          ref={panelRef}
+          tabIndex={-1}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={titleId}
+          className={`w-full rounded-xl border border-slate-200 bg-white shadow-lg outline-none ${maxWidthClassName} ${panelClassName}`}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <h3 id={titleId} className="text-lg font-semibold text-slate-900">
+            {title}
+          </h3>
+          <div className={bodyClassName}>{children}</div>
+        </div>
       </div>
     </div>
   );

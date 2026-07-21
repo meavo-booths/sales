@@ -8,7 +8,7 @@ import {
   updateClientAction,
   type ParentCompanyOption,
 } from "@/app/actions/clients";
-import { CLIENT_TYPE_LABELS, CONTACT_KIND_LABELS } from "@/lib/deal-values";
+import { CLIENT_TYPE_LABELS, CONTACT_KIND_LABELS, MARKET_OPTIONS } from "@/lib/deal-values";
 import { Button, Card, Input, Select, Textarea } from "@/components/ui";
 import { VatNumberField } from "@/components/vat-check";
 
@@ -178,12 +178,22 @@ export function ClientForm({
           onChange={(e) => set("name", e.target.value)}
           required
         />
-        <Input
+        <Select
           label="Market"
           value={values.market}
           onChange={(e) => set("market", e.target.value)}
-          placeholder="e.g. Germany"
-        />
+        >
+          <option value="">Select market…</option>
+          {/* Legacy markets outside the fixed list stay selectable. */}
+          {values.market && !MARKET_OPTIONS.includes(values.market as never) && (
+            <option value={values.market}>{values.market}</option>
+          )}
+          {MARKET_OPTIONS.map((market) => (
+            <option key={market} value={market}>
+              {market}
+            </option>
+          ))}
+        </Select>
         {showParentPicker && (
           <div className="sm:col-span-2">
             <Select
