@@ -71,6 +71,9 @@ export const MARKET_OPTIONS = [
   "Portugal",
 ] as const;
 
+/** Client / parent-company markets: the standard set plus a cross-market label. */
+export const CLIENT_MARKET_OPTIONS = [...MARKET_OPTIONS, "Multi-market"] as const;
+
 // Single source of truth lives in exchange-rates.ts (next to the FX logic);
 // re-exported here for components that import their option lists from this module.
 export { QUOTE_CURRENCIES, type QuoteCurrency } from "@/lib/exchange-rates";
