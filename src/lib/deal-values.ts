@@ -48,8 +48,13 @@ export const PAYMENT_TERMS_FORM_OPTIONS = ["UPFRONT_100", "SPLIT_50_50", "NET_7"
 export const CLIENT_TYPE_LABELS: Record<DealClientType, string> = {
   DIRECT: "Direct",
   AGENCY: "Agency",
-  COWORKING: "Co-working",
+  COWORKING: "Coworking",
+  SHOWROOM: "Showroom",
+  INTERNAL_EVENTS: "Internal/Events",
 };
+
+/** All DealClientType enum values — prefer this over hardcoding lists. */
+export const CLIENT_TYPE_OPTIONS = Object.keys(CLIENT_TYPE_LABELS) as DealClientType[];
 
 export const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
   UNPAID: "Unpaid",

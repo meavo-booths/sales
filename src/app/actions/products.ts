@@ -13,6 +13,7 @@ import { requireSalesAccess, requireSalesAdmin } from "@/lib/meavo-auth";
 import {
   ADDON_FAMILY_OPTIONS,
   BOOTH_FAMILY_OPTIONS,
+  CLIENT_TYPE_OPTIONS,
 } from "@/lib/deal-values";
 import { isQuoteCurrency, type QuoteCurrency } from "@/lib/exchange-rates";
 import {
@@ -78,7 +79,7 @@ function parseBoothFamilies(formData: FormData): BoothProductFamily[] {
   ];
 }
 
-const CLIENT_TYPES: DealClientType[] = ["DIRECT", "AGENCY", "COWORKING"];
+const CLIENT_TYPES: DealClientType[] = CLIENT_TYPE_OPTIONS;
 
 /** Market × client type rows. Empty = available for all combinations. */
 function parseAvailability(formData: FormData): { market: string; clientType: DealClientType }[] {

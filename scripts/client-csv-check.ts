@@ -61,15 +61,16 @@ async function main() {
   const normalCsv = [
     "Company Name,Company URL,Client Type,Market,Parent Company",
     `${PREFIX}Child 1,https://a.example,Direct,UK,${PREFIX}Parent A`,
-    `${PREFIX}Child 2,https://b.example,Co-working,Germany,`, // no parent
+    `${PREFIX}Child 2,,Co-working,Germany,`, // no URL, legacy type label, no parent
+    `${PREFIX}Child Showroom,,Showroom,UK,${PREFIX}Parent A`,
     `${PREFIX}Child 1,https://dup.example,Agency,US,${PREFIX}Parent A`, // dup in file
     `${PREFIX}Orphan,https://c.example,Direct,UK,No Such Parent`, // missing parent
   ].join("\n");
 
   const normalPreview = await previewClientCsvImport("normal", normalCsv);
   if (!normalPreview.canImport) throw new Error("normal preview should be importable");
-  if (normalPreview.okCount !== 2) {
-    throw new Error(`expected 2 ok normals, got ${normalPreview.okCount}: ${JSON.stringify(normalPreview.rows)}`);
+  if (normalPreview.okCount !== 3) {
+    throw new Error(`expected 3 ok normals, got ${normalPreview.okCount}: ${JSON.stringify(normalPreview.rows)}`);
   }
   if (normalPreview.skippedCount !== 1) {
     throw new Error(`expected 1 skipped normal, got ${normalPreview.skippedCount}`);
@@ -82,8 +83,8 @@ async function main() {
   if (!child1?.create?.parentClientId) throw new Error("Child 1 should resolve parent id");
 
   const normalApply = await applyClientCsvImport("normal", normalCsv);
-  if (normalApply.created !== 2) {
-    throw new Error(`expected 2 normals created, got ${normalApply.created}`);
+  if (normalApply.created !== 3) {
+    throw new Error(`expected 3 normals created, got ${normalApply.created}`);
   }
 
   const linked = await prisma.client.findFirst({
@@ -97,9 +98,18 @@ async function main() {
 
   const standalone = await prisma.client.findFirst({
     where: { name: `${PREFIX}Child 2` },
-    select: { parentClientId: true },
+    select: { parentClientId: true, website: true, clientType: true },
   });
   if (standalone?.parentClientId) throw new Error("Child 2 should be standalone");
+  if (standalone?.website !== "") throw new Error("Child 2 website should be empty when CSV URL blank");
+  if (standalone?.clientType !== "COWORKING") throw new Error("legacy Co-working label should map to COWORKING");
+
+  const showroom = await prisma.client.findFirst({
+    where: { name: `${PREFIX}Child Showroom` },
+    select: { clientType: true, parent: { select: { name: true } } },
+  });
+  if (showroom?.clientType !== "SHOWROOM") throw new Error("Showroom type not saved");
+  if (showroom?.parent?.name !== `${PREFIX}Parent A`) throw new Error("Showroom child not linked");
 
   console.log("Normal CSV preview + apply + parent link OK");
 

@@ -1,6 +1,6 @@
 export type ProductAvailabilityRule = {
   market: string;
-  clientType: "DIRECT" | "AGENCY" | "COWORKING";
+  clientType: "DIRECT" | "AGENCY" | "COWORKING" | "SHOWROOM" | "INTERNAL_EVENTS";
 };
 
 /** No availability rows means the product is sold in all markets / client types. */

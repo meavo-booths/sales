@@ -1,6 +1,7 @@
 import type { DealClientType } from "@prisma/client";
+import { CLIENT_TYPE_OPTIONS } from "@/lib/deal-values";
 
-const CLIENT_TYPES: DealClientType[] = ["DIRECT", "AGENCY", "COWORKING"];
+const CLIENT_TYPES: DealClientType[] = CLIENT_TYPE_OPTIONS;
 
 function splitValues(raw: string): string[] {
   return raw

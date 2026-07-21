@@ -52,7 +52,7 @@ export type DealDetailsValues = {
   shipToCity: string;
   shipToZip: string;
   clientName: string;
-  clientType: "DIRECT" | "AGENCY" | "COWORKING";
+  clientType: "DIRECT" | "AGENCY" | "COWORKING" | "SHOWROOM" | "INTERNAL_EVENTS";
   paymentTerms: PaymentTerms;
   vatNumber: string;
   registeredAddress: string;

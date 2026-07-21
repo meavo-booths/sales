@@ -1,7 +1,7 @@
 import type { DealClientType, PaymentStatus, Prisma } from "@prisma/client";
-import { SOCKET_TYPE_OPTIONS } from "@/lib/deal-values";
+import { CLIENT_TYPE_OPTIONS, SOCKET_TYPE_OPTIONS } from "@/lib/deal-values";
 
-const CLIENT_TYPES: DealClientType[] = ["DIRECT", "AGENCY", "COWORKING"];
+const CLIENT_TYPES: DealClientType[] = CLIENT_TYPE_OPTIONS;
 const PAYMENT_STATUSES: PaymentStatus[] = ["UNPAID", "PARTIALLY_PAID", "PAID"];
 
 export type DealListSort = "date_desc" | "date_asc";

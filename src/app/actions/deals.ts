@@ -67,7 +67,7 @@ const dealDetailsInputSchema = z.object({
   shipToCity: z.string().trim().max(200).default(""),
   shipToZip: z.string().trim().max(20).default(""),
   clientName: z.string().trim().min(1, "Client name is required").max(500),
-  clientType: z.enum(["DIRECT", "AGENCY", "COWORKING"]),
+  clientType: z.enum(["DIRECT", "AGENCY", "COWORKING", "SHOWROOM", "INTERNAL_EVENTS"]),
   paymentTerms: z.enum(["UPFRONT_100", "SPLIT_50_50", "NET_7", "NET_30"]),
   vatNumber: z.string().trim().max(100).default(""),
   registeredAddress: z.string().trim().max(2000).default(""),

@@ -119,7 +119,7 @@ export const quoteInputSchema = z
     clientPo: z.string().trim().default(""),
     actualClient: z.string().trim().default(""),
     vatNumber: z.string().trim().default(""),
-    clientType: z.enum(["DIRECT", "AGENCY", "COWORKING"]),
+    clientType: z.enum(["DIRECT", "AGENCY", "COWORKING", "SHOWROOM", "INTERNAL_EVENTS"]),
     currency: z.enum(QUOTE_CURRENCIES).default("EUR"),
     isVip: z.boolean().default(false),
     paymentTerms: z.enum(["UPFRONT_100", "SPLIT_50_50", "NET_7", "NET_30"]),

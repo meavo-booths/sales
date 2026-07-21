@@ -9,6 +9,7 @@ import {
   ADDON_FAMILY_LABELS,
   BOOTH_FAMILY_LABELS,
   CLIENT_TYPE_LABELS,
+  CLIENT_TYPE_OPTIONS,
   MARKET_OPTIONS,
 } from "@/lib/deal-values";
 import { isQuoteCurrency, type QuoteCurrency } from "@/lib/exchange-rates";
@@ -188,7 +189,7 @@ export function expandMarkets(market: string): string[] {
 
 export function expandClientTypes(clientTypeInput: string): DealClientType[] {
   const normalized = normalizeKey(clientTypeInput);
-  if (normalized === "both") return ["DIRECT", "AGENCY", "COWORKING"];
+  if (normalized === "both") return [...CLIENT_TYPE_OPTIONS];
 
   const mapped = CLIENT_TYPE_BY_LABEL.get(normalized);
   if (!mapped) return [];

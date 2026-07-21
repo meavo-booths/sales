@@ -66,7 +66,7 @@ export function SyncXeroProductsButton() {
 
 export type ProductAvailabilityRow = {
   market: string;
-  clientType: "DIRECT" | "AGENCY" | "COWORKING";
+  clientType: "DIRECT" | "AGENCY" | "COWORKING" | "SHOWROOM" | "INTERNAL_EVENTS";
 };
 
 export type ProductRow = {

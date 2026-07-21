@@ -24,7 +24,7 @@ export type ClientFormValues = {
   name: string;
   registeredAddress: string;
   vatNumber: string;
-  clientType: "DIRECT" | "AGENCY" | "COWORKING";
+  clientType: "DIRECT" | "AGENCY" | "COWORKING" | "SHOWROOM" | "INTERNAL_EVENTS";
   market: string;
   website: string;
   isVip: boolean;

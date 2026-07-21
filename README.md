@@ -93,8 +93,8 @@ existing product but not overwritten.
 Availability expansion rules:
 
 - Market `RoW` also adds `Balkans`
-- Client Type `Both` → Direct, Agency, and Co-working
-- Client Type `Agency` also adds Co-working
+- Client Type `Both` → Direct, Agency, Coworking, Showroom, and Internal/Events
+- Client Type `Agency` also adds Coworking
 
 The import replaces each matched product’s availability rows and updates type, family, currency,
 and Zamp tax code. Images, list price, description, and add-on booth-family restrictions are

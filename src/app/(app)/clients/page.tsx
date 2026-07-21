@@ -32,7 +32,7 @@ type ClientRow = {
   name: string;
   market: string;
   website: string;
-  clientType: "DIRECT" | "AGENCY" | "COWORKING";
+  clientType: "DIRECT" | "AGENCY" | "COWORKING" | "SHOWROOM" | "INTERNAL_EVENTS";
   isVip: boolean;
   parentClientId: string | null;
   parent?: { isVip: boolean } | null;

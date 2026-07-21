@@ -61,6 +61,11 @@ const CLIENT_TYPE_BY_KEY = new Map<string, DealClientType>(
     [normalizeKey(key), key],
   ]),
 );
+// Legacy spelling still accepted in bulk CSVs.
+CLIENT_TYPE_BY_KEY.set(normalizeKey("Co-working"), "COWORKING");
+CLIENT_TYPE_BY_KEY.set(normalizeKey("Co Working"), "COWORKING");
+CLIENT_TYPE_BY_KEY.set(normalizeKey("Internal Events"), "INTERNAL_EVENTS");
+CLIENT_TYPE_BY_KEY.set(normalizeKey("Internal/Events"), "INTERNAL_EVENTS");
 
 function normalizeKey(value: string): string {
   return value.trim().toLowerCase().replace(/\s+/g, " ");
@@ -277,7 +282,6 @@ function parseNormalRows(
 
     const errors: string[] = [];
     if (!name) errors.push("Company Name is required");
-    if (!website) errors.push("Company URL is required");
     const market = resolveMarket(marketRaw);
     if (!marketRaw) errors.push("Market is required");
     else if (!market) errors.push(`Unknown market: ${marketRaw}`);

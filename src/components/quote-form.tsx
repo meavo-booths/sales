@@ -40,7 +40,7 @@ import { VatNumberField } from "@/components/vat-check";
 
 export type ProductAvailabilityRow = {
   market: string;
-  clientType: "DIRECT" | "AGENCY" | "COWORKING";
+  clientType: "DIRECT" | "AGENCY" | "COWORKING" | "SHOWROOM" | "INTERNAL_EVENTS";
 };
 
 function QuoteTotals({
@@ -146,7 +146,7 @@ export type ClientOption = {
   name: string;
   registeredAddress: string;
   vatNumber: string;
-  clientType: "DIRECT" | "AGENCY" | "COWORKING";
+  clientType: "DIRECT" | "AGENCY" | "COWORKING" | "SHOWROOM" | "INTERNAL_EVENTS";
   market: string;
   website: string;
   isVip: boolean;
@@ -208,7 +208,7 @@ export type QuoteFormValues = {
   targetDeliveryDate: string;
   deliveryType: DeliveryType | "";
   vatNumber: string;
-  clientType: "DIRECT" | "AGENCY" | "COWORKING";
+  clientType: "DIRECT" | "AGENCY" | "COWORKING" | "SHOWROOM" | "INTERNAL_EVENTS";
   currency: QuoteCurrency;
   isVip: boolean;
   paymentTerms: PaymentTerms;

@@ -15,7 +15,7 @@ function modeHint(mode: ClientCsvMode): string {
   if (mode === "parent") {
     return "Required columns: Parent Company Name, Market, Client Type. Creates group / parent accounts.";
   }
-  return "Required columns: Company Name, Company URL, Client Type, Market. Optional: Parent Company (must already exist — upload parents first).";
+  return "Required columns: Company Name, Client Type, Market. Optional: Company URL, Parent Company (must already exist — upload parents first).";
 }
 
 export function ClientCsvImportButton() {
