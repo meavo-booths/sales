@@ -1,10 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { Prisma, type DealClientType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireSalesAccess, requireSalesAdmin } from "@/lib/meavo-auth";
 import { clientInputSchema } from "@/lib/client-input";
-import { mapClientsForQuotePicker } from "@/lib/client-hierarchy";
+import {
+  mapClientsForQuotePicker,
+  parseClientHierarchyView,
+} from "@/lib/client-hierarchy";
 import {
   applyClientCsvImport,
   previewClientCsvImport,
@@ -12,8 +16,9 @@ import {
   type ClientCsvImportPreview,
   type ClientCsvMode,
 } from "@/lib/clients/csv-import";
+import { buildClientsCsvExport } from "@/lib/clients/csv-export";
+import { CLIENT_TYPE_OPTIONS } from "@/lib/deal-values";
 import { firstZodError } from "@/lib/zod-errors";
-import { Prisma } from "@prisma/client";
 
 export type ClientActionResult =
   | { ok: true; id: string }
@@ -335,6 +340,44 @@ export async function applyClientCsvImportAction(input: {
     return {
       ok: false,
       error: error instanceof Error ? error.message : "Import failed",
+    };
+  }
+}
+
+export type ClientCsvExportResult =
+  | { ok: true; filename: string; csvText: string }
+  | { ok: false; error: string };
+
+/** Download CSV of all clients matching the current list filters (all pages). */
+export async function exportClientsCsvAction(raw: {
+  search?: string;
+  clientTypes?: string[];
+  countries?: string[];
+  hierarchyView?: string;
+}): Promise<ClientCsvExportResult> {
+  await requireSalesAccess();
+
+  const typeSet = new Set<string>(CLIENT_TYPE_OPTIONS);
+  const clientTypes = (raw.clientTypes ?? []).filter((value): value is DealClientType =>
+    typeSet.has(value),
+  );
+  const countries = (raw.countries ?? [])
+    .map((value) => String(value).trim())
+    .filter(Boolean);
+  const hierarchyView = parseClientHierarchyView(raw.hierarchyView);
+
+  try {
+    const { filename, csvText } = await buildClientsCsvExport({
+      search: String(raw.search ?? ""),
+      clientTypes,
+      countries,
+      hierarchyView,
+    });
+    return { ok: true, filename, csvText };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "Could not export clients",
     };
   }
 }

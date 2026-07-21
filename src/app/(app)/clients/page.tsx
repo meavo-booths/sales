@@ -19,6 +19,7 @@ import {
 } from "@/lib/client-hierarchy";
 import { loadClientStatsByClient } from "@/lib/client-stats";
 import { AddClientButton } from "@/components/add-client-button";
+import { ClientCsvExportButton } from "@/components/client-csv-export";
 import { ClientCsvImportButton } from "@/components/client-csv-import";
 import { ClientListFilters } from "@/components/client-list-filters";
 import { ListPagination } from "@/components/list-pagination";
@@ -241,6 +242,12 @@ export default async function ClientsPage({
       <PageHeader title="Clients" description="Client directory with deal history and stats.">
         <div className="flex flex-wrap items-center gap-2">
           <AddClientButton parentOptions={parentOptions} />
+          <ClientCsvExportButton
+            search={search}
+            selectedTypes={selectedTypes}
+            selectedCountries={selectedCountries}
+            hierarchyView={hierarchyView}
+          />
           {isAdmin && <ClientCsvImportButton />}
         </div>
       </PageHeader>
