@@ -19,6 +19,7 @@ import {
 } from "@/lib/client-hierarchy";
 import { loadClientStatsByClient } from "@/lib/client-stats";
 import { AddClientButton } from "@/components/add-client-button";
+import { ClientCsvImportButton } from "@/components/client-csv-import";
 import { ClientListFilters } from "@/components/client-list-filters";
 import { ListPagination } from "@/components/list-pagination";
 import { Badge, Card, EmptyState, PageHeader, VipBadge } from "@/components/ui";
@@ -233,7 +234,10 @@ export default async function ClientsPage({
   return (
     <>
       <PageHeader title="Clients" description="Client directory with deal history and stats.">
-        <AddClientButton parentOptions={parentOptions} />
+        <div className="flex flex-wrap items-center gap-2">
+          <AddClientButton parentOptions={parentOptions} />
+          <ClientCsvImportButton />
+        </div>
       </PageHeader>
 
       <div className="mb-6">
