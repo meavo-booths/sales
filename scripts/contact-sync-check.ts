@@ -5,10 +5,9 @@
  *
  * Run: npx tsx --env-file=.env scripts/contact-sync-check.ts
  */
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "../src/lib/prisma";
 import { syncClientContacts } from "../src/lib/client-contacts";
 
-const prisma = new PrismaClient();
 const DEAL_ID = "SMOKE-SYNC-DEAL";
 
 async function cleanup() {

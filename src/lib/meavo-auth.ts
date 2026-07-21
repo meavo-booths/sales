@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { SALES_TOOL_CARD_ID } from "@/lib/constants";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { setActorUserId } from "@/lib/request-context";
 
 const TASKS_TOOL_CARD_ID = process.env.TASKS_TOOL_CARD_ID ?? "seed-tasks-tool";
 
@@ -27,6 +28,9 @@ export async function requireSalesAccess() {
   });
 
   if (!access) redirect("/login?error=NoAccess");
+
+  // Attribute any Deal writes in this request to the acting user (audit log).
+  setActorUserId(session.user.id);
 
   return session;
 }

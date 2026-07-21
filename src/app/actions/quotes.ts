@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
-import { prisma } from "@/lib/prisma";
+import { prisma, type PrismaTransactionClient } from "@/lib/prisma";
 import { requireSalesAccess } from "@/lib/meavo-auth";
 import { nextQuoteNumber } from "@/lib/quote-number";
 import { quoteInputSchema, type QuoteInput } from "@/lib/quote-input";
@@ -19,7 +19,7 @@ export type QuoteActionResult =
   | { ok: true; id: string }
   | { ok: false; error: string };
 
-type Tx = Prisma.TransactionClient;
+type Tx = PrismaTransactionClient;
 
 function contactsCreate(input: QuoteInput) {
   return input.contacts.map((contact, index) => ({

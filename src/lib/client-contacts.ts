@@ -1,4 +1,5 @@
-import type { DealContactKind, Prisma } from "@prisma/client";
+import type { DealContactKind } from "@prisma/client";
+import type { PrismaTransactionClient } from "@/lib/prisma";
 
 export type ContactValues = {
   kind: DealContactKind;
@@ -15,7 +16,7 @@ export type ContactValues = {
  * so the client directory only ever grows.
  */
 export async function syncClientContacts(
-  tx: Prisma.TransactionClient,
+  tx: PrismaTransactionClient,
   clientId: string,
   contacts: ContactValues[],
 ): Promise<void> {

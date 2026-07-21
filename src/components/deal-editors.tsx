@@ -33,8 +33,10 @@ import {
   formatDate,
 } from "@/lib/deal-values";
 import { Button, Card, Input, Select, Textarea } from "@/components/ui";
-import type { XeroPaymentBreakdown } from "@/lib/xero/sync-payment";
-import { formatPaymentBreakdownLine } from "@/lib/xero/sync-payment";
+import {
+  formatPaymentBreakdownLine,
+  type XeroPaymentBreakdown,
+} from "@/lib/xero/payment-format";
 import { DealField, DealFieldGrid, DealSubsection } from "@/components/deal-layout";
 import { VatNumberField } from "@/components/vat-check";
 import { isUsMarket } from "@/lib/zamp/constants";

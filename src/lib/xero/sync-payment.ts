@@ -2,12 +2,17 @@ import type { PaymentStatus, PaymentTerms } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { isXeroConfigured } from "@/lib/xero/client";
 import { getInvoice, type XeroInvoicePayment } from "@/lib/xero/resources";
+import {
+  formatPaymentBreakdownLine,
+  type XeroInvoicePaymentState,
+  type XeroPaymentBreakdown,
+} from "@/lib/xero/payment-format";
 
-export type XeroInvoicePaymentState = "not_created" | "unpaid" | "partial" | "paid";
-
-export type XeroPaymentBreakdown = {
-  advance: { number: string | null; state: XeroInvoicePaymentState };
-  final: { number: string | null; state: XeroInvoicePaymentState };
+// Re-exported so existing server-side importers keep their import path.
+export {
+  formatPaymentBreakdownLine,
+  type XeroInvoicePaymentState,
+  type XeroPaymentBreakdown,
 };
 
 export function invoiceFullyPaid(invoice: XeroInvoicePayment): boolean {
@@ -97,22 +102,6 @@ export function buildPaymentBreakdown(input: {
         : "not_created",
     },
   };
-}
-
-const PAYMENT_STATE_LABELS: Record<XeroInvoicePaymentState, string> = {
-  not_created: "Not created yet",
-  unpaid: "Unpaid",
-  partial: "Partially paid",
-  paid: "Paid",
-};
-
-export function formatPaymentBreakdownLine(
-  label: string,
-  number: string | null,
-  state: XeroInvoicePaymentState,
-): string {
-  const suffix = number ? ` (${number})` : "";
-  return `${label}${suffix}: ${PAYMENT_STATE_LABELS[state]}`;
 }
 
 type DealForPaymentSync = {

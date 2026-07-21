@@ -7,10 +7,8 @@
  *
  * Run: npx tsx --env-file=.env scripts/backfill-client-contacts.ts
  */
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "../src/lib/prisma";
 import { syncClientContacts } from "../src/lib/client-contacts";
-
-const prisma = new PrismaClient();
 
 async function main() {
   const deals = await prisma.deal.findMany({

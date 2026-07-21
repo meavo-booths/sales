@@ -15,6 +15,17 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  webpack: (config, { isServer }) => {
+    // The server-only Prisma client (src/lib/prisma.ts) transitively imports
+    // async_hooks via the audit-log request context. Client components that
+    // pull in prisma-coupled modules tree-shake it out at runtime, but webpack
+    // still resolves the import graph — stub async_hooks in the browser build.
+    if (!isServer) {
+      config.resolve = config.resolve ?? {};
+      config.resolve.fallback = { ...(config.resolve.fallback ?? {}), async_hooks: false };
+    }
+    return config;
+  },
   async headers() {
     return [
       {
