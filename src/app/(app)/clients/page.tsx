@@ -14,10 +14,10 @@ import {
   clientHierarchyRole,
   hierarchyWhere,
   isClientVip,
-  loadClientStatsByClient,
   sumClientStats,
   type ClientStats,
 } from "@/lib/client-hierarchy";
+import { loadClientStatsByClient } from "@/lib/client-stats";
 import { AddClientButton } from "@/components/add-client-button";
 import { ClientListFilters } from "@/components/client-list-filters";
 import { ListPagination } from "@/components/list-pagination";

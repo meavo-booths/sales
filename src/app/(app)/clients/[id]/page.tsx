@@ -14,9 +14,9 @@ import {
 import {
   clientHierarchyRole,
   isClientVip,
-  loadClientStatsByClient,
   sumClientStats,
 } from "@/lib/client-hierarchy";
+import { loadClientStatsByClient } from "@/lib/client-stats";
 import { Badge, Card, EmptyState, PageHeader, VipBadge } from "@/components/ui";
 import { ClientForm } from "@/components/client-form";
 
