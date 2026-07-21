@@ -34,6 +34,11 @@ export default async function QuotePage({ params }: { params: Promise<{ id: stri
 
   const isOpen = quote.stage === "QUOTE";
   const showAddTask = await hasTasksAccess(session.user!.id);
+  const user = await prisma.user.findUnique({
+    where: { id: session.user!.id },
+    select: { systemRole: true },
+  });
+  const isAdmin = user?.systemRole === "ADMIN";
 
   return (
     <>
@@ -78,7 +83,7 @@ export default async function QuotePage({ params }: { params: Promise<{ id: stri
         </div>
         <ContactsCard deal={quote} />
         <LineItemsCard deal={quote} />
-        {isOpen && <QuoteSecondaryActions quoteId={quote.id} />}
+        {isOpen && <QuoteSecondaryActions quoteId={quote.id} isAdmin={isAdmin} />}
       </div>
     </>
   );

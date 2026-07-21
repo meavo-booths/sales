@@ -109,7 +109,7 @@ export default async function ClientsPage({
     view?: string;
   }>;
 }) {
-  await requireSalesAccess();
+  const session = await requireSalesAccess();
 
   const { q, page: pageParam, type, country, view } = await searchParams;
   const search = (q ?? "").trim();
@@ -123,7 +123,7 @@ export default async function ClientsPage({
   if (selectedCountries.length > 0) and.push({ market: { in: selectedCountries } });
   const where: Prisma.ClientWhereInput = { AND: and };
 
-  const [totalClients, countryRows, parentOptions] = await Promise.all([
+  const [totalClients, countryRows, parentOptions, user] = await Promise.all([
     prisma.client.count({ where }),
     prisma.client.findMany({
       where: { market: { not: "" } },
@@ -132,8 +132,13 @@ export default async function ClientsPage({
       orderBy: { market: "asc" },
     }),
     listParentCompanyOptions(),
+    prisma.user.findUnique({
+      where: { id: session.user!.id },
+      select: { systemRole: true },
+    }),
   ]);
   const countries = countryRows.map((row) => row.market);
+  const isAdmin = user?.systemRole === "ADMIN";
 
   const totalPages = Math.max(1, Math.ceil(totalClients / LIST_PAGE_SIZE));
   const page = parseListPage(pageParam, totalPages);
@@ -236,7 +241,7 @@ export default async function ClientsPage({
       <PageHeader title="Clients" description="Client directory with deal history and stats.">
         <div className="flex flex-wrap items-center gap-2">
           <AddClientButton parentOptions={parentOptions} />
-          <ClientCsvImportButton />
+          {isAdmin && <ClientCsvImportButton />}
         </div>
       </PageHeader>
 

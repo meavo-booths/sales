@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { requireSalesAccess } from "@/lib/meavo-auth";
+import { requireSalesAccess, requireSalesAdmin } from "@/lib/meavo-auth";
 import { clientInputSchema } from "@/lib/client-input";
 import { mapClientsForQuotePicker } from "@/lib/client-hierarchy";
 import {
@@ -13,6 +13,7 @@ import {
   type ClientCsvMode,
 } from "@/lib/clients/csv-import";
 import { firstZodError } from "@/lib/zod-errors";
+import { Prisma } from "@prisma/client";
 
 export type ClientActionResult =
   | { ok: true; id: string }
@@ -240,6 +241,43 @@ export async function updateClientAction(
   return { ok: true, id };
 }
 
+/** Permanently remove a client with no deals or subsidiaries (admin only). */
+export async function deleteClientAction(id: string): Promise<ClientActionResult> {
+  await requireSalesAdmin();
+
+  const client = await prisma.client.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      parentClientId: true,
+      _count: { select: { deals: true, subsidiaries: true } },
+    },
+  });
+  if (!client) return { ok: false, error: "Client not found" };
+  if (client._count.deals > 0) {
+    return { ok: false, error: "This client has quotes or deals and cannot be deleted" };
+  }
+  if (client._count.subsidiaries > 0) {
+    return {
+      ok: false,
+      error: "Remove or reassign subsidiaries before deleting this parent company",
+    };
+  }
+
+  try {
+    await prisma.client.delete({ where: { id } });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2003") {
+      return { ok: false, error: "This client is linked to other records and cannot be deleted" };
+    }
+    throw error;
+  }
+
+  revalidatePath("/clients");
+  if (client.parentClientId) revalidatePath(`/clients/${client.parentClientId}`);
+  return { ok: true, id };
+}
+
 export type ClientCsvPreviewResult =
   | ({ ok: true } & ClientCsvImportPreview)
   | { ok: false; error: string };
@@ -247,7 +285,7 @@ export type ClientCsvPreviewResult =
 export async function previewClientCsvImportAction(
   formData: FormData,
 ): Promise<ClientCsvPreviewResult> {
-  await requireSalesAccess();
+  await requireSalesAdmin();
 
   const modeRaw = String(formData.get("mode") ?? "");
   const mode: ClientCsvMode | null =
@@ -282,7 +320,7 @@ export async function applyClientCsvImportAction(input: {
   mode: ClientCsvMode;
   csvText: string;
 }): Promise<ClientCsvApplyResult> {
-  await requireSalesAccess();
+  await requireSalesAdmin();
 
   if (input.mode !== "parent" && input.mode !== "normal") {
     return { ok: false, error: "Choose Parent companies or Normal companies" };

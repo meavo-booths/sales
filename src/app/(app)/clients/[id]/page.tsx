@@ -19,6 +19,7 @@ import {
 import { loadClientStatsByClient } from "@/lib/client-stats";
 import { Badge, Card, EmptyState, PageHeader, VipBadge } from "@/components/ui";
 import { ClientForm } from "@/components/client-form";
+import { ClientDeleteButton } from "@/components/client-delete-button";
 
 export const dynamic = "force-dynamic";
 
@@ -29,27 +30,34 @@ export default async function ClientPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireSalesAccess();
+  const session = await requireSalesAccess();
 
   const { id } = await params;
-  const client = await prisma.client.findUnique({
-    where: { id },
-    include: {
-      parent: { select: { id: true, name: true, isVip: true } },
-      subsidiaries: {
-        orderBy: { name: "asc" },
-        include: { _count: { select: { deals: true } } },
+  const [client, user] = await Promise.all([
+    prisma.client.findUnique({
+      where: { id },
+      include: {
+        parent: { select: { id: true, name: true, isVip: true } },
+        subsidiaries: {
+          orderBy: { name: "asc" },
+          include: { _count: { select: { deals: true } } },
+        },
+        contacts: { orderBy: { sortOrder: "asc" } },
+        deals: {
+          orderBy: { createdAt: "desc" },
+          include: { lineItems: { select: { quantity: true, unitPrice: true, unitPriceEur: true } } },
+        },
+        _count: { select: { subsidiaries: true } },
       },
-      contacts: { orderBy: { sortOrder: "asc" } },
-      deals: {
-        orderBy: { createdAt: "desc" },
-        include: { lineItems: { select: { quantity: true, unitPrice: true, unitPriceEur: true } } },
-      },
-      _count: { select: { subsidiaries: true } },
-    },
-  });
+    }),
+    prisma.user.findUnique({
+      where: { id: session.user!.id },
+      select: { systemRole: true },
+    }),
+  ]);
   if (!client) notFound();
 
+  const isAdmin = user?.systemRole === "ADMIN";
   const role = clientHierarchyRole(client, client._count.subsidiaries);
   const isParent = role === "parent";
   const showVip = isClientVip(client, client.parent);
@@ -272,6 +280,12 @@ export default async function ClientPage({
           />
         </div>
       </div>
+
+      {isAdmin && (
+        <div className="mt-8 flex justify-end border-t border-slate-200 pt-6">
+          <ClientDeleteButton clientId={client.id} clientName={client.name} />
+        </div>
+      )}
     </>
   );
 }

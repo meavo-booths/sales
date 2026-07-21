@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
 import { prisma, type PrismaTransactionClient } from "@/lib/prisma";
-import { requireSalesAccess } from "@/lib/meavo-auth";
+import { requireSalesAccess, requireSalesAdmin } from "@/lib/meavo-auth";
 import { nextQuoteNumber } from "@/lib/quote-number";
 import { quoteInputSchema, type QuoteInput } from "@/lib/quote-input";
 import { syncClientContacts } from "@/lib/client-contacts";
@@ -392,7 +392,7 @@ export async function updateQuoteAction(
 }
 
 export async function deleteQuoteAction(id: string): Promise<QuoteActionResult> {
-  await requireSalesAccess();
+  await requireSalesAdmin();
 
   const existing = await prisma.deal.findUnique({ where: { id }, select: { stage: true } });
   if (!existing) return { ok: false, error: "Quote not found" };

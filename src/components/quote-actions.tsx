@@ -12,7 +12,13 @@ import {
   type LostReasonOption,
 } from "@/lib/deal-values";
 
-export function QuoteSecondaryActions({ quoteId }: { quoteId: string }) {
+export function QuoteSecondaryActions({
+  quoteId,
+  isAdmin = false,
+}: {
+  quoteId: string;
+  isAdmin?: boolean;
+}) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -69,17 +75,19 @@ export function QuoteSecondaryActions({ quoteId }: { quoteId: string }) {
       >
         Mark lost
       </Button>
-      <Button
-        variant="danger"
-        disabled={pending}
-        onClick={() => {
-          if (confirm("Delete this quote? This cannot be undone.")) {
-            run(() => deleteQuoteAction(quoteId), "/");
-          }
-        }}
-      >
-        Delete
-      </Button>
+      {isAdmin && (
+        <Button
+          variant="danger"
+          disabled={pending}
+          onClick={() => {
+            if (confirm("Delete this quote? This cannot be undone.")) {
+              run(() => deleteQuoteAction(quoteId), "/");
+            }
+          }}
+        >
+          Delete
+        </Button>
+      )}
       {error && !lostOpen && <p className="text-sm text-red-600">{error}</p>}
 
       <Modal
