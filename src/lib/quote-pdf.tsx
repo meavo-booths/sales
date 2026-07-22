@@ -82,7 +82,9 @@ const styles = StyleSheet.create({
   cellAfterDiscount: { flex: 1.4, textAlign: "right", paddingRight: 8 },
   cellAmount: { flex: 1.4, textAlign: "right" },
   productImage: { width: 32, height: 32, objectFit: "cover", borderRadius: 4, marginRight: 8 },
-  addOnIndent: { paddingLeft: 16 },
+  // Fixed-width spacer inside the product cell — do not put paddingLeft on the
+  // flex cell itself (Yoga treats that as extra outer width and shifts later columns).
+  addOnIndentSpacer: { width: 16, flexShrink: 0 },
   totalRow: {
     flexDirection: "row",
     justifyContent: "flex-end",
@@ -144,9 +146,9 @@ function LineItemRow({
         style={[
           styles.cellProduct,
           { flexDirection: "row", alignItems: "center" },
-          ...(indent ? [styles.addOnIndent] : []),
         ]}
       >
+        {indent ? <View style={styles.addOnIndentSpacer} /> : null}
         {item.product?.imageUrl ? (
           // eslint-disable-next-line jsx-a11y/alt-text -- react-pdf Image has no alt prop
           <Image src={item.product.imageUrl} style={styles.productImage} />
