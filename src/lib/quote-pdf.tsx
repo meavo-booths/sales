@@ -137,6 +137,7 @@ function LineItemRow({
   );
   const lineTotal = lineItemExtendedTotal(item);
   const afterDiscount = lineItemEffectiveUnitPrice(item);
+  const isZeroQty = item.quantity === 0;
   return (
     <View style={styles.row} wrap={false}>
       <View
@@ -172,10 +173,16 @@ function LineItemRow({
           </>
         )}
       </View>
-      <Text style={styles.cellQty}>{item.quantity}</Text>
+      <Text style={styles.cellQty}>{isZeroQty ? " " : item.quantity}</Text>
       <View style={styles.cellPrice}>
-        <Text>{formatMoneyForPdf(Number(item.unitPrice), currency, lang)}</Text>
-        {discountLabel ? <Text style={{ color: MUTED }}>{discountLabel}</Text> : null}
+        {isZeroQty ? (
+          <Text> </Text>
+        ) : (
+          <>
+            <Text>{formatMoneyForPdf(Number(item.unitPrice), currency, lang)}</Text>
+            {discountLabel ? <Text style={{ color: MUTED }}>{discountLabel}</Text> : null}
+          </>
+        )}
       </View>
       {hasDiscount ? (
         <Text style={styles.cellAfterDiscount}>

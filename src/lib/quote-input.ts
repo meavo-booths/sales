@@ -61,7 +61,7 @@ function refineLineDiscount<T extends { unitPrice: number; discountType: LineIte
 export const addOnInputSchema = z
   .object({
     productId: z.string().min(1, "Pick an add-on"),
-    quantity: z.coerce.number().int().min(1).max(999),
+    quantity: z.coerce.number().int().min(0).max(999),
     unitPrice: z.coerce.number().min(0).max(9_999_999),
     description: z.string().trim().default(""),
     ...lineDiscountFields,
@@ -71,7 +71,7 @@ export const addOnInputSchema = z
 export const lineItemInputSchema = z
   .object({
     productId: z.string().min(1, "Pick a product"),
-    quantity: z.coerce.number().int().min(1).max(999),
+    quantity: z.coerce.number().int().min(0).max(999),
     unitPrice: z.coerce.number().min(0).max(9_999_999),
     finish: z.enum(["CUSTOM", "WHITE_STOCK", "BLACK_STOCK", "LDF_COLOUR"]),
     finishDetails: z.string().trim().default(""),
@@ -85,7 +85,7 @@ export const lineItemInputSchema = z
 export const customLineInputSchema = z
   .object({
     name: z.string().trim().min(1, "Custom line item name is required").max(500),
-    quantity: z.coerce.number().int().min(1).max(999),
+    quantity: z.coerce.number().int().min(0).max(999),
     unitPrice: z.coerce.number().min(0).max(9_999_999),
     description: z.string().trim().default(""),
     ...lineDiscountFields,

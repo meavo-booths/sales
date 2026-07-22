@@ -689,9 +689,9 @@ export function QuoteForm({
       <Input
         label="Qty"
         type="number"
-        min={1}
+        min={0}
         value={addOn.quantity}
-        onChange={(e) => update({ quantity: Math.max(1, Number(e.target.value) || 1) })}
+        onChange={(e) => update({ quantity: Math.max(0, Number(e.target.value) || 0) })}
       />
       <Input
         label="Unit price"
@@ -1158,10 +1158,10 @@ export function QuoteForm({
                   <Input
                     label="Qty"
                     type="number"
-                    min={1}
+                    min={0}
                     value={item.quantity}
                     onChange={(e) =>
-                      setLineItem(index, { quantity: Math.max(1, Number(e.target.value) || 1) })
+                      setLineItem(index, { quantity: Math.max(0, Number(e.target.value) || 0) })
                     }
                   />
                   <Input
@@ -1297,10 +1297,10 @@ export function QuoteForm({
                   <Input
                     label="Qty"
                     type="number"
-                    min={1}
+                    min={0}
                     value={custom.quantity}
                     onChange={(e) =>
-                      setCustomLine(index, { quantity: Math.max(1, Number(e.target.value) || 1) })
+                      setCustomLine(index, { quantity: Math.max(0, Number(e.target.value) || 0) })
                     }
                   />
                   <Input
