@@ -4,12 +4,13 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { SALES_TOOL_CARD_ID } from "@/lib/constants";
 import { QuotePdfDocument } from "@/lib/quote-pdf";
+import { parseQuotePdfLang, quotePdfFilename } from "@/lib/quote-pdf-messages";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const session = await auth();
@@ -24,6 +25,7 @@ export async function GET(
   }
 
   const { id } = await params;
+  const lang = parseQuotePdfLang(new URL(request.url).searchParams.get("lang"));
   const quote = await prisma.deal.findUnique({
     where: { id },
     include: {
@@ -35,12 +37,12 @@ export async function GET(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const buffer = await renderToBuffer(QuotePdfDocument({ quote }));
+  const buffer = await renderToBuffer(QuotePdfDocument({ quote, lang }));
 
   return new NextResponse(new Uint8Array(buffer), {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="${quote.quoteNumber}-meavo-quote.pdf"`,
+      "Content-Disposition": `attachment; filename="${quotePdfFilename(quote.quoteNumber, lang)}"`,
     },
   });
 }

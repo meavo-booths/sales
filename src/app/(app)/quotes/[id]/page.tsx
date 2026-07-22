@@ -14,6 +14,7 @@ import {
 } from "@/components/deal-sections";
 import { ConvertQuoteButton } from "@/components/convert-quote";
 import { QuoteSecondaryActions } from "@/components/quote-actions";
+import { QuotePdfDownload } from "@/components/quote-pdf-download";
 
 export const dynamic = "force-dynamic";
 
@@ -49,12 +50,7 @@ export default async function QuotePage({ params }: { params: Promise<{ id: stri
         <div className="flex flex-wrap items-center gap-2">
           {quote.client?.isVip && <VipBadge />}
           <Badge tone={isOpen ? "blue" : "red"}>{DEAL_STAGE_LABELS[quote.stage]}</Badge>
-          <a
-            href={`/api/quotes/${quote.id}/pdf`}
-            className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-          >
-            Download PDF
-          </a>
+          <QuotePdfDownload quoteId={quote.id} market={quote.market} />
           {showAddTask && (
             <AddTaskLink
               entityId={quote.id}

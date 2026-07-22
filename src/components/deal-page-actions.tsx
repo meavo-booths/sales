@@ -8,6 +8,7 @@ import {
   CreateXeroInvoiceButton,
   ReadyToAssembleToggle,
 } from "@/components/deal-editors";
+import { QuotePdfDownload } from "@/components/quote-pdf-download";
 
 const ASSEMBLY_EVENT_LABELS: Record<string, string> = {
   ASSEMBLY: "Assembly",
@@ -26,6 +27,7 @@ export function DealPageActions({
   dealDbId,
   dealBusinessId,
   clientName,
+  market,
   readyToAssemble,
   assemblies,
   showAddTask,
@@ -36,6 +38,7 @@ export function DealPageActions({
   dealDbId: string;
   dealBusinessId: string;
   clientName: string;
+  market: string;
   readyToAssemble: boolean;
   assemblies: AssemblyLink[];
   showAddTask: boolean;
@@ -51,12 +54,7 @@ export function DealPageActions({
       >
         Edit
       </Link>
-      <a
-        href={`/api/quotes/${dealDbId}/pdf`}
-        className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-      >
-        Quote PDF
-      </a>
+      <QuotePdfDownload quoteId={dealDbId} market={market} label="Quote PDF" />
       {showCreateInvoice && (
         <CreateXeroInvoiceButton dealId={dealDbId} label={createInvoiceLabel} />
       )}

@@ -11,6 +11,7 @@ import { renderToBuffer } from "@react-pdf/renderer";
 import { writeFileSync } from "fs";
 import { QuotePdfDocument } from "../src/lib/quote-pdf";
 import { buildExportGroups } from "../src/lib/ops-sheet-export";
+import { QUOTE_PDF_LANGS } from "../src/lib/quote-pdf-messages";
 
 const prisma = new PrismaClient();
 
@@ -172,9 +173,14 @@ async function main() {
   assert(addOnRow.addOns.join(", ") === "Ergonomic chair" && addOnRow.amount === 420, "standalone row add-ons/amount wrong");
 
   // PDF render (attached add-on indented under its booth, standalone as row).
-  const pdf = await renderToBuffer(QuotePdfDocument({ quote: full }));
-  writeFileSync("/tmp/meavo-smoke-quote.pdf", pdf);
-  console.log("PDF rendered:", pdf.length, "bytes -> /tmp/meavo-smoke-quote.pdf");
+  // Default lang from market (Germany → de); also smoke every supported language.
+  for (const lang of QUOTE_PDF_LANGS) {
+    const pdf = await renderToBuffer(QuotePdfDocument({ quote: full, lang }));
+    const out = `/tmp/meavo-smoke-quote-${lang}.pdf`;
+    writeFileSync(out, pdf);
+    console.log(`PDF rendered (${lang}):`, pdf.length, "bytes ->", out);
+    assert(pdf.length > 1000, `PDF for lang=${lang} looks too small`);
+  }
 
   // Client stats sanity: revenue over WON deals for this client.
   const clientWithDeals = await prisma.client.findUniqueOrThrow({

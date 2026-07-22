@@ -97,6 +97,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
           dealDbId={deal.id}
           dealBusinessId={deal.dealId}
           clientName={deal.clientName}
+          market={deal.market}
           readyToAssemble={deal.readyToAssemble}
           assemblies={assemblies}
           showAddTask={showAddTask}
