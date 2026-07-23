@@ -42,6 +42,7 @@ const BORDER = "#e2e8f0";
 const styles = StyleSheet.create({
   page: {
     padding: 40,
+    paddingBottom: 72,
     fontSize: 9,
     fontFamily: "Helvetica",
     color: SLATE,
@@ -95,17 +96,38 @@ const styles = StyleSheet.create({
   totalValue: { fontFamily: "Helvetica-Bold", fontSize: 11, color: BRAND },
   subtotalLabel: { fontSize: 10, color: SLATE },
   subtotalValue: { fontSize: 10, color: SLATE },
+  termsBlock: {
+    marginTop: 28,
+    alignItems: "center",
+  },
+  termsHeading: {
+    fontSize: 9,
+    fontFamily: "Helvetica-Bold",
+    color: SLATE,
+    textAlign: "center",
+    marginBottom: 8,
+  },
+  termsBullet: {
+    fontSize: 8,
+    color: MUTED,
+    textAlign: "center",
+    marginBottom: 6,
+    maxWidth: "80%",
+  },
   footer: {
     position: "absolute",
     left: 40,
     right: 40,
-    bottom: 30,
+    bottom: 24,
     borderTopWidth: 1,
     borderColor: BORDER,
     paddingTop: 8,
     color: MUTED,
-    fontSize: 8,
+    fontSize: 7,
     textAlign: "center",
+  },
+  footerLine: {
+    marginBottom: 2,
   },
 });
 
@@ -357,9 +379,22 @@ export function QuotePdfDocument({
           )}
         </View>
 
-        <Text style={styles.footer} fixed>
-          {t.footer}
-        </Text>
+        <View style={styles.termsBlock}>
+          <Text style={styles.termsHeading}>{t.termsHeading}</Text>
+          {t.termsBullets.map((bullet) => (
+            <Text key={bullet} style={styles.termsBullet}>
+              • {bullet}
+            </Text>
+          ))}
+        </View>
+
+        <View style={styles.footer} fixed>
+          {t.footerLines.map((line) => (
+            <Text key={line} style={styles.footerLine}>
+              {line}
+            </Text>
+          ))}
+        </View>
       </Page>
     </Document>
   );

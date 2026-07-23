@@ -69,7 +69,9 @@ export type QuotePdfMessages = {
   totalIncl: (taxLabelLower: string) => string;
   totalExclVat: string;
   totalExclSalesTax: string;
-  footer: string;
+  termsHeading: string;
+  termsBullets: string[];
+  footerLines: string[];
   taxLabelVat: string;
   taxLabelSalesTax: string;
   paymentTermsLabels: Record<PaymentTerms, string>;
@@ -119,8 +121,16 @@ const MESSAGES: Record<QuotePdfLang, QuotePdfMessages> = {
     totalIncl: (tax) => `Total (incl. ${tax})`,
     totalExclVat: "Total (excl. VAT)",
     totalExclSalesTax: "Total (excl. sales tax)",
-    footer:
-      "MEAVO — office phone booths · meavo.com · This quote is valid for 30 days from the date above.",
+    termsHeading: "PLEASE NOTE:",
+    termsBullets: [
+      "Delivery: Staircase carrying is included up to the 2nd floor. If the lift is too small or unavailable additional charges may apply for staircase carrying beyond the 2nd floor. Installation: The ceiling must be at least 240cm tall to facilitate installation.",
+      "Environmental impact: For every phone booth purchased we plant 15 trees in Madagascar (www.ecologi.com/meavo) and donate 2 solar lamps to families in Zambia (www.solar-aid.org). In addition, the acoustic felt in each booth contains over 800 recycled plastic bottles, helping keep our environment clean.",
+      "Terms & conditions: By placing an order you accept our terms & conditions (www.meavo.com/terms-and-conditions)",
+    ],
+    footerLines: [
+      "Questions? Give us a ring: +44 (0) 203 488 5200",
+      "MEAVO Limited | International House, 12 Constance St, London E16 2DQ, United Kingdom | VAT #: GB294870555 | Companies House #: 11177638",
+    ],
     taxLabelVat: "VAT",
     taxLabelSalesTax: "Sales tax",
     paymentTermsLabels: PAYMENT_EN,
@@ -155,8 +165,18 @@ const MESSAGES: Record<QuotePdfLang, QuotePdfMessages> = {
     totalIncl: (tax) => `Total (con ${tax})`,
     totalExclVat: "Total (sin IVA)",
     totalExclSalesTax: "Total (sin impuesto sobre las ventas)",
-    footer:
-      "MEAVO — cabinas telefónicas de oficina · meavo.com · Este presupuesto es válido durante 30 días a partir de la fecha indicada.",
+    termsHeading: "Notas:",
+    termsBullets: [
+      "Triangulación exenta de IVA según el artículo 141 de la Directiva Europea 2006/112/UE",
+      "NOTA: El techo debe tener una altura mínima de 240 cm para facilitar la instalación.",
+      "Impacto medioambiental: Por cada cabina telefónica comprada plantamos 15 árboles en Madagascar (www.ecologi.com/meavo) y donamos 2 lámparas solares a familias de Zambia (www.solar-aid.org). Además, el fieltro acústico de cada cabina contiene más de 800 botellas de plástico recicladas, lo que contribuye a mantener limpio nuestro entorno.",
+      "Términos & Condiciones: www.meavo.com/terms-and-conditions",
+    ],
+    footerLines: [
+      "¿Preguntas? Escríbenos a: hola@meavo.com",
+      "MEAVO Limited | International House, 12 Constance St, Londres E16 2DQ, Reino Unido",
+      "Número de IVA intracomunitario: DE343397319 | Número Companies House: 11177638",
+    ],
     taxLabelVat: "IVA",
     taxLabelSalesTax: "Impuesto sobre las ventas",
     paymentTermsLabels: {
@@ -201,8 +221,17 @@ const MESSAGES: Record<QuotePdfLang, QuotePdfMessages> = {
     totalIncl: (tax) => `Totale (incl. ${tax})`,
     totalExclVat: "Totale (escl. IVA)",
     totalExclSalesTax: "Totale (escl. imposta sulle vendite)",
-    footer:
-      "MEAVO — cabine telefoniche per ufficio · meavo.com · Questo preventivo è valido per 30 giorni dalla data sopra indicata.",
+    termsHeading: "Note:",
+    termsBullets: [
+      "Triangolazione, IVA esente ai sensi dell'articolo 141 della Direttiva Europea 2006/112/CE",
+      "ATTENZIONE: Il soffitto deve avere un'altezza minima di 240 cm per consentire l'installazione.",
+      "Impatto ambientale: Per ogni phone booth acquistato, piantiamo 15 alberi in Madagascar (www.ecologi.com/meavo) e doniamo 2 lampade solari a famiglie in Zambia (www.solar-aid.org). Inoltre, il feltro acustico di ogni cabina contiene oltre 800 bottiglie di plastica riciclate, contribuendo a mantenere pulito il nostro ambiente.",
+      "I nostri termini e condizioni: www.meavo.com/terms-and-conditions",
+    ],
+    footerLines: [
+      "MEAVO Limited | International House, 12 Constance St, London E16 2DQ, United Kingdom",
+      "EU Triangulation: Finanzamt Hannover-Nord, Germany | German VAT number: DE343397319 | Germany Tax ID: 25/249/61693",
+    ],
     taxLabelVat: "IVA",
     taxLabelSalesTax: "Imposta sulle vendite",
     paymentTermsLabels: {
@@ -247,8 +276,17 @@ const MESSAGES: Record<QuotePdfLang, QuotePdfMessages> = {
     totalIncl: (tax) => `Gesamt (inkl. ${tax})`,
     totalExclVat: "Gesamt (ohne MwSt.)",
     totalExclSalesTax: "Gesamt (ohne Umsatzsteuer)",
-    footer:
-      "MEAVO — Büro-Telefonkabinen · meavo.com · Dieses Angebot ist 30 Tage ab dem oben genannten Datum gültig.",
+    termsHeading: "Weitere Angaben:",
+    termsBullets: [
+      "BITTE BEACHTEN: Die Deckenhöhe muss mindestens 240cm betragen, um die Montage zu ermöglichen.",
+      "Unser Beitrag zum Umweltschutz: Pro verkaufter Telefonzelle pflanzen wir 15 Bäume in Madagaskar (www.ecologi.com/meavo) und spenden 2 Solarlampen an Familien in Sambia (www.solar-aid.org). In den Akustikpaneelen in einer unserer Telefonkabinen sind zudem über 800 recycelte Plastikflaschen verarbeitet.",
+      "Unsere Allgemeinen Geschäftsbedingungen: www.meavo.com/terms-and-conditions",
+    ],
+    footerLines: [
+      "Fragen? Kontaktiere uns: hallo@meavo.com",
+      "MEAVO Limited | International House, 12 Constance St, London E16 2DQ, Vereinigtes Königreich",
+      "Finanzamt Hannover-Nord | USt-ID: DE343397319 | Steuernummer: 25/249/61693",
+    ],
     taxLabelVat: "MwSt.",
     taxLabelSalesTax: "Umsatzsteuer",
     paymentTermsLabels: {
@@ -293,8 +331,18 @@ const MESSAGES: Record<QuotePdfLang, QuotePdfMessages> = {
     totalIncl: (tax) => `Total (TTC, ${tax})`,
     totalExclVat: "Total (hors TVA)",
     totalExclSalesTax: "Total (hors taxe de vente)",
-    footer:
-      "MEAVO — cabines téléphoniques de bureau · meavo.com · Ce devis est valable 30 jours à compter de la date ci-dessus.",
+    termsHeading: "Notes et instructions:",
+    termsBullets: [
+      "Application de l'article 141 de la directive 2006/112/CE du Conseil, du 28 novembre 2006.",
+      "Note importante: la hauteur sous plafond doit être au minimum de 240cm pour faciliter l'installation.",
+      "Impact environnemental: Pour chaque cabine téléphonique achetée, nous plantons 15 arbres à Madagascar (www.ecologi.com/meavo). Nous faisons également don de 2 lampes solaires à des familles en Zambie (www.solar-aid.org). Le feutre acoustique des cabines contient plus de 800 bouteilles en plastique recyclées, ce qui contribue à préserver notre environnement.",
+      "Conditions générales de vente: www.meavo.com/terms-and-conditions",
+    ],
+    footerLines: [
+      "Pour toute question à propos de cette facture, merci de nous contacter: bonjour@meavo.com",
+      "MEAVO Limited | International House, 12 Constance St, Londres E16 2DQ, Royaume-Uni",
+      "Numéro de TVA intracommunautaire: DE343397319 | Numéro d'immatriculation: 11177638",
+    ],
     taxLabelVat: "TVA",
     taxLabelSalesTax: "Taxe de vente",
     paymentTermsLabels: {
