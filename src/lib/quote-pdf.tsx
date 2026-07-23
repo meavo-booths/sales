@@ -297,15 +297,7 @@ export function QuotePdfDocument({
             <Text style={styles.line}>
               {t.currency} {quote.currency}
             </Text>
-            <Text style={styles.line}>
-              {totals.hasTax
-                ? isUsMarket(quote.market)
-                  ? t.taxNoteWithTaxUs
-                  : t.taxNoteWithTaxEu(taxLabel)
-                : isUsMarket(quote.market)
-                  ? t.taxNoteNoTaxUs
-                  : t.taxNoteNoTaxEu}
-            </Text>
+            <Text style={styles.line}>{t.validityNote}</Text>
           </View>
         </View>
 

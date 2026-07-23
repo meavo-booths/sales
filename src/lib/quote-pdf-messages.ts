@@ -55,10 +55,7 @@ export type QuotePdfMessages = {
   terms: string;
   paymentTerms: string;
   currency: string;
-  taxNoteWithTaxEu: (taxLabel: string) => string;
-  taxNoteWithTaxUs: string;
-  taxNoteNoTaxEu: string;
-  taxNoteNoTaxUs: string;
+  validityNote: string;
   product: string;
   finish: string;
   qty: string;
@@ -106,11 +103,7 @@ const MESSAGES: Record<QuotePdfLang, QuotePdfMessages> = {
     terms: "Terms",
     paymentTerms: "Payment terms:",
     currency: "Currency:",
-    taxNoteWithTaxEu: (taxLabel) =>
-      `Line prices exclude VAT. ${taxLabel} is added to the total.`,
-    taxNoteWithTaxUs: "Line prices exclude sales tax. US sales tax is added to the total.",
-    taxNoteNoTaxEu: "Prices exclude VAT.",
-    taxNoteNoTaxUs: "Line prices exclude sales tax.",
+    validityNote: "Quote is valid for 30 days, subject to availability.",
     product: "Product",
     finish: "Finish",
     qty: "Qty",
@@ -149,12 +142,7 @@ const MESSAGES: Record<QuotePdfLang, QuotePdfMessages> = {
     terms: "Condiciones",
     paymentTerms: "Condiciones de pago:",
     currency: "Moneda:",
-    taxNoteWithTaxEu: (taxLabel) =>
-      `Los precios de línea no incluyen IVA. Se añade ${taxLabel} al total.`,
-    taxNoteWithTaxUs:
-      "Los precios de línea no incluyen el impuesto sobre las ventas. El impuesto sobre las ventas de EE. UU. se añade al total.",
-    taxNoteNoTaxEu: "Los precios no incluyen IVA.",
-    taxNoteNoTaxUs: "Los precios de línea no incluyen el impuesto sobre las ventas.",
+    validityNote: "Presupuesto válido durante 30 días, sujeto a disponibilidad.",
     product: "Producto",
     finish: "Acabado",
     qty: "Cant.",
@@ -205,12 +193,7 @@ const MESSAGES: Record<QuotePdfLang, QuotePdfMessages> = {
     terms: "Condizioni",
     paymentTerms: "Condizioni di pagamento:",
     currency: "Valuta:",
-    taxNoteWithTaxEu: (taxLabel) =>
-      `I prezzi di riga sono IVA esclusa. ${taxLabel} viene aggiunto al totale.`,
-    taxNoteWithTaxUs:
-      "I prezzi di riga escludono l'imposta sulle vendite. L'imposta sulle vendite USA viene aggiunta al totale.",
-    taxNoteNoTaxEu: "I prezzi sono IVA esclusa.",
-    taxNoteNoTaxUs: "I prezzi di riga escludono l'imposta sulle vendite.",
+    validityNote: "Preventivo valido per 30 giorni, soggetto a disponibilità.",
     product: "Prodotto",
     finish: "Finitura",
     qty: "Qtà",
@@ -260,12 +243,7 @@ const MESSAGES: Record<QuotePdfLang, QuotePdfMessages> = {
     terms: "Konditionen",
     paymentTerms: "Zahlungsbedingungen:",
     currency: "Währung:",
-    taxNoteWithTaxEu: (taxLabel) =>
-      `Positionspreise zzgl. MwSt. ${taxLabel} wird dem Gesamtbetrag hinzugefügt.`,
-    taxNoteWithTaxUs:
-      "Positionspreise ohne Umsatzsteuer. Die US-Umsatzsteuer wird dem Gesamtbetrag hinzugefügt.",
-    taxNoteNoTaxEu: "Preise zzgl. MwSt.",
-    taxNoteNoTaxUs: "Positionspreise ohne Umsatzsteuer.",
+    validityNote: "Angebot gültig für 30 Tage, vorbehaltlich der Verfügbarkeit.",
     product: "Produkt",
     finish: "Ausführung",
     qty: "Menge",
@@ -315,12 +293,7 @@ const MESSAGES: Record<QuotePdfLang, QuotePdfMessages> = {
     terms: "Conditions",
     paymentTerms: "Conditions de paiement :",
     currency: "Devise :",
-    taxNoteWithTaxEu: (taxLabel) =>
-      `Les prix des lignes sont hors TVA. ${taxLabel} est ajoutée au total.`,
-    taxNoteWithTaxUs:
-      "Les prix des lignes excluent la taxe de vente. La taxe de vente américaine est ajoutée au total.",
-    taxNoteNoTaxEu: "Les prix sont hors TVA.",
-    taxNoteNoTaxUs: "Les prix des lignes excluent la taxe de vente.",
+    validityNote: "Devis valable 30 jours, sous réserve de disponibilité.",
     product: "Produit",
     finish: "Finition",
     qty: "Qté",
