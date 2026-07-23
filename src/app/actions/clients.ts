@@ -9,6 +9,7 @@ import {
   mapClientsForQuotePicker,
   parseClientHierarchyView,
 } from "@/lib/client-hierarchy";
+import { parseClientSort } from "@/lib/client-filters";
 import {
   applyClientCsvImport,
   previewClientCsvImport,
@@ -354,6 +355,7 @@ export async function exportClientsCsvAction(raw: {
   clientTypes?: string[];
   countries?: string[];
   hierarchyView?: string;
+  sort?: string;
 }): Promise<ClientCsvExportResult> {
   await requireSalesAccess();
 
@@ -365,6 +367,7 @@ export async function exportClientsCsvAction(raw: {
     .map((value) => String(value).trim())
     .filter(Boolean);
   const hierarchyView = parseClientHierarchyView(raw.hierarchyView);
+  const sort = parseClientSort(raw.sort);
 
   try {
     const { filename, csvText } = await buildClientsCsvExport({
@@ -372,6 +375,7 @@ export async function exportClientsCsvAction(raw: {
       clientTypes,
       countries,
       hierarchyView,
+      sort,
     });
     return { ok: true, filename, csvText };
   } catch (error) {

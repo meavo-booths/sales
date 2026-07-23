@@ -7,7 +7,12 @@ import {
   sumClientStats,
   type ClientHierarchyView,
 } from "@/lib/client-hierarchy";
-import { loadClientStatsByClient } from "@/lib/client-stats";
+import type { ClientSort } from "@/lib/client-filters";
+import {
+  loadClientSortKeys,
+  loadClientStatsByClient,
+  sortClientsForList,
+} from "@/lib/client-stats";
 import { CLIENT_TYPE_LABELS } from "@/lib/deal-values";
 
 export type ClientCsvExportFilters = {
@@ -15,6 +20,7 @@ export type ClientCsvExportFilters = {
   clientTypes: DealClientType[];
   countries: string[];
   hierarchyView: ClientHierarchyView;
+  sort: ClientSort;
 };
 
 const CSV_HEADERS = [
@@ -61,6 +67,7 @@ function formatDateStamp(date = new Date()): string {
 /**
  * Build a CSV of every client matching the current list filters (all pages).
  * Parent rows use rolled-up revenue / won / open-quote stats (parent + subsidiaries).
+ * Row order follows the list Sort control.
  */
 export async function buildClientsCsvExport(
   filters: ClientCsvExportFilters,
@@ -69,7 +76,6 @@ export async function buildClientsCsvExport(
 
   const clients = await prisma.client.findMany({
     where,
-    orderBy: [{ isVip: "desc" }, { name: "asc" }],
     include: {
       parent: { select: { name: true, isVip: true } },
       subsidiaries: { select: { id: true } },
@@ -82,15 +88,28 @@ export async function buildClientsCsvExport(
     allIds.add(client.id);
     for (const sub of client.subsidiaries) allIds.add(sub.id);
   }
-  const statsById = await loadClientStatsByClient([...allIds]);
+  const idList = [...allIds];
+  const [statsById, keysById] = await Promise.all([
+    loadClientStatsByClient(idList),
+    loadClientSortKeys(idList),
+  ]);
+
+  const ordered = sortClientsForList(
+    clients.map((client) => ({
+      ...client,
+      subsidiaryIds: client.subsidiaries.map((s) => s.id),
+    })),
+    filters.sort,
+    keysById,
+  );
 
   const lines: string[] = [CSV_HEADERS.map(escapeCsvCell).join(",")];
 
-  for (const client of clients) {
+  for (const client of ordered) {
     const role = clientHierarchyRole(client, client._count.subsidiaries);
     const stats =
       role === "parent"
-        ? sumClientStats(statsById, [client.id, ...client.subsidiaries.map((s) => s.id)])
+        ? sumClientStats(statsById, [client.id, ...client.subsidiaryIds])
         : (statsById.get(client.id) ?? { revenue: 0, won: 0, openQuotes: 0 });
 
     const row = [

@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import type { DealClientType } from "@prisma/client";
 import { exportClientsCsvAction } from "@/app/actions/clients";
+import type { ClientSort } from "@/lib/client-filters";
 import type { ClientHierarchyView } from "@/lib/client-hierarchy";
 import { Button } from "@/components/ui";
 
@@ -11,11 +12,13 @@ export function ClientCsvExportButton({
   selectedTypes,
   selectedCountries,
   hierarchyView,
+  sort,
 }: {
   search: string;
   selectedTypes: DealClientType[];
   selectedCountries: string[];
   hierarchyView: ClientHierarchyView;
+  sort: ClientSort;
 }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -28,6 +31,7 @@ export function ClientCsvExportButton({
         clientTypes: selectedTypes,
         countries: selectedCountries,
         hierarchyView,
+        sort,
       });
       if (!result.ok) {
         setError(result.error);

@@ -3,6 +3,21 @@ import { CLIENT_TYPE_OPTIONS } from "@/lib/deal-values";
 
 const CLIENT_TYPES: DealClientType[] = CLIENT_TYPE_OPTIONS;
 
+export const CLIENT_SORT_OPTIONS = [
+  { value: "name", label: "Alphabetically" },
+  { value: "revenue", label: "Revenue (highest first)" },
+  { value: "newest", label: "Newest deal" },
+] as const;
+
+export type ClientSort = (typeof CLIENT_SORT_OPTIONS)[number]["value"];
+
+const CLIENT_SORTS = new Set<string>(CLIENT_SORT_OPTIONS.map((o) => o.value));
+
+export function parseClientSort(raw: string | undefined): ClientSort {
+  if (raw && CLIENT_SORTS.has(raw)) return raw as ClientSort;
+  return "name";
+}
+
 function splitValues(raw: string): string[] {
   return raw
     .split(",")

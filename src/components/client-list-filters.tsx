@@ -2,7 +2,11 @@
 
 import { useRouter } from "next/navigation";
 import { CLIENT_TYPE_LABELS } from "@/lib/deal-values";
-import { appendFilterParams } from "@/lib/client-filters";
+import {
+  appendFilterParams,
+  CLIENT_SORT_OPTIONS,
+  type ClientSort,
+} from "@/lib/client-filters";
 import type { ClientHierarchyView } from "@/lib/client-hierarchy";
 import type { DealClientType } from "@prisma/client";
 import { MultiSelectDropdown, SingleSelectDropdown } from "@/components/filter-dropdown";
@@ -19,6 +23,7 @@ type FilterState = {
   types: DealClientType[];
   countries: string[];
   hierarchyView: ClientHierarchyView;
+  sort: ClientSort;
 };
 
 export function ClientListFilters({
@@ -27,12 +32,14 @@ export function ClientListFilters({
   selectedCountries,
   countries,
   hierarchyView,
+  sort,
 }: {
   search: string;
   selectedTypes: DealClientType[];
   selectedCountries: string[];
   countries: string[];
   hierarchyView: ClientHierarchyView;
+  sort: ClientSort;
 }) {
   const router = useRouter();
 
@@ -42,6 +49,7 @@ export function ClientListFilters({
     appendFilterParams(params, "type", next.types);
     appendFilterParams(params, "country", next.countries);
     if (next.hierarchyView !== "top") params.set("view", next.hierarchyView);
+    if (next.sort !== "name") params.set("sort", next.sort);
     const qs = params.toString();
     router.push(qs ? `/clients?${qs}` : "/clients");
   };
@@ -52,6 +60,7 @@ export function ClientListFilters({
       types: selectedTypes,
       countries: selectedCountries,
       hierarchyView,
+      sort,
       ...patch,
     });
   };
@@ -62,6 +71,7 @@ export function ClientListFilters({
       types: [],
       countries: [],
       hierarchyView: "top",
+      sort,
     });
   };
 
@@ -106,6 +116,13 @@ export function ClientListFilters({
           onChange={(nextCountries) => applyFilters({ countries: nextCountries })}
         />
       )}
+
+      <SingleSelectDropdown
+        label="Sort"
+        options={[...CLIENT_SORT_OPTIONS]}
+        value={sort}
+        onChange={(value) => applyFilters({ sort: value as ClientSort })}
+      />
 
       <button
         type="submit"

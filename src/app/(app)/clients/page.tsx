@@ -8,6 +8,7 @@ import {
   appendFilterParams,
   parseClientFilterValues,
   parseClientHierarchyView,
+  parseClientSort,
   parseClientTypeFilters,
 } from "@/lib/client-filters";
 import {
@@ -17,7 +18,11 @@ import {
   sumClientStats,
   type ClientStats,
 } from "@/lib/client-hierarchy";
-import { loadClientStatsByClient } from "@/lib/client-stats";
+import {
+  loadClientSortKeys,
+  loadClientStatsByClient,
+  sortClientsForList,
+} from "@/lib/client-stats";
 import { AddClientButton } from "@/components/add-client-button";
 import { ClientCsvExportButton } from "@/components/client-csv-export";
 import { ClientCsvImportButton } from "@/components/client-csv-import";
@@ -39,6 +44,11 @@ type ClientRow = {
   parent?: { isVip: boolean } | null;
   _count: { subsidiaries: number };
 };
+
+const clientListInclude = {
+  parent: { select: { isVip: true, name: true } },
+  _count: { select: { subsidiaries: true } },
+} as const;
 
 function ClientListCard({
   client,
@@ -108,15 +118,17 @@ export default async function ClientsPage({
     type?: string | string[];
     country?: string | string[];
     view?: string;
+    sort?: string;
   }>;
 }) {
   const session = await requireSalesAccess();
 
-  const { q, page: pageParam, type, country, view } = await searchParams;
+  const { q, page: pageParam, type, country, view, sort: sortParam } = await searchParams;
   const search = (q ?? "").trim();
   const selectedTypes = parseClientTypeFilters(type);
   const selectedCountries = parseClientFilterValues(country);
   const hierarchyView = parseClientHierarchyView(view);
+  const sort = parseClientSort(sortParam);
 
   const and: Prisma.ClientWhereInput[] = [hierarchyWhere(hierarchyView)];
   if (search) and.push({ name: { contains: search, mode: "insensitive" } });
@@ -144,16 +156,61 @@ export default async function ClientsPage({
   const totalPages = Math.max(1, Math.ceil(totalClients / LIST_PAGE_SIZE));
   const page = parseListPage(pageParam, totalPages);
 
-  const clients = await prisma.client.findMany({
-    where,
-    orderBy: [{ isVip: "desc" }, { name: "asc" }],
-    skip: (page - 1) * LIST_PAGE_SIZE,
-    take: LIST_PAGE_SIZE,
-    include: {
-      parent: { select: { isVip: true, name: true } },
-      _count: { select: { subsidiaries: true } },
-    },
-  });
+  let clients: ClientRow[];
+
+  if (sort === "name") {
+    clients = await prisma.client.findMany({
+      where,
+      orderBy: [{ isVip: "desc" }, { name: "asc" }],
+      skip: (page - 1) * LIST_PAGE_SIZE,
+      take: LIST_PAGE_SIZE,
+      include: clientListInclude,
+    });
+  } else {
+    // Revenue / newest: sort all matching IDs (with parent rollups), then page.
+    const sortRows = await prisma.client.findMany({
+      where,
+      select: {
+        id: true,
+        name: true,
+        isVip: true,
+        subsidiaries: { select: { id: true } },
+      },
+    });
+    const sortKeyIds = [
+      ...new Set([
+        ...sortRows.map((r) => r.id),
+        ...sortRows.flatMap((r) => r.subsidiaries.map((s) => s.id)),
+      ]),
+    ];
+    const keysById = await loadClientSortKeys(sortKeyIds);
+    const ordered = sortClientsForList(
+      sortRows.map((r) => ({
+        id: r.id,
+        name: r.name,
+        isVip: r.isVip,
+        subsidiaryIds: r.subsidiaries.map((s) => s.id),
+      })),
+      sort,
+      keysById,
+    );
+    const pageIds = ordered
+      .slice((page - 1) * LIST_PAGE_SIZE, page * LIST_PAGE_SIZE)
+      .map((r) => r.id);
+
+    if (pageIds.length === 0) {
+      clients = [];
+    } else {
+      const pageRows = await prisma.client.findMany({
+        where: { id: { in: pageIds } },
+        include: clientListInclude,
+      });
+      const byId = new Map(pageRows.map((row) => [row.id, row]));
+      clients = pageIds
+        .map((id) => byId.get(id))
+        .filter((row): row is NonNullable<typeof row> => Boolean(row));
+    }
+  }
 
   const parentIdsOnPage = clients
     .filter((client) => client._count.subsidiaries > 0)
@@ -164,10 +221,7 @@ export default async function ClientsPage({
       ? await prisma.client.findMany({
           where: { parentClientId: { in: parentIdsOnPage } },
           orderBy: { name: "asc" },
-          include: {
-            parent: { select: { isVip: true, name: true } },
-            _count: { select: { subsidiaries: true } },
-          },
+          include: clientListInclude,
         })
       : [];
 
@@ -232,6 +286,7 @@ export default async function ClientsPage({
     appendFilterParams(query, "type", selectedTypes);
     appendFilterParams(query, "country", selectedCountries);
     if (hierarchyView !== "top") query.set("view", hierarchyView);
+    if (sort !== "name") query.set("sort", sort);
     if (target > 1) query.set("page", String(target));
     const qs = query.toString();
     return qs ? `/clients?${qs}` : "/clients";
@@ -247,6 +302,7 @@ export default async function ClientsPage({
             selectedTypes={selectedTypes}
             selectedCountries={selectedCountries}
             hierarchyView={hierarchyView}
+            sort={sort}
           />
           {isAdmin && <ClientCsvImportButton />}
         </div>
@@ -259,6 +315,7 @@ export default async function ClientsPage({
           selectedCountries={selectedCountries}
           countries={countries}
           hierarchyView={hierarchyView}
+          sort={sort}
         />
       </div>
 
@@ -268,7 +325,8 @@ export default async function ClientsPage({
             {search ||
             selectedTypes.length > 0 ||
             selectedCountries.length > 0 ||
-            hierarchyView !== "top"
+            hierarchyView !== "top" ||
+            sort !== "name"
               ? "No clients match these filters."
               : "No clients yet. Add your first client."}
           </EmptyState>
