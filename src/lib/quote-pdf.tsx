@@ -188,10 +188,12 @@ function LineItemRow({
       </View>
       {hasDiscount ? (
         <Text style={styles.cellAfterDiscount}>
-          {formatMoneyForPdf(afterDiscount, currency, lang)}
+          {isZeroQty ? " " : formatMoneyForPdf(afterDiscount, currency, lang)}
         </Text>
       ) : null}
-      <Text style={styles.cellAmount}>{formatMoneyForPdf(lineTotal, currency, lang)}</Text>
+      <Text style={styles.cellAmount}>
+        {isZeroQty ? " " : formatMoneyForPdf(lineTotal, currency, lang)}
+      </Text>
     </View>
   );
 }
