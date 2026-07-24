@@ -5,11 +5,12 @@
 import type { PaymentTerms, ProductFinish } from "@prisma/client";
 import type { LineItemDiscountType } from "@/lib/line-item-pricing";
 
-export const QUOTE_PDF_LANGS = ["en", "es", "it", "de", "fr"] as const;
+export const QUOTE_PDF_LANGS = ["en", "en-US", "es", "it", "de", "fr"] as const;
 export type QuotePdfLang = (typeof QUOTE_PDF_LANGS)[number];
 
 export const QUOTE_PDF_LANG_LABELS: Record<QuotePdfLang, string> = {
-  en: "English",
+  en: "English (UK)",
+  "en-US": "English (US)",
   es: "Español",
   it: "Italiano",
   de: "Deutsch",
@@ -21,10 +22,12 @@ const MARKET_DEFAULT_LANG: Record<string, QuotePdfLang> = {
   Italy: "it",
   Germany: "de",
   France: "fr",
+  US: "en-US",
 };
 
 const LANG_LOCALES: Record<QuotePdfLang, string> = {
   en: "en-GB",
+  "en-US": "en-US",
   es: "es-ES",
   it: "it-IT",
   de: "de-DE",
@@ -123,6 +126,46 @@ const MESSAGES: Record<QuotePdfLang, QuotePdfMessages> = {
     footerLines: [
       "Questions? Give us a ring: +44 (0) 203 488 5200",
       "MEAVO Limited | International House, 12 Constance St, London E16 2DQ, United Kingdom | VAT #: GB294870555 | Companies House #: 11177638",
+    ],
+    taxLabelVat: "VAT",
+    taxLabelSalesTax: "Sales tax",
+    paymentTermsLabels: PAYMENT_EN,
+    finishLabels: FINISH_EN,
+    percentOff: (n) => `${n}% off`,
+    fixedOffUnit: (money) => `${money} off/unit`,
+  },
+  "en-US": {
+    documentTitle: (n) => `${n} — MEAVO quote`,
+    quoteTitle: (n) => `Quote ${n}`,
+    date: "Date:",
+    preparedBy: "Prepared by:",
+    client: "Client",
+    vatPrefix: "VAT:",
+    contacts: "Contacts",
+    terms: "Terms",
+    paymentTerms: "Payment terms:",
+    currency: "Currency:",
+    validityNote: "Quote is valid for 30 days, subject to availability.",
+    product: "Product",
+    finish: "Finish",
+    qty: "Qty",
+    unitPrice: "Unit price",
+    afterDiscount: "After discount",
+    amount: "Amount",
+    subtotalExcl: (tax) => `Subtotal (excl. ${tax})`,
+    totalIncl: (tax) => `Total (incl. ${tax})`,
+    totalExclVat: "Total (excl. VAT)",
+    totalExclSalesTax: "Total (excl. sales tax)",
+    termsHeading: "Please Note:",
+    termsBullets: [
+      "Seating: The Soho / Haven One phone booths and the Workstation / Haven focus pods do NOT come with any seating such as a barstool or office chair. We suggest sourcing these from an online retailer such as Amazon or Wayfair.",
+      "Delivery: Staircase carrying is included up to the 2nd floor. If the lift is too small or unavailable additional charges may apply for staircase carrying beyond the 2nd floor. Installation: The ceiling must be at least 94.5\" / 240cm tall to facilitate installation.",
+      "Environmental impact: For every phone booth purchased we plant 15 trees in Madagascar (www.ecologi.com/meavo) and donate 2 solar lamps to families in Zambia (www.solar-aid.org). In addition, the acoustic felt in each booth contains over 800 recycled plastic bottles, helping keep our environment clean.",
+      "Terms & conditions: By placing an order you accept our terms & conditions (www.meavo.com/terms-and-conditions)",
+    ],
+    footerLines: [
+      "Questions? Give us a ring: (+1) 646-503-0642",
+      "MEAVO Limited | International House, 12 Constance St, London E16 2DQ, United Kingdom | Companies House #: 11177638",
     ],
     taxLabelVat: "VAT",
     taxLabelSalesTax: "Sales tax",

@@ -63,6 +63,7 @@ async function main() {
   assert(defaultQuotePdfLang("Spain") === "es", "Spain → es");
   assert(defaultQuotePdfLang("Italy") === "it", "Italy → it");
   assert(defaultQuotePdfLang("France") === "fr", "France → fr");
+  assert(defaultQuotePdfLang("US") === "en-US", "US → en-US");
   assert(defaultQuotePdfLang("UK") === "en", "UK → en");
 
   for (const lang of QUOTE_PDF_LANGS) {
