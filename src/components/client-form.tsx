@@ -171,7 +171,7 @@ export function ClientForm({
         </p>
       )}
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <Input
           label="Client name"
           value={values.name}
@@ -194,22 +194,6 @@ export function ClientForm({
             </option>
           ))}
         </Select>
-        {showParentPicker && (
-          <div className="sm:col-span-2">
-            <Select
-              label="Parent company"
-              value={values.parentClientId ?? ""}
-              onChange={(e) => set("parentClientId", e.target.value || null)}
-            >
-              <option value="">None (standalone)</option>
-              {parentOptions.map((parent) => (
-                <option key={parent.id} value={parent.id}>
-                  {parent.name}
-                </option>
-              ))}
-            </Select>
-          </div>
-        )}
         <Select
           label="Client type"
           value={values.clientType}
@@ -221,42 +205,86 @@ export function ClientForm({
             </option>
           ))}
         </Select>
+
+        {showParentPicker && (
+          <Select
+            label="Parent company"
+            value={values.parentClientId ?? ""}
+            onChange={(e) => set("parentClientId", e.target.value || null)}
+          >
+            <option value="">None (standalone)</option>
+            {parentOptions.map((parent) => (
+              <option key={parent.id} value={parent.id}>
+                {parent.name}
+              </option>
+            ))}
+          </Select>
+        )}
         {showBillingFields && (
           <VatNumberField
             value={values.vatNumber}
             onChange={(value) => set("vatNumber", value)}
           />
         )}
-        <Input
-          label="Website"
-          value={values.website}
-          onChange={(e) => set("website", e.target.value)}
-          placeholder="https://…"
-        />
-        <div className="flex items-end pb-1">
-          <button
-            type="button"
-            onClick={() => set("isVip", !values.isVip)}
-            aria-pressed={values.isVip}
-            title={values.isVip ? "Click to remove the VIP label" : "Click to mark as VIP"}
-            className={`inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-semibold transition ${
-              values.isVip
-                ? "bg-gradient-to-r from-amber-200 via-yellow-100 to-emerald-200 text-emerald-900 ring-1 ring-amber-400/60 shadow-sm"
-                : "border border-slate-300 bg-white text-slate-500 hover:border-amber-300 hover:text-amber-700"
-            }`}
-          >
-            ★ VIP client
-          </button>
-        </div>
+
         {showBillingFields && (
-          <div className="sm:col-span-2">
+          <div className="sm:col-span-2 lg:col-span-3 grid gap-3 sm:grid-cols-2">
             <Textarea
               label="Registered address"
               rows={2}
               value={values.registeredAddress}
               onChange={(e) => set("registeredAddress", e.target.value)}
             />
+            <div className="grid gap-3 content-start sm:grid-cols-2">
+              <Input
+                label="Website"
+                value={values.website}
+                onChange={(e) => set("website", e.target.value)}
+                placeholder="https://…"
+              />
+              <div className="flex items-end pb-1">
+                <button
+                  type="button"
+                  onClick={() => set("isVip", !values.isVip)}
+                  aria-pressed={values.isVip}
+                  title={values.isVip ? "Click to remove the VIP label" : "Click to mark as VIP"}
+                  className={`inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-semibold transition ${
+                    values.isVip
+                      ? "bg-gradient-to-r from-amber-200 via-yellow-100 to-emerald-200 text-emerald-900 ring-1 ring-amber-400/60 shadow-sm"
+                      : "border border-slate-300 bg-white text-slate-500 hover:border-amber-300 hover:text-amber-700"
+                  }`}
+                >
+                  ★ VIP client
+                </button>
+              </div>
+            </div>
           </div>
+        )}
+
+        {!showBillingFields && (
+          <>
+            <Input
+              label="Website"
+              value={values.website}
+              onChange={(e) => set("website", e.target.value)}
+              placeholder="https://…"
+            />
+            <div className="flex items-end pb-1">
+              <button
+                type="button"
+                onClick={() => set("isVip", !values.isVip)}
+                aria-pressed={values.isVip}
+                title={values.isVip ? "Click to remove the VIP label" : "Click to mark as VIP"}
+                className={`inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-semibold transition ${
+                  values.isVip
+                    ? "bg-gradient-to-r from-amber-200 via-yellow-100 to-emerald-200 text-emerald-900 ring-1 ring-amber-400/60 shadow-sm"
+                    : "border border-slate-300 bg-white text-slate-500 hover:border-amber-300 hover:text-amber-700"
+                }`}
+              >
+                ★ VIP client
+              </button>
+            </div>
+          </>
         )}
       </div>
 
