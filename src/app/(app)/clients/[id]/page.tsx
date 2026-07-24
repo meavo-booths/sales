@@ -195,7 +195,31 @@ export default async function ClientPage({
         </div>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
+      <div className="space-y-6">
+        <ClientForm
+          clientId={client.id}
+          isGroupHead={isParent}
+          parentOptions={parentOptions}
+          initialValues={{
+            name: client.name,
+            registeredAddress: client.registeredAddress,
+            vatNumber: client.vatNumber,
+            clientType: client.clientType,
+            market: client.market,
+            website: client.website,
+            isVip: client.isVip,
+            parentClientId: client.parentClientId,
+            isGroupAccount: isParent,
+            contacts: client.contacts.map((c) => ({
+              kind: c.kind,
+              name: c.name,
+              email: c.email,
+              phone: c.phone,
+              role: c.role,
+            })),
+          }}
+        />
+
         <div className="space-y-3">
           <h2 className="text-base font-semibold text-slate-900">
             {isParent ? "Deals on this record" : "Quotes & deals"}
@@ -252,32 +276,6 @@ export default async function ClientPage({
               );
             })
           )}
-        </div>
-
-        <div>
-          <ClientForm
-            clientId={client.id}
-            isGroupHead={isParent}
-            parentOptions={parentOptions}
-            initialValues={{
-              name: client.name,
-              registeredAddress: client.registeredAddress,
-              vatNumber: client.vatNumber,
-              clientType: client.clientType,
-              market: client.market,
-              website: client.website,
-              isVip: client.isVip,
-              parentClientId: client.parentClientId,
-              isGroupAccount: isParent,
-              contacts: client.contacts.map((c) => ({
-                kind: c.kind,
-                name: c.name,
-                email: c.email,
-                phone: c.phone,
-                role: c.role,
-              })),
-            }}
-          />
         </div>
       </div>
 
