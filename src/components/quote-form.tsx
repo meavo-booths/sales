@@ -1,8 +1,25 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition, type HTMLAttributes, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import type { AddOnProductFamily, BoothProductFamily, DealContactKind, DeliveryType, PaymentTerms } from "@prisma/client";
+import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { createQuoteAction, updateQuoteAction } from "@/app/actions/quotes";
 import { calculateUsTaxAction } from "@/app/actions/zamp";
 import { searchClientsAction } from "@/app/actions/clients";
@@ -164,21 +181,23 @@ type DiscountDraft = {
 
 const EMPTY_DISCOUNT: DiscountDraft = { discountType: "NONE", discountValue: 0 };
 
-type CustomLineDraft = DiscountDraft & {
-  name: string;
-  quantity: number;
-  unitPrice: number;
-  description: string;
-};
+function newClientId(): string {
+  return typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `line-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
 
 type AddOnDraft = DiscountDraft & {
+  clientId: string;
   productId: string;
   quantity: number;
   unitPrice: number;
   description: string;
 };
 
-type LineItemDraft = DiscountDraft & {
+type BoothLineDraft = DiscountDraft & {
+  clientId: string;
+  kind: "booth";
   productId: string;
   quantity: number;
   unitPrice: number;
@@ -187,6 +206,26 @@ type LineItemDraft = DiscountDraft & {
   description: string;
   addOns: AddOnDraft[];
 };
+
+type StandaloneLineDraft = DiscountDraft & {
+  clientId: string;
+  kind: "standalone";
+  productId: string;
+  quantity: number;
+  unitPrice: number;
+  description: string;
+};
+
+type CustomLineDraft = DiscountDraft & {
+  clientId: string;
+  kind: "custom";
+  name: string;
+  quantity: number;
+  unitPrice: number;
+  description: string;
+};
+
+export type QuoteLineDraft = BoothLineDraft | StandaloneLineDraft | CustomLineDraft;
 
 export type QuoteFormValues = {
   clientId: string | null;
@@ -214,15 +253,113 @@ export type QuoteFormValues = {
   paymentTerms: PaymentTerms;
   notes: string;
   contacts: ContactDraft[];
-  lineItems: LineItemDraft[];
-  standaloneAddOns: AddOnDraft[];
-  customLines: CustomLineDraft[];
+  lines: QuoteLineDraft[];
 };
+
+/** Strip client-only ids before sending to Server Actions. */
+export function quoteFormValuesToInput(values: QuoteFormValues) {
+  return {
+    ...values,
+    lines: values.lines.map((line) => {
+      if (line.kind === "booth") {
+        const { clientId: _id, addOns, ...rest } = line;
+        return {
+          ...rest,
+          addOns: addOns.map(({ clientId: _addOnId, ...addOn }) => addOn),
+        };
+      }
+      const { clientId: _id, ...rest } = line;
+      return rest;
+    }),
+  };
+}
 
 const EMPTY_CONTACT: ContactDraft = { kind: "MAIN", name: "", email: "", phone: "", role: "" };
 
 function today(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+function DragHandle({
+  attributes,
+  listeners,
+}: {
+  attributes: HTMLAttributes<HTMLButtonElement>;
+  listeners?: HTMLAttributes<HTMLButtonElement>;
+}) {
+  return (
+    <button
+      type="button"
+      className="inline-flex h-10 w-8 shrink-0 cursor-grab items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 active:cursor-grabbing"
+      aria-label="Drag to reorder"
+      {...attributes}
+      {...listeners}
+    >
+      <span className="text-base leading-none tracking-tighter" aria-hidden>
+        ⋮⋮
+      </span>
+    </button>
+  );
+}
+
+function SortableTopLine({
+  id,
+  children,
+}: {
+  id: string;
+  children: (handle: {
+    attributes: HTMLAttributes<HTMLButtonElement>;
+    listeners?: HTMLAttributes<HTMLButtonElement>;
+  }) => ReactNode;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id,
+    data: { type: "top" as const },
+  });
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.85 : 1,
+        zIndex: isDragging ? 1 : undefined,
+      }}
+    >
+      {children({ attributes, listeners })}
+    </div>
+  );
+}
+
+function SortableAddOnRow({
+  id,
+  boothId,
+  children,
+}: {
+  id: string;
+  boothId: string;
+  children: (handle: {
+    attributes: HTMLAttributes<HTMLButtonElement>;
+    listeners?: HTMLAttributes<HTMLButtonElement>;
+  }) => ReactNode;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id,
+    data: { type: "addon" as const, boothId },
+  });
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.85 : 1,
+      }}
+      className="rounded-lg bg-slate-50 p-3"
+    >
+      {children({ attributes, listeners })}
+    </div>
+  );
 }
 
 export function QuoteForm({
@@ -287,9 +424,7 @@ export function QuoteForm({
       paymentTerms: "UPFRONT_100",
       notes: "",
       contacts: [{ ...EMPTY_CONTACT }],
-      lineItems: [],
-      standaloneAddOns: [],
-      customLines: [],
+      lines: [],
     },
   );
 
@@ -364,13 +499,16 @@ export function QuoteForm({
 
   const selectedProductIds = useMemo(() => {
     const ids = new Set<string>();
-    for (const line of values.lineItems) {
-      ids.add(line.productId);
-      for (const addOn of line.addOns) ids.add(addOn.productId);
+    for (const line of values.lines) {
+      if (line.kind === "booth") {
+        ids.add(line.productId);
+        for (const addOn of line.addOns) ids.add(addOn.productId);
+      } else if (line.kind === "standalone") {
+        ids.add(line.productId);
+      }
     }
-    for (const addOn of values.standaloneAddOns) ids.add(addOn.productId);
     return ids;
-  }, [values.lineItems, values.standaloneAddOns]);
+  }, [values.lines]);
 
   const availableBoothProducts = useMemo(
     () =>
@@ -415,9 +553,7 @@ export function QuoteForm({
       key === "shipToZip" ||
       key === "usState" ||
       key === "market" ||
-      key === "lineItems" ||
-      key === "standaloneAddOns" ||
-      key === "customLines"
+      key === "lines"
     ) {
       setEstimateError(null);
     }
@@ -425,11 +561,14 @@ export function QuoteForm({
 
   const changeCurrency = async (currency: QuoteCurrency) => {
     const productIds = new Set<string>();
-    for (const line of values.lineItems) {
-      productIds.add(line.productId);
-      for (const addOn of line.addOns) productIds.add(addOn.productId);
+    for (const line of values.lines) {
+      if (line.kind === "booth") {
+        productIds.add(line.productId);
+        for (const addOn of line.addOns) productIds.add(addOn.productId);
+      } else if (line.kind === "standalone") {
+        productIds.add(line.productId);
+      }
     }
-    for (const addOn of values.standaloneAddOns) productIds.add(addOn.productId);
 
     const currencies = new Set<QuoteCurrency>([currency]);
     for (const productId of productIds) {
@@ -448,18 +587,25 @@ export function QuoteForm({
       return {
         ...prev,
         currency,
-        lineItems: prev.lineItems.map((line) => ({
-          ...line,
-          unitPrice: priceForProduct(line.productId, line.unitPrice),
-          addOns: line.addOns.map((addOn) => ({
-            ...addOn,
-            unitPrice: priceForProduct(addOn.productId, addOn.unitPrice),
-          })),
-        })),
-        standaloneAddOns: prev.standaloneAddOns.map((addOn) => ({
-          ...addOn,
-          unitPrice: priceForProduct(addOn.productId, addOn.unitPrice),
-        })),
+        lines: prev.lines.map((line) => {
+          if (line.kind === "booth") {
+            return {
+              ...line,
+              unitPrice: priceForProduct(line.productId, line.unitPrice),
+              addOns: line.addOns.map((addOn) => ({
+                ...addOn,
+                unitPrice: priceForProduct(addOn.productId, addOn.unitPrice),
+              })),
+            };
+          }
+          if (line.kind === "standalone") {
+            return {
+              ...line,
+              unitPrice: priceForProduct(line.productId, line.unitPrice),
+            };
+          }
+          return line;
+        }),
       };
     });
   };
@@ -495,20 +641,24 @@ export function QuoteForm({
       contacts: prev.contacts.map((c, i) => (i === index ? { ...c, ...patch } : c)),
     }));
 
-  const setLineItem = (index: number, patch: Partial<LineItemDraft>) =>
+  const setLineById = (clientId: string, patch: Partial<QuoteLineDraft>) =>
     setValues((prev) => ({
       ...prev,
-      lineItems: prev.lineItems.map((li, i) => (i === index ? { ...li, ...patch } : li)),
+      lines: prev.lines.map((line) =>
+        line.clientId === clientId ? ({ ...line, ...patch } as QuoteLineDraft) : line,
+      ),
     }));
 
-  const addLineItem = () => {
+  const addBoothLine = () => {
     const first = availableBoothProducts[0];
     if (!first) return;
     setValues((prev) => ({
       ...prev,
-      lineItems: [
-        ...prev.lineItems,
+      lines: [
+        ...prev.lines,
         {
+          clientId: newClientId(),
+          kind: "booth",
           productId: first.id,
           quantity: 1,
           unitPrice: catalogUnitPrice(first),
@@ -541,6 +691,7 @@ export function QuoteForm({
     const first = options[0];
     if (!first) return null;
     return {
+      clientId: newClientId(),
       productId: first.id,
       quantity: 1,
       unitPrice: catalogUnitPrice(first),
@@ -549,50 +700,49 @@ export function QuoteForm({
     };
   };
 
-  const setAttachedAddOn = (lineIndex: number, addOnIndex: number, patch: Partial<AddOnDraft>) =>
+  const setAttachedAddOn = (
+    boothClientId: string,
+    addOnClientId: string,
+    patch: Partial<AddOnDraft>,
+  ) =>
     setValues((prev) => ({
       ...prev,
-      lineItems: prev.lineItems.map((li, i) =>
-        i === lineIndex
+      lines: prev.lines.map((line) =>
+        line.kind === "booth" && line.clientId === boothClientId
           ? {
-              ...li,
-              addOns: li.addOns.map((a, j) => (j === addOnIndex ? { ...a, ...patch } : a)),
+              ...line,
+              addOns: line.addOns.map((a) =>
+                a.clientId === addOnClientId ? { ...a, ...patch } : a,
+              ),
             }
-          : li,
+          : line,
       ),
-    }));
-
-  const setStandaloneAddOn = (index: number, patch: Partial<AddOnDraft>) =>
-    setValues((prev) => ({
-      ...prev,
-      standaloneAddOns: prev.standaloneAddOns.map((a, i) =>
-        i === index ? { ...a, ...patch } : a,
-      ),
-    }));
-
-  const setCustomLine = (index: number, patch: Partial<CustomLineDraft>) =>
-    setValues((prev) => ({
-      ...prev,
-      customLines: prev.customLines.map((c, i) => (i === index ? { ...c, ...patch } : c)),
     }));
 
   // Flatten the nested drafts so the preview uses the same subtotal
   // implementation as the saved quote (deal-sections, PDF, client history).
-  const total = dealSubtotal({
-    lineItems: [
-      ...values.lineItems,
-      ...values.lineItems.flatMap((li) => li.addOns),
-      ...values.standaloneAddOns,
-      ...values.customLines,
-    ],
-  });
+  const flatLinesForTotal: Array<{
+    quantity: number;
+    unitPrice: number;
+    discountType: LineItemDiscountType;
+    discountValue: number;
+  }> = [];
+  for (const line of values.lines) {
+    if (line.kind === "booth") {
+      flatLinesForTotal.push(line, ...line.addOns);
+    } else {
+      flatLinesForTotal.push(line);
+    }
+  }
+  const total = dealSubtotal({ lineItems: flatLinesForTotal });
 
   const submit = () => {
     setError(null);
     startTransition(async () => {
+      const payload = quoteFormValuesToInput(values);
       const result = quoteId
-        ? await updateQuoteAction(quoteId, values)
-        : await createQuoteAction(values);
+        ? await updateQuoteAction(quoteId, payload)
+        : await createQuoteAction(payload);
       if (!result.ok) {
         setError(result.error);
         return;
@@ -605,7 +755,7 @@ export function QuoteForm({
   const estimateUsTax = () => {
     setEstimateError(null);
     setEstimatingTax(true);
-    void calculateUsTaxAction(values)
+    void calculateUsTaxAction(quoteFormValuesToInput(values))
       .then((result) => {
         setEstimatingTax(false);
         if (!result.ok) {
@@ -618,6 +768,43 @@ export function QuoteForm({
         setEstimatingTax(false);
         setEstimateError("Sales tax estimate failed — try again");
       });
+  };
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  const onLineDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const activeType = active.data.current?.type;
+    if (activeType === "addon") {
+      const boothId = active.data.current?.boothId as string | undefined;
+      if (!boothId || over.data.current?.type !== "addon") return;
+      if (over.data.current?.boothId !== boothId) return;
+      setValues((prev) => ({
+        ...prev,
+        lines: prev.lines.map((line) => {
+          if (line.kind !== "booth" || line.clientId !== boothId) return line;
+          const oldIndex = line.addOns.findIndex((a) => a.clientId === active.id);
+          const newIndex = line.addOns.findIndex((a) => a.clientId === over.id);
+          if (oldIndex < 0 || newIndex < 0) return line;
+          return { ...line, addOns: arrayMove(line.addOns, oldIndex, newIndex) };
+        }),
+      }));
+      return;
+    }
+
+    if (over.data.current?.type === "addon") return;
+
+    setValues((prev) => {
+      const oldIndex = prev.lines.findIndex((line) => line.clientId === active.id);
+      const newIndex = prev.lines.findIndex((line) => line.clientId === over.id);
+      if (oldIndex < 0 || newIndex < 0) return prev;
+      return { ...prev, lines: arrayMove(prev.lines, oldIndex, newIndex) };
+    });
   };
 
   const discountControls = (
@@ -666,66 +853,75 @@ export function QuoteForm({
     update: (patch: Partial<AddOnDraft>) => void,
     remove: () => void,
     options: ProductOption[] = availableAddOnProducts,
+    handle?: {
+      attributes: HTMLAttributes<HTMLButtonElement>;
+      listeners?: HTMLAttributes<HTMLButtonElement>;
+    },
   ) => (
     <>
-      <div className="grid gap-2 sm:grid-cols-[2fr_1fr_1fr_1.5fr_auto]">
-      <Select
-        label="Add-on"
-        value={addOn.productId}
-        onChange={(e) => {
-          const product = options.find((p) => p.id === e.target.value);
-          update({
-            productId: e.target.value,
-            unitPrice: product ? catalogUnitPrice(product) : addOn.unitPrice,
-          });
-        }}
-      >
-        {options.map((product) => (
-          <option key={product.id} value={product.id}>
-            {product.version ? `${product.name} (${product.version})` : product.name}
-          </option>
-        ))}
-      </Select>
-      <Input
-        label="Qty"
-        type="number"
-        min={0}
-        value={addOn.quantity}
-        onChange={(e) => update({ quantity: Math.max(0, Number(e.target.value) || 0) })}
-      />
-      <Input
-        label="Unit price"
-        type="number"
-        step="0.01"
-        min={0}
-        value={addOn.unitPrice}
-        onChange={(e) => update({ unitPrice: Number(e.target.value) || 0 })}
-      />
-      <Input
-        label="Description"
-        value={addOn.description}
-        onChange={(e) => update({ description: e.target.value })}
-        placeholder="Optional"
-      />
-      <div className="flex items-end">
-        <Button variant="ghost" onClick={remove}>
-          Remove
-        </Button>
+      <div className="flex gap-2">
+        {handle ? <DragHandle attributes={handle.attributes} listeners={handle.listeners} /> : null}
+        <div className="min-w-0 flex-1 space-y-2">
+          <div className="grid gap-2 sm:grid-cols-[2fr_1fr_1fr_1.5fr_auto]">
+            <Select
+              label="Add-on"
+              value={addOn.productId}
+              onChange={(e) => {
+                const product = options.find((p) => p.id === e.target.value);
+                update({
+                  productId: e.target.value,
+                  unitPrice: product ? catalogUnitPrice(product) : addOn.unitPrice,
+                });
+              }}
+            >
+              {options.map((product) => (
+                <option key={product.id} value={product.id}>
+                  {product.version ? `${product.name} (${product.version})` : product.name}
+                </option>
+              ))}
+            </Select>
+            <Input
+              label="Qty"
+              type="number"
+              min={0}
+              value={addOn.quantity}
+              onChange={(e) => update({ quantity: Math.max(0, Number(e.target.value) || 0) })}
+            />
+            <Input
+              label="Unit price"
+              type="number"
+              step="0.01"
+              min={0}
+              value={addOn.unitPrice}
+              onChange={(e) => update({ unitPrice: Number(e.target.value) || 0 })}
+            />
+            <Input
+              label="Description"
+              value={addOn.description}
+              onChange={(e) => update({ description: e.target.value })}
+              placeholder="Optional"
+            />
+            <div className="flex items-end">
+              <Button variant="ghost" onClick={remove}>
+                Remove
+              </Button>
+            </div>
+          </div>
+          <div>{discountControls(addOn, update, addOn.unitPrice)}</div>
+          <p className="text-right text-sm font-medium text-slate-700">
+            Line total:{" "}
+            {formatMoney(
+              lineExtendedTotal(
+                addOn.quantity,
+                addOn.unitPrice,
+                addOn.discountType,
+                addOn.discountValue,
+              ),
+              values.currency,
+            )}
+          </p>
+        </div>
       </div>
-      </div>
-      <div className="mt-2">{discountControls(addOn, update, addOn.unitPrice)}</div>
-      <p className="mt-2 text-right text-sm font-medium text-slate-700">
-        Line total:{" "}
-        {formatMoney(
-          lineExtendedTotal(
-            addOn.quantity,
-            addOn.unitPrice,
-            addOn.discountType,
-            addOn.discountValue,
-          ),
-          values.currency,
-        )}
-      </p>
     </>
   );
 
@@ -1080,7 +1276,7 @@ export function QuoteForm({
           <div className="flex gap-2">
             <Button
               variant="secondary"
-              onClick={addLineItem}
+              onClick={addBoothLine}
               disabled={availableBoothProducts.length === 0}
             >
               Products
@@ -1092,7 +1288,13 @@ export function QuoteForm({
                 if (!draft) return;
                 setValues((prev) => ({
                   ...prev,
-                  standaloneAddOns: [...prev.standaloneAddOns, draft],
+                  lines: [
+                    ...prev.lines,
+                    {
+                      kind: "standalone",
+                      ...draft,
+                    },
+                  ],
                 }));
               }}
               disabled={availableAddOnProducts.length === 0}
@@ -1104,9 +1306,17 @@ export function QuoteForm({
               onClick={() =>
                 setValues((prev) => ({
                   ...prev,
-                  customLines: [
-                    ...prev.customLines,
-                    { name: "", quantity: 1, unitPrice: 0, description: "", ...EMPTY_DISCOUNT },
+                  lines: [
+                    ...prev.lines,
+                    {
+                      clientId: newClientId(),
+                      kind: "custom",
+                      name: "",
+                      quantity: 1,
+                      unitPrice: 0,
+                      description: "",
+                      ...EMPTY_DISCOUNT,
+                    },
                   ],
                 }))
               }
@@ -1129,216 +1339,329 @@ export function QuoteForm({
           </p>
         )}
 
-        {values.lineItems.length === 0 &&
-        values.standaloneAddOns.length === 0 &&
-        values.customLines.length === 0 ? (
+        {values.lines.length === 0 ? (
           <p className="text-sm text-slate-500">No line items yet.</p>
         ) : (
           <div className="space-y-3">
-            {values.lineItems.map((item, index) => (
-              <div key={index} className="rounded-lg border border-slate-200 p-3">
-                <div className="grid gap-2 sm:grid-cols-[2fr_1fr_1fr_1.5fr_auto]">
-                  <Select
-                    label="Product"
-                    value={item.productId}
-                    onChange={(e) => {
-                      const product = availableBoothProducts.find((p) => p.id === e.target.value);
-                      setLineItem(index, {
-                        productId: e.target.value,
-                        unitPrice: product ? catalogUnitPrice(product) : item.unitPrice,
-                      });
-                    }}
-                  >
-                    {availableBoothProducts.map((product) => (
-                      <option key={product.id} value={product.id}>
-                        {product.version ? `${product.name} (${product.version})` : product.name}
-                      </option>
-                    ))}
-                  </Select>
-                  <Input
-                    label="Qty"
-                    type="number"
-                    min={0}
-                    value={item.quantity}
-                    onChange={(e) =>
-                      setLineItem(index, { quantity: Math.max(0, Number(e.target.value) || 0) })
-                    }
-                  />
-                  <Input
-                    label="Unit price"
-                    type="number"
-                    step="0.01"
-                    min={0}
-                    value={item.unitPrice}
-                    onChange={(e) => setLineItem(index, { unitPrice: Number(e.target.value) || 0 })}
-                  />
-                  <Select
-                    label="Finish"
-                    value={item.finish}
-                    onChange={(e) =>
-                      setLineItem(index, { finish: e.target.value as LineItemDraft["finish"] })
-                    }
-                  >
-                    {Object.entries(FINISH_LABELS).map(([value, label]) => (
-                      <option key={value} value={value}>
-                        {label}
-                      </option>
-                    ))}
-                  </Select>
-                  <div className="flex items-end">
-                    <Button
-                      variant="ghost"
-                      onClick={() =>
-                        setValues((prev) => ({
-                          ...prev,
-                          lineItems: prev.lineItems.filter((_, i) => i !== index),
-                        }))
-                      }
-                    >
-                      Remove
-                    </Button>
-                  </div>
-                </div>
-                <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                  <Input
-                    label="Finish details"
-                    value={item.finishDetails}
-                    onChange={(e) => setLineItem(index, { finishDetails: e.target.value })}
-                    placeholder="e.g. RAL 7016"
-                  />
-                  <Input
-                    label="Description override"
-                    value={item.description}
-                    onChange={(e) => setLineItem(index, { description: e.target.value })}
-                    placeholder="Optional — shown on the quote PDF"
-                  />
-                </div>
-                <div className="mt-2">{discountControls(item, (patch) => setLineItem(index, patch), item.unitPrice)}</div>
-
-                {item.addOns.length > 0 && (
-                  <div className="mt-3 space-y-2 border-l-2 border-brand-100 pl-3">
-                    {item.addOns.map((addOn, addOnIndex) => (
-                      <div key={addOnIndex} className="rounded-lg bg-slate-50 p-3">
-                        {addOnFields(
-                          addOn,
-                          (patch) => setAttachedAddOn(index, addOnIndex, patch),
-                          () =>
-                            setValues((prev) => ({
-                              ...prev,
-                              lineItems: prev.lineItems.map((li, i) =>
-                                i === index
-                                  ? { ...li, addOns: li.addOns.filter((_, j) => j !== addOnIndex) }
-                                  : li,
-                              ),
-                            })),
-                          addOnsForBooth(item.productId, addOn.productId),
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                <div className="mt-2 flex items-center justify-between">
-                  <Button
-                    variant="ghost"
-                    onClick={() => {
-                      const draft = newAddOnDraft(addOnsForBooth(item.productId));
-                      if (!draft) return;
-                      setLineItem(index, { addOns: [...item.addOns, draft] });
-                    }}
-                    disabled={addOnsForBooth(item.productId).length === 0}
-                  >
-                    + Attach add-on
-                  </Button>
-                  <p className="text-right text-sm font-medium text-slate-700">
-                    {formatMoney(
-                      lineItemExtendedTotal(item) +
-                        item.addOns.reduce((sum, addOn) => sum + lineItemExtendedTotal(addOn), 0),
-                      values.currency,
-                    )}
-                  </p>
-                </div>
-              </div>
-            ))}
-
-            {values.standaloneAddOns.map((addOn, index) => (
-              <div key={`standalone-${index}`} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500">
-                  Standalone add-on
-                </p>
-                {addOnFields(
-                  addOn,
-                  (patch) => setStandaloneAddOn(index, patch),
-                  () =>
-                    setValues((prev) => ({
-                      ...prev,
-                      standaloneAddOns: prev.standaloneAddOns.filter((_, i) => i !== index),
-                    })),
-                )}
-              </div>
-            ))}
-
-            {values.customLines.map((custom, index) => (
-              <div
-                key={`custom-${index}`}
-                className="rounded-lg border border-dashed border-slate-300 p-3"
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onLineDragEnd}>
+              <SortableContext
+                items={values.lines.map((line) => line.clientId)}
+                strategy={verticalListSortingStrategy}
               >
-                <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500">
-                  Custom line
-                </p>
-                <div className="grid gap-2 sm:grid-cols-[2fr_1fr_1fr_1.5fr_auto]">
-                  <Input
-                    label="Item"
-                    value={custom.name}
-                    onChange={(e) => setCustomLine(index, { name: e.target.value })}
-                    placeholder="e.g. Crane hire, extra shipping…"
-                    required
-                  />
-                  <Input
-                    label="Qty"
-                    type="number"
-                    min={0}
-                    value={custom.quantity}
-                    onChange={(e) =>
-                      setCustomLine(index, { quantity: Math.max(0, Number(e.target.value) || 0) })
-                    }
-                  />
-                  <Input
-                    label="Unit price"
-                    type="number"
-                    step="0.01"
-                    min={0}
-                    value={custom.unitPrice}
-                    onChange={(e) => setCustomLine(index, { unitPrice: Number(e.target.value) || 0 })}
-                  />
-                  <Input
-                    label="Description"
-                    value={custom.description}
-                    onChange={(e) => setCustomLine(index, { description: e.target.value })}
-                    placeholder="Optional — shown on the quote PDF"
-                  />
-                  <div className="flex items-end">
-                    <Button
-                      variant="ghost"
-                      onClick={() =>
-                        setValues((prev) => ({
-                          ...prev,
-                          customLines: prev.customLines.filter((_, i) => i !== index),
-                        }))
+                {values.lines.map((line) => (
+                  <SortableTopLine key={line.clientId} id={line.clientId}>
+                    {(handle) => {
+                      if (line.kind === "booth") {
+                        return (
+                          <div className="rounded-lg border border-slate-200 p-3">
+                            <div className="flex gap-2">
+                              <DragHandle
+                                attributes={handle.attributes}
+                                listeners={handle.listeners}
+                              />
+                              <div className="min-w-0 flex-1">
+                                <div className="grid gap-2 sm:grid-cols-[2fr_1fr_1fr_1.5fr_auto]">
+                                  <Select
+                                    label="Product"
+                                    value={line.productId}
+                                    onChange={(e) => {
+                                      const product = availableBoothProducts.find(
+                                        (p) => p.id === e.target.value,
+                                      );
+                                      setLineById(line.clientId, {
+                                        productId: e.target.value,
+                                        unitPrice: product
+                                          ? catalogUnitPrice(product)
+                                          : line.unitPrice,
+                                      });
+                                    }}
+                                  >
+                                    {availableBoothProducts.map((product) => (
+                                      <option key={product.id} value={product.id}>
+                                        {product.version
+                                          ? `${product.name} (${product.version})`
+                                          : product.name}
+                                      </option>
+                                    ))}
+                                  </Select>
+                                  <Input
+                                    label="Qty"
+                                    type="number"
+                                    min={0}
+                                    value={line.quantity}
+                                    onChange={(e) =>
+                                      setLineById(line.clientId, {
+                                        quantity: Math.max(0, Number(e.target.value) || 0),
+                                      })
+                                    }
+                                  />
+                                  <Input
+                                    label="Unit price"
+                                    type="number"
+                                    step="0.01"
+                                    min={0}
+                                    value={line.unitPrice}
+                                    onChange={(e) =>
+                                      setLineById(line.clientId, {
+                                        unitPrice: Number(e.target.value) || 0,
+                                      })
+                                    }
+                                  />
+                                  <Select
+                                    label="Finish"
+                                    value={line.finish}
+                                    onChange={(e) =>
+                                      setLineById(line.clientId, {
+                                        finish: e.target
+                                          .value as BoothLineDraft["finish"],
+                                      })
+                                    }
+                                  >
+                                    {Object.entries(FINISH_LABELS).map(([value, label]) => (
+                                      <option key={value} value={value}>
+                                        {label}
+                                      </option>
+                                    ))}
+                                  </Select>
+                                  <div className="flex items-end">
+                                    <Button
+                                      variant="ghost"
+                                      onClick={() =>
+                                        setValues((prev) => ({
+                                          ...prev,
+                                          lines: prev.lines.filter(
+                                            (l) => l.clientId !== line.clientId,
+                                          ),
+                                        }))
+                                      }
+                                    >
+                                      Remove
+                                    </Button>
+                                  </div>
+                                </div>
+                                <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                                  <Input
+                                    label="Finish details"
+                                    value={line.finishDetails}
+                                    onChange={(e) =>
+                                      setLineById(line.clientId, {
+                                        finishDetails: e.target.value,
+                                      })
+                                    }
+                                    placeholder="e.g. RAL 7016"
+                                  />
+                                  <Input
+                                    label="Description override"
+                                    value={line.description}
+                                    onChange={(e) =>
+                                      setLineById(line.clientId, {
+                                        description: e.target.value,
+                                      })
+                                    }
+                                    placeholder="Optional — shown on the quote PDF"
+                                  />
+                                </div>
+                                <div className="mt-2">
+                                  {discountControls(
+                                    line,
+                                    (patch) => setLineById(line.clientId, patch),
+                                    line.unitPrice,
+                                  )}
+                                </div>
+
+                                {line.addOns.length > 0 && (
+                                  <div className="mt-3 space-y-2 border-l-2 border-brand-100 pl-3">
+                                    <SortableContext
+                                      items={line.addOns.map((a) => a.clientId)}
+                                      strategy={verticalListSortingStrategy}
+                                    >
+                                      {line.addOns.map((addOn) => (
+                                        <SortableAddOnRow
+                                          key={addOn.clientId}
+                                          id={addOn.clientId}
+                                          boothId={line.clientId}
+                                        >
+                                          {(addOnHandle) =>
+                                            addOnFields(
+                                              addOn,
+                                              (patch) =>
+                                                setAttachedAddOn(
+                                                  line.clientId,
+                                                  addOn.clientId,
+                                                  patch,
+                                                ),
+                                              () =>
+                                                setValues((prev) => ({
+                                                  ...prev,
+                                                  lines: prev.lines.map((l) =>
+                                                    l.kind === "booth" &&
+                                                    l.clientId === line.clientId
+                                                      ? {
+                                                          ...l,
+                                                          addOns: l.addOns.filter(
+                                                            (a) =>
+                                                              a.clientId !== addOn.clientId,
+                                                          ),
+                                                        }
+                                                      : l,
+                                                  ),
+                                                })),
+                                              addOnsForBooth(line.productId, addOn.productId),
+                                              addOnHandle,
+                                            )
+                                          }
+                                        </SortableAddOnRow>
+                                      ))}
+                                    </SortableContext>
+                                  </div>
+                                )}
+
+                                <div className="mt-2 flex items-center justify-between">
+                                  <Button
+                                    variant="ghost"
+                                    onClick={() => {
+                                      const draft = newAddOnDraft(addOnsForBooth(line.productId));
+                                      if (!draft) return;
+                                      setLineById(line.clientId, {
+                                        addOns: [...line.addOns, draft],
+                                      });
+                                    }}
+                                    disabled={addOnsForBooth(line.productId).length === 0}
+                                  >
+                                    + Attach add-on
+                                  </Button>
+                                  <p className="text-right text-sm font-medium text-slate-700">
+                                    {formatMoney(
+                                      lineItemExtendedTotal(line) +
+                                        line.addOns.reduce(
+                                          (sum, addOn) => sum + lineItemExtendedTotal(addOn),
+                                          0,
+                                        ),
+                                      values.currency,
+                                    )}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
                       }
-                    >
-                      Remove
-                    </Button>
-                  </div>
-                </div>
-                <div className="mt-2">
-                  {discountControls(custom, (patch) => setCustomLine(index, patch), custom.unitPrice)}
-                </div>
-                <p className="mt-2 text-right text-sm font-medium text-slate-700">
-                  Line total: {formatMoney(lineItemExtendedTotal(custom), values.currency)}
-                </p>
-              </div>
-            ))}
+
+                      if (line.kind === "standalone") {
+                        return (
+                          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                            <div className="mb-2 flex items-center gap-2">
+                              <DragHandle
+                                attributes={handle.attributes}
+                                listeners={handle.listeners}
+                              />
+                              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                                Standalone add-on
+                              </p>
+                            </div>
+                            {addOnFields(
+                              line,
+                              (patch) => setLineById(line.clientId, patch),
+                              () =>
+                                setValues((prev) => ({
+                                  ...prev,
+                                  lines: prev.lines.filter((l) => l.clientId !== line.clientId),
+                                })),
+                            )}
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div className="rounded-lg border border-dashed border-slate-300 p-3">
+                          <div className="flex gap-2">
+                            <DragHandle
+                              attributes={handle.attributes}
+                              listeners={handle.listeners}
+                            />
+                            <div className="min-w-0 flex-1">
+                              <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500">
+                                Custom line
+                              </p>
+                              <div className="grid gap-2 sm:grid-cols-[2fr_1fr_1fr_1.5fr_auto]">
+                                <Input
+                                  label="Item"
+                                  value={line.name}
+                                  onChange={(e) =>
+                                    setLineById(line.clientId, { name: e.target.value })
+                                  }
+                                  placeholder="e.g. Crane hire, extra shipping…"
+                                  required
+                                />
+                                <Input
+                                  label="Qty"
+                                  type="number"
+                                  min={0}
+                                  value={line.quantity}
+                                  onChange={(e) =>
+                                    setLineById(line.clientId, {
+                                      quantity: Math.max(0, Number(e.target.value) || 0),
+                                    })
+                                  }
+                                />
+                                <Input
+                                  label="Unit price"
+                                  type="number"
+                                  step="0.01"
+                                  min={0}
+                                  value={line.unitPrice}
+                                  onChange={(e) =>
+                                    setLineById(line.clientId, {
+                                      unitPrice: Number(e.target.value) || 0,
+                                    })
+                                  }
+                                />
+                                <Input
+                                  label="Description"
+                                  value={line.description}
+                                  onChange={(e) =>
+                                    setLineById(line.clientId, {
+                                      description: e.target.value,
+                                    })
+                                  }
+                                  placeholder="Optional — shown on the quote PDF"
+                                />
+                                <div className="flex items-end">
+                                  <Button
+                                    variant="ghost"
+                                    onClick={() =>
+                                      setValues((prev) => ({
+                                        ...prev,
+                                        lines: prev.lines.filter(
+                                          (l) => l.clientId !== line.clientId,
+                                        ),
+                                      }))
+                                    }
+                                  >
+                                    Remove
+                                  </Button>
+                                </div>
+                              </div>
+                              <div className="mt-2">
+                                {discountControls(
+                                  line,
+                                  (patch) => setLineById(line.clientId, patch),
+                                  line.unitPrice,
+                                )}
+                              </div>
+                              <p className="mt-2 text-right text-sm font-medium text-slate-700">
+                                Line total:{" "}
+                                {formatMoney(lineItemExtendedTotal(line), values.currency)}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }}
+                  </SortableTopLine>
+                ))}
+              </SortableContext>
+            </DndContext>
 
             <QuoteTotals
               subtotal={total}

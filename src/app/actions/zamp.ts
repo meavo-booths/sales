@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireSalesAccess } from "@/lib/meavo-auth";
-import { usTaxEstimateInputSchema } from "@/lib/quote-input";
+import { quoteInputProductIds, usTaxEstimateInputSchema } from "@/lib/quote-input";
 import { isZampConfigured } from "@/lib/zamp/client";
 import {
   calculateUsTaxForDeal,
@@ -21,19 +21,6 @@ export type UsTaxEstimateResult =
   | { ok: true; taxDue: number; detail: UsTaxDetail }
   | { ok: false; error: string };
 
-function collectProductIds(input: {
-  lineItems: { productId: string; addOns: { productId: string }[] }[];
-  standaloneAddOns: { productId: string }[];
-}): string[] {
-  return [
-    ...new Set([
-      ...input.lineItems.map((item) => item.productId),
-      ...input.lineItems.flatMap((item) => item.addOns.map((addOn) => addOn.productId)),
-      ...input.standaloneAddOns.map((addOn) => addOn.productId),
-    ]),
-  ];
-}
-
 /** Live US sales tax estimate for the quote form (does not persist). */
 export async function calculateUsTaxAction(rawInput: unknown): Promise<UsTaxEstimateResult> {
   await requireSalesAccess();
@@ -50,7 +37,7 @@ export async function calculateUsTaxAction(rawInput: unknown): Promise<UsTaxEsti
     return { ok: false, error: "Sales tax estimates apply to US market quotes only" };
   }
 
-  const productsById = await loadProductTaxMeta(collectProductIds(input));
+  const productsById = await loadProductTaxMeta([...new Set(quoteInputProductIds(input))]);
   const dealForZamp = dealForZampFromQuoteInput(input, productsById);
   const outcome = await calculateUsTaxForDeal(dealForZamp);
 

@@ -92,6 +92,75 @@ export const customLineInputSchema = z
   })
   .superRefine(refineLineDiscount);
 
+/** Top-level quote line — order in this array is the display/PDF order. */
+export const boothLineInputSchema = z.object({
+  kind: z.literal("booth"),
+  productId: z.string().min(1, "Pick a product"),
+  quantity: z.coerce.number().int().min(0).max(999),
+  unitPrice: z.coerce.number().min(0).max(9_999_999),
+  finish: z.enum(["CUSTOM", "WHITE_STOCK", "BLACK_STOCK", "LDF_COLOUR"]),
+  finishDetails: z.string().trim().default(""),
+  description: z.string().trim().default(""),
+  addOns: z.array(addOnInputSchema).default([]),
+  ...lineDiscountFields,
+});
+
+export const standaloneLineInputSchema = z.object({
+  kind: z.literal("standalone"),
+  productId: z.string().min(1, "Pick an add-on"),
+  quantity: z.coerce.number().int().min(0).max(999),
+  unitPrice: z.coerce.number().min(0).max(9_999_999),
+  description: z.string().trim().default(""),
+  ...lineDiscountFields,
+});
+
+export const customQuoteLineInputSchema = z.object({
+  kind: z.literal("custom"),
+  name: z.string().trim().min(1, "Custom line item name is required").max(500),
+  quantity: z.coerce.number().int().min(0).max(999),
+  unitPrice: z.coerce.number().min(0).max(9_999_999),
+  description: z.string().trim().default(""),
+  ...lineDiscountFields,
+});
+
+export const quoteLineInputSchema = z.discriminatedUnion("kind", [
+  boothLineInputSchema,
+  standaloneLineInputSchema,
+  customQuoteLineInputSchema,
+]);
+
+export type QuoteLineInput = z.infer<typeof quoteLineInputSchema>;
+
+function refineQuoteLinesDiscounts(
+  lines: QuoteLineInput[],
+  ctx: z.RefinementCtx,
+) {
+  lines.forEach((line, i) => {
+    if (line.discountType === "PERCENT" && line.discountValue > 100) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Percentage discount cannot exceed 100%",
+        path: ["lines", i, "discountValue"],
+      });
+    }
+    if (line.discountType === "FIXED" && line.discountValue > line.unitPrice) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Fixed discount cannot exceed unit price",
+        path: ["lines", i, "discountValue"],
+      });
+    }
+  });
+}
+
+const quoteLinesField = {
+  lines: z.array(quoteLineInputSchema).default([]),
+};
+
+function refineHasLines(input: { lines: QuoteLineInput[] }) {
+  return input.lines.length > 0;
+}
+
 export const quoteInputSchema = z
   .object({
     /** Existing client to link; null means "create a new client from the fields below". */
@@ -125,15 +194,10 @@ export const quoteInputSchema = z
     paymentTerms: z.enum(["UPFRONT_100", "SPLIT_50_50", "NET_7", "NET_30"]),
     notes: z.string().trim().default(""),
     contacts: z.array(contactInputSchema).min(1, "Add at least one contact"),
-    lineItems: z.array(lineItemInputSchema).default([]),
-    standaloneAddOns: z.array(addOnInputSchema).default([]),
-    customLines: z.array(customLineInputSchema).default([]),
+    ...quoteLinesField,
   })
-  .refine(
-    (input) =>
-      input.lineItems.length + input.standaloneAddOns.length + input.customLines.length > 0,
-    { message: "Add at least one line item" },
-  )
+  .refine(refineHasLines, { message: "Add at least one line item" })
+  .superRefine((input, ctx) => refineQuoteLinesDiscounts(input.lines, ctx))
   .refine(
     (input) => {
       if (input.market.trim().toUpperCase() !== "US") return true;
@@ -174,15 +238,10 @@ export const usTaxEstimateInputSchema = z
     shipToCity: z.string().trim().max(200).default(""),
     shipToZip: z.string().trim().max(20).default(""),
     currency: z.enum(QUOTE_CURRENCIES).default("EUR"),
-    lineItems: z.array(lineItemInputSchema).default([]),
-    standaloneAddOns: z.array(addOnInputSchema).default([]),
-    customLines: z.array(customLineInputSchema).default([]),
+    ...quoteLinesField,
   })
-  .refine(
-    (input) =>
-      input.lineItems.length + input.standaloneAddOns.length + input.customLines.length > 0,
-    { message: "Add at least one line item" },
-  )
+  .refine(refineHasLines, { message: "Add at least one line item" })
+  .superRefine((input, ctx) => refineQuoteLinesDiscounts(input.lines, ctx))
   .refine(
     (input) => {
       if (input.market.trim().toUpperCase() !== "US") return true;
@@ -209,6 +268,22 @@ export const usTaxEstimateInputSchema = z
 
 export type QuoteInput = z.infer<typeof quoteInputSchema>;
 export type UsTaxEstimateInput = z.infer<typeof usTaxEstimateInputSchema>;
+
+/** Product IDs referenced by booth / add-on lines (excludes custom lines). */
+export function quoteInputProductIds(input: {
+  lines: QuoteLineInput[];
+}): string[] {
+  const ids: string[] = [];
+  for (const line of input.lines) {
+    if (line.kind === "booth") {
+      ids.push(line.productId);
+      for (const addOn of line.addOns) ids.push(addOn.productId);
+    } else if (line.kind === "standalone") {
+      ids.push(line.productId);
+    }
+  }
+  return ids;
+}
 
 export const convertInputSchema = z.object({
   skipXeroInvoice: z.boolean().default(false),

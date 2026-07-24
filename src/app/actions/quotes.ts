@@ -5,7 +5,7 @@ import { Prisma } from "@prisma/client";
 import { prisma, type PrismaTransactionClient } from "@/lib/prisma";
 import { requireSalesAccess, requireSalesAdmin } from "@/lib/meavo-auth";
 import { nextQuoteNumber } from "@/lib/quote-number";
-import { quoteInputSchema, type QuoteInput } from "@/lib/quote-input";
+import { quoteInputSchema, quoteInputProductIds, type QuoteInput } from "@/lib/quote-input";
 import { syncClientContacts } from "@/lib/client-contacts";
 import { fetchExchangeRateToEur, isQuoteCurrency } from "@/lib/exchange-rates";
 import { productMatchesAvailability } from "@/lib/product-availability";
@@ -39,11 +39,14 @@ function contactsCreate(input: QuoteInput) {
  * bypassing the form can persist incompatible add-ons).
  */
 async function validateProductKinds(input: QuoteInput): Promise<string | null> {
-  const boothIds = input.lineItems.map((item) => item.productId);
-  const addOnIds = [
-    ...input.lineItems.flatMap((item) => item.addOns.map((a) => a.productId)),
-    ...input.standaloneAddOns.map((a) => a.productId),
-  ];
+  const boothIds = input.lines
+    .filter((line) => line.kind === "booth")
+    .map((line) => line.productId);
+  const addOnIds = input.lines.flatMap((line) => {
+    if (line.kind === "booth") return line.addOns.map((a) => a.productId);
+    if (line.kind === "standalone") return [line.productId];
+    return [];
+  });
 
   const products = await prisma.product.findMany({
     where: { id: { in: [...new Set([...boothIds, ...addOnIds])] } },
@@ -68,9 +71,10 @@ async function validateProductKinds(input: QuoteInput): Promise<string | null> {
     if (product.kind !== "ADDON") return `${product.name} is not an add-on`;
   }
 
-  for (const item of input.lineItems) {
-    const booth = byId.get(item.productId);
-    for (const addOn of item.addOns) {
+  for (const line of input.lines) {
+    if (line.kind !== "booth") continue;
+    const booth = byId.get(line.productId);
+    for (const addOn of line.addOns) {
       const addOnProduct = byId.get(addOn.productId)!;
       const restricted = addOnProduct.familyRestrictions.map((r) => r.boothFamily);
       if (!addOnCompatibleWithBoothFamily(restricted, booth?.boothFamily)) {
@@ -84,13 +88,7 @@ async function validateProductKinds(input: QuoteInput): Promise<string | null> {
 async function validateProductAvailability(input: QuoteInput): Promise<string | null> {
   if (!input.market) return null;
 
-  const productIds = [
-    ...new Set([
-      ...input.lineItems.map((item) => item.productId),
-      ...input.lineItems.flatMap((item) => item.addOns.map((addOn) => addOn.productId)),
-      ...input.standaloneAddOns.map((addOn) => addOn.productId),
-    ]),
-  ];
+  const productIds = [...new Set(quoteInputProductIds(input))];
   if (productIds.length === 0) return null;
 
   const products = await prisma.product.findMany({
@@ -172,7 +170,7 @@ async function resolveClientId(tx: Tx, input: QuoteInput): Promise<string> {
   return clientId;
 }
 
-/** Creates booth lines, their attached add-ons, then standalone add-ons. */
+/** Creates line items in form order; attached add-ons follow their parent booth. */
 async function createLineItems(
   tx: Tx,
   dealId: string,
@@ -181,64 +179,66 @@ async function createLineItems(
 ): Promise<void> {
   let sortOrder = 0;
 
-  for (const item of input.lineItems) {
-    const parent = await tx.quoteLineItem.create({
-      data: {
-        dealId,
-        productId: item.productId,
-        quantity: item.quantity,
-        unitPrice: new Prisma.Decimal(item.unitPrice.toFixed(2)),
-        unitPriceEur: unitPriceEurValue(netUnitPrice(item), exchangeRateToEur),
-        finish: item.finish,
-        finishDetails: item.finishDetails,
-        description: item.description,
-        sortOrder: sortOrder++,
-        ...lineDiscountData(item),
-      },
-    });
-    for (const addOn of item.addOns) {
+  for (const line of input.lines) {
+    if (line.kind === "booth") {
+      const parent = await tx.quoteLineItem.create({
+        data: {
+          dealId,
+          productId: line.productId,
+          quantity: line.quantity,
+          unitPrice: new Prisma.Decimal(line.unitPrice.toFixed(2)),
+          unitPriceEur: unitPriceEurValue(netUnitPrice(line), exchangeRateToEur),
+          finish: line.finish,
+          finishDetails: line.finishDetails,
+          description: line.description,
+          sortOrder: sortOrder++,
+          ...lineDiscountData(line),
+        },
+      });
+      for (const addOn of line.addOns) {
+        await tx.quoteLineItem.create({
+          data: {
+            dealId,
+            productId: addOn.productId,
+            quantity: addOn.quantity,
+            unitPrice: new Prisma.Decimal(addOn.unitPrice.toFixed(2)),
+            unitPriceEur: unitPriceEurValue(netUnitPrice(addOn), exchangeRateToEur),
+            description: addOn.description,
+            sortOrder: sortOrder++,
+            parentLineItemId: parent.id,
+            ...lineDiscountData(addOn),
+          },
+        });
+      }
+      continue;
+    }
+
+    if (line.kind === "standalone") {
       await tx.quoteLineItem.create({
         data: {
           dealId,
-          productId: addOn.productId,
-          quantity: addOn.quantity,
-          unitPrice: new Prisma.Decimal(addOn.unitPrice.toFixed(2)),
-          unitPriceEur: unitPriceEurValue(netUnitPrice(addOn), exchangeRateToEur),
-          description: addOn.description,
+          productId: line.productId,
+          quantity: line.quantity,
+          unitPrice: new Prisma.Decimal(line.unitPrice.toFixed(2)),
+          unitPriceEur: unitPriceEurValue(netUnitPrice(line), exchangeRateToEur),
+          description: line.description,
           sortOrder: sortOrder++,
-          parentLineItemId: parent.id,
-          ...lineDiscountData(addOn),
+          ...lineDiscountData(line),
         },
       });
+      continue;
     }
-  }
 
-  for (const addOn of input.standaloneAddOns) {
     await tx.quoteLineItem.create({
       data: {
         dealId,
-        productId: addOn.productId,
-        quantity: addOn.quantity,
-        unitPrice: new Prisma.Decimal(addOn.unitPrice.toFixed(2)),
-        unitPriceEur: unitPriceEurValue(netUnitPrice(addOn), exchangeRateToEur),
-        description: addOn.description,
+        customName: line.name,
+        quantity: line.quantity,
+        unitPrice: new Prisma.Decimal(line.unitPrice.toFixed(2)),
+        unitPriceEur: unitPriceEurValue(netUnitPrice(line), exchangeRateToEur),
+        description: line.description,
         sortOrder: sortOrder++,
-        ...lineDiscountData(addOn),
-      },
-    });
-  }
-
-  for (const custom of input.customLines) {
-    await tx.quoteLineItem.create({
-      data: {
-        dealId,
-        customName: custom.name,
-        quantity: custom.quantity,
-        unitPrice: new Prisma.Decimal(custom.unitPrice.toFixed(2)),
-        unitPriceEur: unitPriceEurValue(netUnitPrice(custom), exchangeRateToEur),
-        description: custom.description,
-        sortOrder: sortOrder++,
-        ...lineDiscountData(custom),
+        ...lineDiscountData(line),
       },
     });
   }

@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { QuoteInput, UsTaxEstimateInput } from "@/lib/quote-input";
+import { quoteInputProductIds } from "@/lib/quote-input";
 import { lineItemEffectiveUnitPrice } from "@/lib/line-item-pricing";
 import { dealSubtotal } from "@/lib/vat";
 import { zampCalculate } from "@/lib/zamp/client";
@@ -208,46 +209,48 @@ export function flattenQuoteInputLines(
   };
 
   const lines: LineForZamp[] = [];
-  for (const item of input.lineItems) {
-    lines.push(
-      productLine(
-        item.productId,
-        item.quantity,
-        item.unitPrice,
-        item.discountType,
-        item.discountValue,
-      ),
-    );
-    for (const addOn of item.addOns) {
+  for (const line of input.lines) {
+    if (line.kind === "booth") {
       lines.push(
         productLine(
-          addOn.productId,
-          addOn.quantity,
-          addOn.unitPrice,
-          addOn.discountType,
-          addOn.discountValue,
+          line.productId,
+          line.quantity,
+          line.unitPrice,
+          line.discountType,
+          line.discountValue,
         ),
       );
+      for (const addOn of line.addOns) {
+        lines.push(
+          productLine(
+            addOn.productId,
+            addOn.quantity,
+            addOn.unitPrice,
+            addOn.discountType,
+            addOn.discountValue,
+          ),
+        );
+      }
+      continue;
     }
-  }
-  for (const addOn of input.standaloneAddOns) {
-    lines.push(
-      productLine(
-        addOn.productId,
-        addOn.quantity,
-        addOn.unitPrice,
-        addOn.discountType,
-        addOn.discountValue,
-      ),
-    );
-  }
-  for (const custom of input.customLines) {
+    if (line.kind === "standalone") {
+      lines.push(
+        productLine(
+          line.productId,
+          line.quantity,
+          line.unitPrice,
+          line.discountType,
+          line.discountValue,
+        ),
+      );
+      continue;
+    }
     lines.push({
-      quantity: custom.quantity,
-      unitPrice: custom.unitPrice,
-      discountType: custom.discountType,
-      discountValue: custom.discountValue,
-      customName: custom.name,
+      quantity: line.quantity,
+      unitPrice: line.unitPrice,
+      discountType: line.discountType,
+      discountValue: line.discountValue,
+      customName: line.name,
       product: null,
     });
   }
@@ -299,13 +302,7 @@ export async function loadProductTaxMeta(
 }
 
 function collectProductIds(input: UsTaxEstimateInput): string[] {
-  return [
-    ...new Set([
-      ...input.lineItems.map((item) => item.productId),
-      ...input.lineItems.flatMap((item) => item.addOns.map((addOn) => addOn.productId)),
-      ...input.standaloneAddOns.map((addOn) => addOn.productId),
-    ]),
-  ];
+  return [...new Set(quoteInputProductIds(input))];
 }
 
 export async function resolveUsTaxForQuoteInput(

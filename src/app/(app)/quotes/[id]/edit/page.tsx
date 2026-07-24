@@ -4,7 +4,7 @@ import { requireSalesAccess } from "@/lib/meavo-auth";
 import { parseProductCurrency } from "@/lib/exchange-rates";
 import { persistedUsTaxAmount } from "@/lib/zamp/calculate-tax";
 import { PageHeader } from "@/components/ui";
-import { QuoteForm, type QuoteFormValues } from "@/components/quote-form";
+import { QuoteForm, type QuoteFormValues, type QuoteLineDraft } from "@/components/quote-form";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +12,10 @@ const productInclude = {
   familyRestrictions: { select: { boothFamily: true } },
   availability: { select: { market: true, clientType: true } },
 } as const;
+
+function newClientId(): string {
+  return crypto.randomUUID();
+}
 
 export default async function EditQuotePage({ params }: { params: Promise<{ id: string }> }) {
   await requireSalesAccess();
@@ -36,9 +40,56 @@ export default async function EditQuotePage({ params }: { params: Promise<{ id: 
     include: productInclude,
   });
 
-  const boothLines = quote.lineItems.filter((li) => li.product?.kind === "BOOTH");
-  const addOnLines = quote.lineItems.filter((li) => li.product?.kind === "ADDON");
-  const customLines = quote.lineItems.filter((li) => !li.productId);
+  const topLevel = quote.lineItems.filter((li) => !li.parentLineItemId);
+  const lines: QuoteLineDraft[] = topLevel.map((li) => {
+    if (!li.productId) {
+      return {
+        clientId: newClientId(),
+        kind: "custom" as const,
+        name: li.customName,
+        quantity: li.quantity,
+        unitPrice: Number(li.unitPrice),
+        description: li.description,
+        discountType: li.discountType,
+        discountValue: Number(li.discountValue),
+      };
+    }
+    if (li.product?.kind === "ADDON") {
+      return {
+        clientId: newClientId(),
+        kind: "standalone" as const,
+        productId: li.productId,
+        quantity: li.quantity,
+        unitPrice: Number(li.unitPrice),
+        description: li.description,
+        discountType: li.discountType,
+        discountValue: Number(li.discountValue),
+      };
+    }
+    return {
+      clientId: newClientId(),
+      kind: "booth" as const,
+      productId: li.productId,
+      quantity: li.quantity,
+      unitPrice: Number(li.unitPrice),
+      finish: li.finish,
+      finishDetails: li.finishDetails,
+      description: li.description,
+      discountType: li.discountType,
+      discountValue: Number(li.discountValue),
+      addOns: quote.lineItems
+        .filter((addOn) => addOn.parentLineItemId === li.id)
+        .map((addOn) => ({
+          clientId: newClientId(),
+          productId: addOn.productId!,
+          quantity: addOn.quantity,
+          unitPrice: Number(addOn.unitPrice),
+          description: addOn.description,
+          discountType: addOn.discountType,
+          discountValue: Number(addOn.discountValue),
+        })),
+    };
+  });
 
   const initialValues: QuoteFormValues = {
     clientId: quote.clientId,
@@ -72,44 +123,7 @@ export default async function EditQuotePage({ params }: { params: Promise<{ id: 
       phone: c.phone,
       role: c.role,
     })),
-    lineItems: boothLines.map((li) => ({
-      productId: li.productId!,
-      quantity: li.quantity,
-      unitPrice: Number(li.unitPrice),
-      finish: li.finish,
-      finishDetails: li.finishDetails,
-      description: li.description,
-      discountType: li.discountType,
-      discountValue: Number(li.discountValue),
-      addOns: addOnLines
-        .filter((addOn) => addOn.parentLineItemId === li.id)
-        .map((addOn) => ({
-          productId: addOn.productId!,
-          quantity: addOn.quantity,
-          unitPrice: Number(addOn.unitPrice),
-          description: addOn.description,
-          discountType: addOn.discountType,
-          discountValue: Number(addOn.discountValue),
-        })),
-    })),
-    standaloneAddOns: addOnLines
-      .filter((addOn) => !addOn.parentLineItemId)
-      .map((addOn) => ({
-        productId: addOn.productId!,
-        quantity: addOn.quantity,
-        unitPrice: Number(addOn.unitPrice),
-        description: addOn.description,
-        discountType: addOn.discountType,
-        discountValue: Number(addOn.discountValue),
-      })),
-    customLines: customLines.map((li) => ({
-      name: li.customName,
-      quantity: li.quantity,
-      unitPrice: Number(li.unitPrice),
-      description: li.description,
-      discountType: li.discountType,
-      discountValue: Number(li.discountValue),
-    })),
+    lines,
   };
 
   const quoteProductIds = [

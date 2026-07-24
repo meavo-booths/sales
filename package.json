@@ -16,6 +16,9 @@
     "schema": "node_modules/@meavo/db/prisma/schema.prisma"
   },
   "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
     "@meavo/db": "github:meavo-booths/meavo-db#v0.23.0",
     "@meavo/navigation": "github:meavo-booths/meavo-navigation#v0.2.1",
     "@prisma/client": "^6.19.3",
